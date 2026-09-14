@@ -126,9 +126,14 @@ PostgreSQL 集成测试均有成功记录；不进行付费模型调用。
 
 当前状态：**Phase 0 尚未完成**。必须关闭以下环境项：
 
-- 安装 Xcode 26 或更高版本，并用 `xcode-select` 选择完整 Xcode。当前只选择了
-  `/Library/Developer/CommandLineTools`，`xcodebuild` 不可用，而且 Command Line
-  Tools 内的 Swift 编译器与 macOS SDK build 版本不一致，`swift test` 无法编译。
+- Xcode 环境已于 2026-09-14 关闭：已安装 Xcode 26.6（17F113），`xcode-select`
+  指向 `/Applications/Xcode.app/Contents/Developer`，已接受许可并完成 first launch；
+  Swift 6.3.3 的 70 项测试全部通过，iOS 26.5 Simulator runtime 已安装，generic
+  Simulator build 成功。
+- iPhone 17 UI 测试仍需关闭：测试目标可编译、签名、安装并启动，但 Mural 在进入
+  SwiftUI 前稳定白屏；进程采样显示 dyld 阻塞于加载动态依赖的 `open` 调用。关闭
+  `CODE_SIGNING_ALLOWED=NO`、使用 `Sign to Run Locally` 并冷启动模拟器后仍可复现，
+  因此需要继续检查 WebRTC 152.0.0 与 Xcode 26.6 / iOS 26.5 Simulator 的加载兼容性。
 - 准备隔离的 PostgreSQL 测试实例并设置 `TEST_DATABASE_URL`。当前本机没有 Docker、
   PostgreSQL、Podman 或 Colima，因此 Mural Server 的 52 项数据库集成测试会跳过。
 
@@ -300,7 +305,9 @@ MODEL_GATEWAY_CONTRACT_VERSION=...
 - Model Gateway：`main`，提交 `13a33c4`，与 `origin/main` 同步且干净。
 - Model Gateway：Ruff 通过；251 项非 Metal 测试通过，Metal 测试也已在沙箱外通过。
 - Model Gateway：已有 `.venv` 和 `.env`，已有进程监听 8000；未读取或输出密钥。
-- Mural iOS：Phase 0 未完成；需要安装/选择完整 Xcode 后完成 Swift 和 Simulator 基线。
+- Mural iOS：Xcode 26.6、Swift 6.3.3、iOS 26.5 Simulator runtime 已就绪；70 项
+  Swift 测试和 generic Simulator build 通过。iPhone 17 UI 测试仍因启动阶段 dyld
+  加载 WebRTC 时白屏而未完成。
 - Mural Server：Phase 0 未完成；需要 PostgreSQL 测试实例后运行当前跳过的 52 项集成测试。
 
 Phase 1 已在隔离分支完成首轮实现：
