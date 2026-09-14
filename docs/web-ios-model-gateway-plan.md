@@ -121,7 +121,19 @@ mural.assessment.default
 - 安装并选择完整 Xcode 后，跑通 `swift test` 和 iOS Simulator。
 - 准备本地环境变量模板，所有真实密钥只放未提交的 `.env` 或 Keychain。
 
-验收：两个仓库除已记录的环境限制外测试通过；不进行付费模型调用。
+验收：两个仓库的离线测试全部通过；`swift test`、iOS Simulator build/test 和
+PostgreSQL 集成测试均有成功记录；不进行付费模型调用。
+
+当前状态：**Phase 0 尚未完成**。必须关闭以下环境项：
+
+- 安装 Xcode 26 或更高版本，并用 `xcode-select` 选择完整 Xcode。当前只选择了
+  `/Library/Developer/CommandLineTools`，`xcodebuild` 不可用，而且 Command Line
+  Tools 内的 Swift 编译器与 macOS SDK build 版本不一致，`swift test` 无法编译。
+- 准备隔离的 PostgreSQL 测试实例并设置 `TEST_DATABASE_URL`。当前本机没有 Docker、
+  PostgreSQL、Podman 或 Colima，因此 Mural Server 的 52 项数据库集成测试会跳过。
+
+Model Gateway 的 Metal 测试不是待修项目问题：它在 Codex 沙箱内无 GPU 权限，但同一
+测试在沙箱外已经通过。
 
 ### Phase 1：先定义跨仓库契约
 
@@ -283,12 +295,13 @@ MODEL_GATEWAY_CONTRACT_VERSION=...
 截至 2026-09-14：
 
 - Mural：`main`，当前工作区在制定本计划前为干净状态。
-- Mural Server：TypeScript 类型检查通过；79 项测试中 27 项通过、52 项因未配置
+- Mural Server：TypeScript 类型检查通过；82 项测试中 30 项通过、52 项因未配置
   `TEST_DATABASE_URL` 按设计跳过、0 项失败。
 - Model Gateway：`main`，提交 `13a33c4`，与 `origin/main` 同步且干净。
-- Model Gateway：Ruff 通过；测试 239 通过、1 项因 Codex 沙箱无 Metal 失败。
+- Model Gateway：Ruff 通过；251 项非 Metal 测试通过，Metal 测试也已在沙箱外通过。
 - Model Gateway：已有 `.venv` 和 `.env`，已有进程监听 8000；未读取或输出密钥。
-- Mural iOS：需要安装/选择完整 Xcode 后才能完成本机原生基线。
+- Mural iOS：Phase 0 未完成；需要安装/选择完整 Xcode 后完成 Swift 和 Simulator 基线。
+- Mural Server：Phase 0 未完成；需要 PostgreSQL 测试实例后运行当前跳过的 52 项集成测试。
 
 Phase 1 已在隔离分支完成首轮实现：
 
