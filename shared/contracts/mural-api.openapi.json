@@ -1,0 +1,676 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Mural Public API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/v1/live/sessions": {
+      "post": {
+        "operationId": "createLiveSession",
+        "summary": "Create a Mural Live WebRTC session",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveSessionCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Live session created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/live/sessions/{sessionID}": {
+      "get": {
+        "operationId": "getLiveSession",
+        "summary": "Get the authenticated user's Live session status",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current session status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSessionStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/live/sessions/{sessionID}/close": {
+      "post": {
+        "operationId": "closeLiveSession",
+        "summary": "Request an authenticated user's Live session to close",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Close request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSessionStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/model-tasks": {
+      "post": {
+        "operationId": "createModelTask",
+        "summary": "Execute a server-owned Mural language-learning task",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelTaskResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "SessionID": {
+        "name": "sessionID",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Safe error response",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            }
+          }
+        }
+      },
+      "LiveSessionCreateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "language",
+          "transport"
+        ],
+        "properties": {
+          "language": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16
+          },
+          "transport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "sdp"
+            ],
+            "properties": {
+              "type": {
+                "const": "webrtc"
+              },
+              "sdp": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 65536
+              }
+            }
+          }
+        }
+      },
+      "LiveSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sessionID",
+          "state",
+          "transport",
+          "deadline"
+        ],
+        "properties": {
+          "sessionID": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "const": "active"
+          },
+          "transport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "sdp"
+            ],
+            "properties": {
+              "type": {
+                "const": "webrtc"
+              },
+              "sdp": {
+                "type": "string",
+                "minLength": 3
+              }
+            }
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LiveSessionStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sessionID",
+          "state"
+        ],
+        "properties": {
+          "sessionID": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "creating",
+              "active",
+              "closing",
+              "closed",
+              "incomplete"
+            ]
+          },
+          "deadline": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "TranslationTask": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "text",
+          "targetLanguage"
+        ],
+        "properties": {
+          "kind": {
+            "const": "translation"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "sourceLanguage": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 16
+          },
+          "targetLanguage": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16
+          }
+        }
+      },
+      "AssessmentTask": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "sessionID",
+          "passageID"
+        ],
+        "properties": {
+          "kind": {
+            "const": "assessment"
+          },
+          "sessionID": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "passageID": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "TeachingReplyTask": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "sessionID",
+          "text"
+        ],
+        "properties": {
+          "kind": {
+            "const": "teachingReply"
+          },
+          "sessionID": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        }
+      },
+      "TopicSearchTask": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "query",
+          "language"
+        ],
+        "properties": {
+          "kind": {
+            "const": "topicSearch"
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "language": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16
+          }
+        }
+      },
+      "ModelTaskRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TranslationTask"
+          },
+          {
+            "$ref": "#/components/schemas/AssessmentTask"
+          },
+          {
+            "$ref": "#/components/schemas/TeachingReplyTask"
+          },
+          {
+            "$ref": "#/components/schemas/TopicSearchTask"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind"
+        }
+      },
+      "TaskUsage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "searchCalls"
+        ],
+        "properties": {
+          "inputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "searchCalls": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "SourceLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "url"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048
+          }
+        }
+      },
+      "TextTaskResultBase": {
+        "type": "object",
+        "required": [
+          "text",
+          "sources",
+          "usage"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceLink"
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TaskUsage"
+          }
+        }
+      },
+      "TranslationTaskResult": {
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TextTaskResultBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "translation"
+              }
+            }
+          }
+        ]
+      },
+      "TeachingReplyTaskResult": {
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TextTaskResultBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "teachingReply"
+              }
+            }
+          }
+        ]
+      },
+      "TopicSearchTaskResult": {
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TextTaskResultBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "topicSearch"
+              }
+            }
+          }
+        ]
+      },
+      "AssessmentResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "outcome",
+          "suggestedLevel",
+          "nextGoal",
+          "capability",
+          "words",
+          "usage"
+        ],
+        "properties": {
+          "kind": {
+            "const": "assessment"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "success",
+              "partial",
+              "breakdown",
+              "uncertain"
+            ]
+          },
+          "suggestedLevel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "nextGoal": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "words": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "lemma",
+                "meaning",
+                "form",
+                "quote",
+                "language",
+                "kind",
+                "confidence",
+                "sourceIDs"
+              ],
+              "properties": {
+                "lemma": {
+                  "type": "string"
+                },
+                "meaning": {
+                  "type": "string"
+                },
+                "form": {
+                  "type": "string"
+                },
+                "quote": {
+                  "type": "string"
+                },
+                "language": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "exposure",
+                    "understanding",
+                    "assisted",
+                    "independent",
+                    "lapse"
+                  ]
+                },
+                "confidence": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "sourceIDs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TaskUsage"
+          }
+        }
+      },
+      "ModelTaskResult": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TranslationTaskResult"
+          },
+          {
+            "$ref": "#/components/schemas/TeachingReplyTaskResult"
+          },
+          {
+            "$ref": "#/components/schemas/TopicSearchTaskResult"
+          },
+          {
+            "$ref": "#/components/schemas/AssessmentResult"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "translation": "#/components/schemas/TranslationTaskResult",
+            "teachingReply": "#/components/schemas/TeachingReplyTaskResult",
+            "topicSearch": "#/components/schemas/TopicSearchTaskResult",
+            "assessment": "#/components/schemas/AssessmentResult"
+          }
+        }
+      }
+    }
+  }
+}

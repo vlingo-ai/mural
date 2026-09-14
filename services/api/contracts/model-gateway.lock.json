@@ -1,0 +1,21 @@
+{
+  "protocol": "vlingo.model-gateway",
+  "protocolVersion": "1.0",
+  "requiredHTTPPaths": [
+    "/v1/capabilities",
+    "/v1/live/sessions",
+    "/v1/responses"
+  ],
+  "requiredSchemas": [
+    "GatewayResponse",
+    "GatewayResponseRequest",
+    "LiveSessionCreateRequest",
+    "LiveSessionResponse",
+    "ModelGatewayCapabilities",
+    "TokenUsage"
+  ],
+  "requiredSidebandSchemas": [
+    "events/live-client-commands.v1.schema.json",
+    "events/live-server-events.v1.schema.json"
+  ]
+}
