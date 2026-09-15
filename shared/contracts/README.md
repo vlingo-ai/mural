@@ -4,7 +4,7 @@ This directory owns the API consumed by Mural Web, iOS and Android. It is delibe
 product contract rather than a model-provider contract.
 
 - Clients send product intent, such as `translation` or `assessment`.
-- Mural Server owns prompts, model aliases, provider routing, quotas, and persistence.
+- Mural API owns prompts, model aliases, provider routing, quotas, and persistence.
 - Provider credentials, provider session IDs, raw provider events, and billing internals
   never appear in this contract.
 - `mural-api.openapi.json` is the source used to generate Web, iOS and Android DTOs in a later phase.

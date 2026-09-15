@@ -5,6 +5,7 @@ on:
     paths: ['apps/android/**', 'shared/fixtures/**', 'release/android/**', 'scripts/export_android_content.py', 'scripts/check_android_release.py', 'scripts/tests/test_check_android_release.py', '.github/workflows/android.yml']
   pull_request:
     paths: ['apps/android/**', 'shared/fixtures/**', 'release/android/**', 'scripts/export_android_content.py', 'scripts/check_android_release.py', 'scripts/tests/test_check_android_release.py', '.github/workflows/android.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:

@@ -1,0 +1,67 @@
+name: Upstream sync
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sync-main
+  cancel-in-progress: false
+
+jobs:
+  propose-sync:
+    if: github.repository == 'vlingo-ai/mural'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/Chuloo/mural.git
+          git fetch upstream main --prune
+      - name: Prepare sync branch
+        id: sync
+        run: |
+          upstream_sha="$(git rev-parse upstream/main)"
+          if git merge-base --is-ancestor "$upstream_sha" origin/main; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          branch="sync/upstream-${upstream_sha:0:12}"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git switch -c "$branch" origin/main
+          git merge --no-edit upstream/main
+          git push origin "$branch"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+      - name: Open sync pull request
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SYNC_BRANCH: ${{ steps.sync.outputs.branch }}
+          UPSTREAM_SHA: ${{ steps.sync.outputs.upstream_sha }}
+        run: |
+          if gh pr list --base main --head "$SYNC_BRANCH" --state open --json number --jq 'length' | grep -qx 0; then
+            gh pr create --base main --head "$SYNC_BRANCH" \
+              --title "chore: sync Chuloo/mural upstream" \
+              --body "Automated upstream sync through ${UPSTREAM_SHA}. Merge only after required Mural checks pass. Conflicts are never resolved automatically."
+          fi
+      - name: Dispatch required checks for the sync head
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SYNC_BRANCH: ${{ steps.sync.outputs.branch }}
+        run: |
+          gh workflow run checks.yml --ref "$SYNC_BRANCH"
+          gh workflow run contracts.yml --ref "$SYNC_BRANCH"
+          gh workflow run android.yml --ref "$SYNC_BRANCH"
