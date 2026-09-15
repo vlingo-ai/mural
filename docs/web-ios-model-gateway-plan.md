@@ -124,18 +124,20 @@ mural.assessment.default
 验收：两个仓库的离线测试全部通过；`swift test`、iOS Simulator build/test 和
 PostgreSQL 集成测试均有成功记录；不进行付费模型调用。
 
-当前状态：**Phase 0 尚未完成**。必须关闭以下环境项：
+当前状态：**Phase 0 已于 2026-09-15 完成**。验收记录：
 
 - Xcode 环境已于 2026-09-14 关闭：已安装 Xcode 26.6（17F113），`xcode-select`
   指向 `/Applications/Xcode.app/Contents/Developer`，已接受许可并完成 first launch；
   Swift 6.3.3 的 70 项测试全部通过，iOS 26.5 Simulator runtime 已安装，generic
   Simulator build 成功。
-- iPhone 17 UI 测试仍需关闭：测试目标可编译、签名、安装并启动，但 Mural 在进入
-  SwiftUI 前稳定白屏；进程采样显示 dyld 阻塞于加载动态依赖的 `open` 调用。关闭
-  `CODE_SIGNING_ALLOWED=NO`、使用 `Sign to Run Locally` 并冷启动模拟器后仍可复现，
-  因此需要继续检查 WebRTC 152.0.0 与 Xcode 26.6 / iOS 26.5 Simulator 的加载兼容性。
-- 准备隔离的 PostgreSQL 测试实例并设置 `TEST_DATABASE_URL`。当前本机没有 Docker、
-  PostgreSQL、Podman 或 Colima，因此 Mural Server 的 52 项数据库集成测试会跳过。
+- iPhone 17 / iOS 26.5 Simulator 的完整 UI 套件使用本地签名构建通过：20 项通过、
+  0 项失败。此前白屏现象与首次加载 Xcode runtime 和 WebRTC 动态依赖时的系统安全
+  扫描延迟一致；手动启动完成后未再复现，当前没有 Mural 或 WebRTC 兼容性缺陷证据。
+- 已安装 PostgreSQL 17.11，并使用仅监听 `127.0.0.1:55434` 的一次性隔离实例和
+  `mural_billing_test` 数据库完成 Mural Server 全量测试：82 项通过、0 项跳过、
+  0 项失败。测试后实例已停止；未启用 Homebrew 常驻服务。
+- Mural Server TypeScript 类型检查通过；与 Model Gateway 隔离 worktree 的
+  `vlingo.model-gateway@1.0` 跨仓库契约检查通过。
 
 Model Gateway 的 Metal 测试不是待修项目问题：它在 Codex 沙箱内无 GPU 权限，但同一
 测试在沙箱外已经通过。
@@ -297,18 +299,17 @@ MODEL_GATEWAY_CONTRACT_VERSION=...
 
 ## 8. 当前基线与下一步
 
-截至 2026-09-14：
+截至 2026-09-15：
 
 - Mural：`main`，当前工作区在制定本计划前为干净状态。
-- Mural Server：TypeScript 类型检查通过；82 项测试中 30 项通过、52 项因未配置
-  `TEST_DATABASE_URL` 按设计跳过、0 项失败。
+- Mural Server：TypeScript 类型检查通过；PostgreSQL 17.11 隔离实例下 82 项测试
+  全部通过、0 项跳过、0 项失败；跨仓库 Gateway 契约检查通过。
 - Model Gateway：`main`，提交 `13a33c4`，与 `origin/main` 同步且干净。
 - Model Gateway：Ruff 通过；251 项非 Metal 测试通过，Metal 测试也已在沙箱外通过。
 - Model Gateway：已有 `.venv` 和 `.env`，已有进程监听 8000；未读取或输出密钥。
 - Mural iOS：Xcode 26.6、Swift 6.3.3、iOS 26.5 Simulator runtime 已就绪；70 项
-  Swift 测试和 generic Simulator build 通过。iPhone 17 UI 测试仍因启动阶段 dyld
-  加载 WebRTC 时白屏而未完成。
-- Mural Server：Phase 0 未完成；需要 PostgreSQL 测试实例后运行当前跳过的 52 项集成测试。
+  Swift 测试、generic Simulator build 和 iPhone 17 的 20 项 UI 测试全部通过。
+- Phase 0 已完成；未进行付费模型调用。此前残留的 App Store `mas install` 进程已结束。
 
 Phase 1 已在隔离分支完成首轮实现：
 
