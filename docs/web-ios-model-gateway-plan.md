@@ -14,7 +14,7 @@ Model Gateway 是独立仓库，负责所有模型供应商接入和路由；Mur
 ```text
 /Volumes/Kingston/MyProj/vlingo-ai/mural
 /Volumes/Kingston/DeepTutor/model-gateway
-/Volumes/Kingston/DeepTutor/model-gateway-phase-1-contracts
+/Volumes/Kingston/DeepTutor/model-gateway-phase-1-contracts  # 隔离 worktree，当前 Phase 2 分支
 ```
 
 两个仓库在逻辑、版本和部署上同级，不要求位于同一个本机父目录。
@@ -368,5 +368,20 @@ Phase 1 已在隔离分支完成首轮实现：
 - 最新 monorepo 引入 `apps/android/`、`apps/ios/`、`services/api/` 和
   `shared/contracts/`；2026-09-15 已完成 Phase 1 文件迁移和最新基线全量复验。
 
-下一实施批次是 Phase 2：实现第一个真实 OpenAI Responses provider adapter，并用
-fake HTTP upstream、严格限额和显式环境开关验证后，再进行一次用户授权的付费 smoke test。
+Phase 2 的离线实现已提交到 Model Gateway 的 `codex/phase-2-openai-responses`
+（`41a2b2f`）：
+
+- 增加 OpenAI Responses provider adapter；四个 Mural 逻辑模型分别由环境变量映射，
+  不在代码中固定供应商模型 ID。
+- provider 默认关闭；只有显式配置 `GATEWAY_MODEL_PROVIDER=openai`、服务端
+  `OPENAI_API_KEY` 和至少一个模型映射时才启用。
+- 支持文本、JSON Schema、reasoning、Web Search、标准化 usage、实际供应商模型和
+  finish reason；Live 仍 fail closed，留给 Phase 3。
+- 转发 `Idempotency-Key` 和 `X-Client-Request-Id`，创建结果未知时不自动重试；
+  供应商错误不透传密钥或原始内容。
+- 强制输入、输出 token、工具调用、并发和等待队列上限；超限在调用供应商前拒绝。
+- Ruff/format 通过；261 项非 Metal 全量回归通过，唯一排除项仍是已记录的沙箱
+  Metal 设备测试；Mural 跨仓库契约检查继续通过。
+
+下一门禁是一次用户明确授权、设定模型与费用上限的真实 OpenAI smoke test。通过后
+再发布 Model Gateway 分支/版本并开始 Phase 3 Live adapter；在授权前不会产生付费调用。
