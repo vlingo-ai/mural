@@ -112,10 +112,7 @@ jobs:
             mkdir -p build/device-diagnostics
             adb logcat -c
             adb logcat -v threadtime > build/device-diagnostics/logcat.txt &
-            ./gradlew --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process \
-              -Pandroid.testInstrumentationRunnerArguments.numShards=${{ strategy.job-total }} \
-              -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }} \
-              :app:connectedUiTestAndroidTest
+            ./gradlew --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -Pandroid.testInstrumentationRunnerArguments.numShards=${{ strategy.job-total }} -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }} :app:connectedUiTestAndroidTest
       - name: Collect runner diagnostics
         if: always()
         run: |
