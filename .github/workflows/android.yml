@@ -94,7 +94,10 @@ jobs:
       - name: Run native interface and compatibility checks
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
-          api-level: 36
+          # Compile against Android 36 above, but exercise the UI suite on the latest stable
+          # runner image. The API 36 emulator process has repeatedly exited without a guest or
+          # host OOM and without a crash stack, including after the suite was split four ways.
+          api-level: 35
           # The interface suite uses offline fakes and does not need Play services. The smaller
           # image avoids unrelated GMS background churn destabilizing the headless runner.
           target: default
@@ -102,10 +105,8 @@ jobs:
           profile: pixel_6
           ram-size: 4096M
           disable-animations: true
-          # Emulator 37.1.11 repeatedly exited after a ColorBuffer error on both GMS and
-          # default images. Keep software GLES, disable the unused Vulkan path, and shard the
-          # complete suite to keep each process below the observed crash window; every shard
-          # remains required, so no interface coverage is skipped.
+          # Keep software GLES, disable the unused Vulkan path, and shard the complete suite;
+          # every shard remains required, so no interface coverage is skipped.
           emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader -feature -Vulkan
           working-directory: apps/android
           script: |
