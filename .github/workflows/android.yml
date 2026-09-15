@@ -90,7 +90,9 @@ jobs:
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 36
-          target: google_apis
+          # The interface suite uses offline fakes and does not need Play services. The smaller
+          # image avoids unrelated GMS background churn destabilizing the headless runner.
+          target: default
           arch: x86_64
           profile: pixel_6
           ram-size: 4096M
