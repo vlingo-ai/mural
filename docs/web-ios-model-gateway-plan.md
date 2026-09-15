@@ -518,3 +518,9 @@ credential；Live 与 Responses 共用目标、鉴权和超时边界；连续三
 `429` 或 `5xx` 可用性故障后开路 15 秒，再只允许一个恢复探针。客户端主动取消不计入
 故障，模型创建仍不做自动重试。新增聚焦测试后，无数据库全量 364 项中 92 项通过、
 272 项按预期因缺少测试数据库跳过。
+
+Phase 4 的无付费端到端路径也已通过：真实 Mural HTTP 路由、Bearer 鉴权、分钟账本、
+Live/Helper 控制器和两个 Gateway adapter 连接本地 fake HTTP/WebSocket Gateway；验证
+`mural.live.default` 与 `mural.translation.fast` 的路由、公开响应不泄露内部 session ID，
+以及可信 usage 回写。PostgreSQL 17.11 全量 365 项测试全部通过、0 跳过、0 失败；一次性
+实例仅监听 `127.0.0.1:55435`，验证后已停止并删除临时数据目录，未调用付费模型。

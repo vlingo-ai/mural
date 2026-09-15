@@ -119,6 +119,11 @@ A PostgreSQL advisory lock permits one controller. On restart it reattaches save
 
 The sideband adapter discards audio, transcripts, and session snapshots before the accounting callback. Only identifiers, duration, money, state, and fixed reason codes reach PostgreSQL. Live uses fixed application delegation; model-initiated delegation is not funded by this experiment. Hosted helpers use their separate server-owned budgets, request limits and one-shot transport.
 
+`tests/model-gateway-e2e.test.ts` exercises the complete public Mural HTTP path against a local
+fake Gateway and PostgreSQL without provider credentials or paid model calls. It covers shared
+health, Live WebRTC negotiation metadata, trusted sideband attachment, helper routing and usage
+settlement.
+
 With Model Gateway configured, Mural sends the client's SDP offer, fixed logical model
 `mural.live.default`, bounded initial history, product instructions and explicit DataChannel
 event allowlists to Gateway. Mural stores only Gateway's opaque session ID. The browser/iOS
