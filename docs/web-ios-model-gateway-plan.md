@@ -9,6 +9,12 @@ Mural 最终提供 Web UI 和 iOS 两种主要发布形式，同时保留 upstre
 Model Gateway 是独立仓库，负责所有模型供应商接入和路由；Mural API 负责产品业务、
 用户、提示词、会话、学习数据、配额和计费。
 
+学习目标语言收敛为三个稳定身份：英语 `en`、普通话 `zh` 和香港粤语 `yue`。
+当前新会话只开放 `en` 与 `zh`；`yue` 在香港繁体、粤语语音和真人质量验收完成后
+开放。挪威语、西班牙语、法语、德语、意大利语和葡萄牙语不再面向新用户展示，
+但保留为历史可解码语言，不删除模块、不重写既有会话，也不把旧进度迁入三种产品语言。
+本约束针对学习目标语言；界面本地化和释义字幕语言是独立产品决策。
+
 本机现有工作目录：
 
 ```text
@@ -79,6 +85,28 @@ model-gateway/contracts/
 - Model Gateway 拥有模型语义，例如逻辑模型、供应商能力、路由、推理和标准化用量。
 - Web、iOS、Android 和 Mural API 从契约生成客户端或类型；Gateway 源契约不跨仓库复制。
 - 每个契约使用显式版本和兼容性测试；新增字段默认可选，破坏性修改发布新版本。
+
+### 3.1 语言身份与兼容边界
+
+客户端核心采用两层注册表，避免把“停止销售”误做成“数据不可读”：
+
+```text
+knownLanguages       en, zh, nb, es, fr, de, it, pt；未来加入 yue
+availableLanguages   en, zh；粤语验收后加入 yue
+```
+
+- `knownLanguages` 用于 archive 导入、历史记录、学习投影和跨平台兼容。
+- `availableLanguages` 用于 onboarding、设置页和创建新会话。
+- 新安装默认语言从 `nb` 改为 `en`；v1 archive 缺省语言仍按原规则迁移为 `nb`，两者
+  必须使用不同常量，禁止静默重解释历史数据。
+- 已选择旧语言的升级用户仍可查看历史；开始新会话前必须明确选择可用语言。
+- Mural 公开 API 保留通用 `language` 字符串，服务端在业务层校验当前可用 locale；
+  不把三种语言写成难以演进的供应商协议枚举。
+- Model Gateway 只接收 Mural 组装好的语言指令，不负责定义产品语言名单。
+
+香港粤语的稳定身份为 `yue`，首发 locale 为 `yue-Hant-HK`，书写采用香港繁体。
+它与普通话 `zh` 完全分离：独立教学进度、词汇、评估、语音指导和测试 fixtures；
+不得复用普通话拼音作为粤语注音，未来需要注音时使用经审核的粤拼。
 
 ## 4. Model Gateway 的必要演进
 
@@ -238,6 +266,7 @@ Mural：
 默认技术栈：React + TypeScript + Vite，目录为 `apps/web/`。
 
 - 登录/开发登录、麦克风权限、设备选择和连接状态。
+- 新会话语言选择只展示 `en`、`zh`；`yue` 在专项验收完成前保持关闭。
 - WebRTC offer/answer、音轨播放和受限 DataChannel。
 - 实时字幕、翻译、文本输入、停止/重连和错误提示。
 - 会话历史与基本学习结果，服务端为权威数据源，IndexedDB 仅作缓存。
@@ -253,6 +282,8 @@ Mural：
 - 增加离线缓存、恢复、登录过期和网络切换测试。
 - Android 保留现有发布能力并消费同一公共契约；每次 API 变更运行 Android 契约和
   跨平台 fixtures，避免 Web/iOS 开发造成回归。
+- 将客户端语言注册表拆成 `knownLanguages` 与 `availableLanguages`，新安装默认 `en`，
+  同时冻结 v1 archive 的 `nb` 迁移语义；旧语言只读兼容不得阻止历史导入。
 
 验收：同一账号在 Web 和 iOS 看到一致的会话/学习状态；两端均不暴露生产 OpenAI key。
 
@@ -264,6 +295,18 @@ Mural：
 - 增加数据库迁移、并发更新和跨设备同步测试。
 
 验收：Web 创建的会话可在 iOS 继续，反向亦然；重试不会产生重复账单或重复消息。
+
+### Phase 7A：香港粤语发布门禁
+
+- 新增 `yue` / `yue-Hant-HK` 模块，使用香港繁体和独立粤语教学规则。
+- 建立粤语书面语、口语字词、夹杂英语、普通话误切换、繁简体和粤拼 fixtures。
+- 在 `gpt-live-1` 及计划支持的第三方 Live provider 上分别进行真人双向语音验收；
+  官方未提供粤语质量保证，因此模型能连接或偶尔说粤语不算验收通过。
+- 至少由胜任的香港粤语使用者审核问候、连续对话、打断、字幕、纠错和发音；质量不达标
+  时保持 feature flag 关闭，不把 `zh` 降级冒充粤语。
+
+验收：Web、iOS 和 Android 使用相同 `yue` 身份完成历史隔离和双向语音测试后，才将
+`yue` 加入 `availableLanguages`。
 
 ### Phase 8：第二供应商与故障切换
 
@@ -434,3 +477,8 @@ Mural API 的 Live adapter 首轮实现也已完成：
   terminal close；transcript 等业务事件不进入计费回调，连接丢失不结算。
 - TypeScript check、无数据库单测和 PostgreSQL 17.11 全量 357 项测试全部通过；一次性
   数据库仅监听 `127.0.0.1:55434`，测试后已停止并删除临时数据目录。
+
+2026-09-15 已冻结目标语言决策：产品最终只开放 `en`、`zh`、`yue`，其中粤语明确
+采用香港繁体 `yue-Hant-HK`。旧语言采用“隐藏但保留历史解码”，不物理删除。当前代码
+仍使用单一 `LanguageRegistry.all` 且新安装默认 `nb`；`knownLanguages` / `availableLanguages`
+拆分、新默认 `en` 与 v1 迁移继续固定 `nb` 将作为独立兼容性改动实施，不混入 Live PR。
