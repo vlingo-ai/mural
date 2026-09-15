@@ -248,6 +248,8 @@ Mural：
 
 ### Phase 4：Mural API 接入 Model Gateway
 
+- 先完成 Phase 4A 契约扩展：Gateway 的标准化 Responses 结果必须携带经校验的搜索来源、
+  实际 Web Search 调用数和缓存写入 token；Mural 不得猜测这些影响展示或计费的字段。
 - 在 `services/api/src/model-gateway/` 新增 Gateway client、超时、熔断和健康检查。
 - 实现现有 `LiveProvider` 和 `HostedResponsesTransport` 接口的 Gateway adapter；保留
   `OpenAILiveProvider` 与 `OpenAIHostedResponses` 作为短期、显式关闭的回滚实现。
@@ -257,6 +259,8 @@ Mural：
 - 补齐公开业务 inference 和会话事件契约；已有 Live 路由保持兼容。
 - 使用现有账号体系鉴权；开发模式使用明确受限的本地凭据，不开放匿名生产接口。
 - 增加 request ID、用户配额、审计日志和敏感字段脱敏。
+- 公开 Live session 入口仅接受 `en` 与 `zh-CN`；历史 provider locale 只保留在内部兼容层，
+  `yue-Hant-HK` 在 Phase 7A 验收前必须被服务端拒绝。
 
 验收：Mural API 的正常生产路径不再要求客户端 OpenAI key，也不直接调用模型供应商；
 现有 Android/iOS、账号、账本、支付和托管语音测试不回归。
@@ -493,3 +497,10 @@ Mural API 的 Live adapter 首轮实现也已完成：
   会话入口的服务端 allowlist 从历史 provider 能力收紧为 `en`、`zh-CN`。
 - Swift 74 项、Android 314 项、Python 53 项和 iPhone 17 Simulator UI 18 项测试通过；
   两端构建、Android lint、内容生成检查和跨平台契约检查通过。未调用任何付费模型。
+
+Phase 4 已从语言兼容分支创建隔离分支 `codex/phase-4-gateway-api`。第一项服务端门禁已完成：
+公开 `POST /v1/live/sessions` 只允许 `en` 与 `zh-CN`，而 `LiveProvider` 的八种旧 locale
+仍保留给历史兼容测试和旧记录恢复；`yue-Hant-HK` 继续关闭。Responses adapter 开发前的
+契约审计发现当前 Gateway 标准化响应没有保留搜索来源、实际搜索调用数和缓存写入 token，
+因此这些字段被明确列为 Phase 4A，必须先在 Model Gateway 独立 worktree 中以向后兼容字段
+补齐，再由 Mural adapter 消费，禁止以请求参数推断实际用量。

@@ -20,6 +20,7 @@ import type { StripeMinuteProvider } from './stripe-minute-provider.js';
 import type { PlayMinuteProvider } from './play-minute-provider.js';
 import { HOSTED_HELPER_BODY_LIMIT, type HostedHelpers } from './hosted-helpers.js';
 import { startupDiagnostic, type StartupDiagnostic } from './startup-diagnostics.js';
+import { supportsPublicLanguage } from './live-provider.js';
 
 export interface Services { db: Database; auth: AuthConfig; payments?: SandboxPayments; attestor?: TrialAttestor; minuteAttestor?: MinuteAttestor; guestMinuteAttestor?: GuestMinuteAttestor; appleRevoker?: AppleRevoker; hosted?: HostedVoice; accessRequests?: AccessRequests; aiReports?: AIReports;
   onStartupDiagnostic?: (diagnostic: StartupDiagnostic) => void | Promise<void>;
@@ -351,10 +352,12 @@ export function createApp(services: Services) {
     if (body.requestedMilliseconds !== undefined && (typeof body.requestedMilliseconds !== 'number' ||
         !Number.isSafeInteger(body.requestedMilliseconds) || body.requestedMilliseconds < 60_000 || body.requestedMilliseconds > 3_600_000))
       throw new ServiceError('invalid_request');
+    const language = stringField(body, 'language', 10);
+    if (!supportsPublicLanguage(language)) throw new ServiceError('invalid_language');
     const key = request.headers['idempotency-key'];
     if (typeof key !== 'string') throw new ServiceError('idempotency_key_required');
     const { providerSessionID: _privateProviderSessionID, ...publicSession } = await services.hosted.create(
-      account, key, stringField(body, 'sdp', 65_536), stringField(body, 'language', 10),
+      account, key, stringField(body, 'sdp', 65_536), language,
       { instructions: body.instructions, history: body.history }, body.requestedMilliseconds as number | undefined);
     return publicSession;
   });
