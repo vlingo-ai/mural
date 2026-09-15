@@ -313,12 +313,16 @@
         "additionalProperties": false,
         "required": [
           "kind",
+          "funding",
           "text",
           "targetLanguage"
         ],
         "properties": {
           "kind": {
             "const": "translation"
+          },
+          "funding": {
+            "$ref": "#/components/schemas/LiveSessionFunding"
           },
           "text": {
             "type": "string",
@@ -334,8 +338,19 @@
           },
           "targetLanguage": {
             "type": "string",
-            "minLength": 2,
-            "maxLength": 16
+            "enum": [
+              "English",
+              "French",
+              "German",
+              "Spanish",
+              "Norwegian",
+              "Portuguese",
+              "Italian",
+              "Chinese (Simplified)",
+              "Polish",
+              "Arabic",
+              "Ukrainian"
+            ]
           }
         }
       },
@@ -344,20 +359,28 @@
         "additionalProperties": false,
         "required": [
           "kind",
-          "sessionID",
-          "passageID"
+          "funding",
+          "language",
+          "context",
+          "passage"
         ],
         "properties": {
           "kind": {
             "const": "assessment"
           },
-          "sessionID": {
-            "type": "string",
-            "format": "uuid"
+          "funding": {
+            "$ref": "#/components/schemas/LiveSessionFunding"
           },
-          "passageID": {
+          "language": {
             "type": "string",
-            "format": "uuid"
+            "minLength": 2,
+            "maxLength": 16
+          },
+          "context": {
+            "$ref": "#/components/schemas/TaskConversationContext"
+          },
+          "passage": {
+            "$ref": "#/components/schemas/AssessmentPassage"
           }
         }
       },
@@ -366,21 +389,30 @@
         "additionalProperties": false,
         "required": [
           "kind",
-          "sessionID",
-          "text"
+          "funding",
+          "language",
+          "text",
+          "context"
         ],
         "properties": {
           "kind": {
             "const": "teachingReply"
           },
-          "sessionID": {
+          "funding": {
+            "$ref": "#/components/schemas/LiveSessionFunding"
+          },
+          "language": {
             "type": "string",
-            "format": "uuid"
+            "minLength": 2,
+            "maxLength": 16
           },
           "text": {
             "type": "string",
             "minLength": 1,
             "maxLength": 8000
+          },
+          "context": {
+            "$ref": "#/components/schemas/TaskConversationContext"
           }
         }
       },
@@ -389,12 +421,16 @@
         "additionalProperties": false,
         "required": [
           "kind",
+          "funding",
           "query",
           "language"
         ],
         "properties": {
           "kind": {
             "const": "topicSearch"
+          },
+          "funding": {
+            "$ref": "#/components/schemas/LiveSessionFunding"
           },
           "query": {
             "type": "string",
@@ -405,6 +441,95 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 16
+          }
+        }
+      },
+      "LiveSessionFunding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "sessionID"
+        ],
+        "properties": {
+          "type": {
+            "const": "liveSession"
+          },
+          "sessionID": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "TaskConversationContext": {
+        "type": "array",
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "speaker",
+            "text"
+          ],
+          "properties": {
+            "speaker": {
+              "type": "string",
+              "enum": [
+                "user",
+                "assistant"
+              ]
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            }
+          }
+        }
+      },
+      "AssessmentPassage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "fragments"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fragments": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "text",
+                "meaningVisible",
+                "typed"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4000
+                },
+                "meaningVisible": {
+                  "type": "boolean"
+                },
+                "typed": {
+                  "type": "boolean"
+                }
+              }
+            }
           }
         }
       },

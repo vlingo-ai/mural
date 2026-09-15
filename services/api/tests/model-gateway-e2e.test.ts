@@ -88,11 +88,13 @@ test('public Mural HTTP routes use one healthy Gateway for Live and hosted Respo
       headers: { ...headers, 'idempotency-key': 'gateway-e2e-live' }, payload: { sdp: 'v=0\r\nfixture-offer', language: 'en' } });
     assert.equal(created.statusCode, 200); assert.equal(created.json().sdp, 'v=0\r\nfixture-answer');
     assert.equal(created.json().providerSessionID, undefined);
-    const helper = await app.inject({ method: 'POST', url: `/v1/live/sessions/${created.json().sessionID}/helpers`, headers,
-      payload: { requestID: randomUUID(), purpose: 'meaning', instructions: 'Translate into English.', input: '早晨。' } });
+    const helper = await app.inject({ method: 'POST', url: '/v1/model-tasks',
+      headers: { ...headers, 'idempotency-key': 'gateway-e2e-translation' },
+      payload: { kind: 'translation', funding: { type: 'liveSession', sessionID: created.json().sessionID },
+        text: '早晨。', sourceLanguage: 'zh-CN', targetLanguage: 'English' } });
     assert.equal(helper.statusCode, 200); assert.equal(helper.json().text, 'Good morning.');
-    assert.deepEqual(helper.json().usage, { inputTokens: 30, cachedInputTokens: 5, cacheWriteTokens: 4,
-      outputTokens: 3, searchCalls: 0 });
+    assert.equal(helper.json().kind, 'translation');
+    assert.deepEqual(helper.json().usage, { inputTokens: 30, outputTokens: 3, searchCalls: 0 });
     assert.deepEqual(requests.map(item => item.path), ['/v1/live/sessions', '/v1/responses']);
     assert.equal(requests[0].body.model, 'mural.live.default');
     assert.equal(requests[1].body.model, 'mural.translation.fast');

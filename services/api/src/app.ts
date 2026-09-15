@@ -21,6 +21,7 @@ import type { PlayMinuteProvider } from './play-minute-provider.js';
 import { HOSTED_HELPER_BODY_LIMIT, type HostedHelpers } from './hosted-helpers.js';
 import { startupDiagnostic, type StartupDiagnostic } from './startup-diagnostics.js';
 import { supportsPublicLanguage } from './live-provider.js';
+import { modelTaskHelperInput, parseModelTask, publicModelTaskResult } from './model-tasks.js';
 
 export interface Services { db: Database; auth: AuthConfig; payments?: SandboxPayments; attestor?: TrialAttestor; minuteAttestor?: MinuteAttestor; guestMinuteAttestor?: GuestMinuteAttestor; appleRevoker?: AppleRevoker; hosted?: HostedVoice; accessRequests?: AccessRequests; aiReports?: AIReports;
   onStartupDiagnostic?: (diagnostic: StartupDiagnostic) => void | Promise<void>;
@@ -380,6 +381,16 @@ export function createApp(services: Services) {
     if (!services.hosted?.minuteFunded || !services.hostedHelpers) throw new ServiceError('hosted_helpers_not_ready', 503);
     const account = await authenticate(db, request.headers.authorization, true);
     return services.hostedHelpers.request(account, uuid((request.params as { id: string }).id), request.body);
+  });
+  app.post('/v1/model-tasks', { bodyLimit: HOSTED_HELPER_BODY_LIMIT }, async request => {
+    if (!services.hosted?.minuteFunded || !services.hostedHelpers) throw new ServiceError('hosted_helpers_not_ready', 503);
+    const account = await authenticate(db, request.headers.authorization, true);
+    const key = request.headers['idempotency-key'];
+    if (typeof key !== 'string' || Buffer.byteLength(key) < 8 || Buffer.byteLength(key) > 128)
+      throw new ServiceError('idempotency_key_required');
+    const task = parseModelTask(request.body);
+    const result = await services.hostedHelpers.request(account, task.funding.sessionID, modelTaskHelperInput(account, key, task));
+    return publicModelTaskResult(task, result);
   });
   app.get('/payment-return', async (_request, reply) => reply.type('text/html').send('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Mural sandbox</title><body><h1>Return to Mural</h1><p>This is a sandbox payment test. The app checks payment confirmation independently.</p></body></html>'));
   return app;

@@ -519,6 +519,14 @@ credential；Live 与 Responses 共用目标、鉴权和超时边界；连续三
 故障，模型创建仍不做自动重试。新增聚焦测试后，无数据库全量 364 项中 92 项通过、
 272 项按预期因缺少测试数据库跳过。
 
+Phase 4B 的首个公开业务推理路径已落地：`POST /v1/model-tasks` 只接受有界业务数据和
+显式 `liveSession` funding，不接受 prompt、schema、工具、供应商或模型名；服务端按
+translation、assessment、teaching reply、topic search 生成固定教学策略和评估 schema，
+再复用该会话已有的 helper 预算、幂等、防重和可信 Gateway 用量结算。评估请求携带
+最多十轮有界上下文与待评 fragments，因为服务端当前按隐私设计不保存 transcript。
+会话前的 “The world today” 搜索不会冒充语音分钟：在独立 account AI-value 预留与结算
+完成前，Web/iOS 不得把它切到共享后端；已有 BYOK 行为暂留到该小阶段完成。
+
 Phase 4 的无付费端到端路径也已通过：真实 Mural HTTP 路由、Bearer 鉴权、分钟账本、
 Live/Helper 控制器和两个 Gateway adapter 连接本地 fake HTTP/WebSocket Gateway；验证
 `mural.live.default` 与 `mural.translation.fast` 的路由、公开响应不泄露内部 session ID，

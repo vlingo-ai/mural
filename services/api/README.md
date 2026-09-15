@@ -96,6 +96,7 @@ All monetary strings are integer **nanoUSD**: 1 USD = 1,000,000,000 nanoUSD. A d
 | `POST /v1/live/sessions` | Bearer token; `Idempotency-Key`; `sdp`; `language` (`en` or `zh-CN`) | Default `503`; allowlisted experiment returns public `sessionID`, `sdp`, `deadline`, reservation policy and `experimental`; provider/Gateway session IDs remain server-only |
 | `GET /v1/live/sessions/:id` | Bearer token belonging to the session owner | Minimal state, cumulative milliseconds, confirmed provider cost and customer debit |
 | `POST /v1/live/sessions/:id/close` | Bearer token belonging to the session owner | Requests server closure; never accepts client-reported usage |
+| `POST /v1/model-tasks` | Bearer token; `Idempotency-Key`; prompt-free business task and explicit Live session funding | Executes translation, assessment, typed teaching reply or topic search through the session's existing helper budget |
 
 Error responses contain a safe `error.code` only. Request bodies, keys, ID tokens, bearer tokens, Stripe payloads, and conversations are not logged. Expired authentication records are pruned every 15 minutes. The basic in-memory rate limit does not trust forwarded client-IP headers; behind Caddy it applies conservatively to the proxy address. Configure and test a trusted-proxy policy before scaling it.
 
@@ -139,6 +140,14 @@ Gateway result must report cached and cache-write input tokens, output tokens an
 Web Search calls; Mural never infers billable usage from the requested tools. Citation URLs
 must be credential-free HTTPS sources, are bounded and deduplicated by Gateway, and are
 validated again before being returned to a client.
+
+The public `/v1/model-tasks` route never accepts model names, provider settings, prompts,
+tools or output schemas. It accepts bounded conversation data and a `funding` object that names
+an owned Live session; Mural derives a stable private request ID, builds the teaching policy and
+assessment schema, and settles through that session's existing helper budget. This first
+executable contract intentionally does not pretend that a pre-conversation search is voice
+usage. Standalone topic discovery will require an explicit account AI-value reservation before
+iOS or Web enables that flow without an active session.
 
 A 600-second wall-clock closure request is **not an absolute provider spending guarantee during a network partition**. OpenAI’s general guide describes hangup for Live sessions, while the fetched endpoint reference calls it a SIP operation. WebRTC hangup and terminal usage recovery must be confirmed with the provider and a real bounded test. No such paid call was made here. Keep public hosted voice off until those limits and reconciliation are verified.
 
