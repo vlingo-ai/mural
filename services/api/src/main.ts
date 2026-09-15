@@ -15,6 +15,7 @@ import { HostedHelpers } from './hosted-helpers.js';
 import { OpenAIHostedResponses } from './hosted-responses-transport.js';
 import { InstallationGuestMinuteAttestor } from './guest-minutes.js';
 import { ModelGatewayLiveProvider } from './model-gateway/live-provider.js';
+import { ModelGatewayResponsesTransport } from './model-gateway/responses-transport.js';
 
 const databaseURL = process.env.DATABASE_URL;
 if (!databaseURL) { console.error('DATABASE_URL is required.'); process.exit(1); }
@@ -56,8 +57,12 @@ try {
     const accounts = new Set((process.env.HOSTED_VOICE_ACCOUNT_ALLOWLIST ?? '').split(',').filter(Boolean));
     if ([...accounts].some(account => !/^[a-f0-9-]{36}$/.test(account))) throw new Error();
     const lifetimeFundingCapNano = BigInt(process.env.HOSTED_VOICE_LIFETIME_CAP_NANO ?? '0');
+    const gatewayURL = process.env.MODEL_GATEWAY_URL, gatewayKey = process.env.MODEL_GATEWAY_API_KEY;
+    if (Boolean(gatewayURL) !== Boolean(gatewayKey)) throw new Error('Model Gateway configuration is incomplete.');
     if (process.env.HOSTED_HELPERS_EXPERIMENTAL === 'true') {
-      hostedHelpers = new HostedHelpers(db, new OpenAIHostedResponses(process.env.OPENAI_API_KEY ?? ''), {
+      const responses = gatewayURL && gatewayKey ? new ModelGatewayResponsesTransport(gatewayURL, gatewayKey) :
+        new OpenAIHostedResponses(process.env.OPENAI_API_KEY ?? '');
+      hostedHelpers = new HostedHelpers(db, responses, {
         accountAllowlist: accounts, aggregateFundingCapNano: lifetimeFundingCapNano,publicMinuteAccess,publicPaidAccess,
         helperBudgetNanoPerMinute: BigInt(process.env.HOSTED_HELPER_BUDGET_PER_MINUTE_NANO ?? '50000000'),
         maxRequestsPerMinute: Number(process.env.HOSTED_HELPER_REQUESTS_PER_MINUTE ?? '24'),
@@ -67,8 +72,6 @@ try {
       });
       await hostedHelpers.expireBudgets();
     }
-    const gatewayURL = process.env.MODEL_GATEWAY_URL, gatewayKey = process.env.MODEL_GATEWAY_API_KEY;
-    if (Boolean(gatewayURL) !== Boolean(gatewayKey)) throw new Error('Model Gateway configuration is incomplete.');
     const liveProvider = gatewayURL && gatewayKey
       ? new ModelGatewayLiveProvider(gatewayURL, gatewayKey)
       : new OpenAILiveProvider(process.env.OPENAI_API_KEY ?? '');

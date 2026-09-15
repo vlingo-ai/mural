@@ -40,8 +40,11 @@ export interface HostedResponsesRequest {
   text?: { format: { type: 'json_schema'; name: 'mural_result'; strict: true; schema: JSONObject } };
   tools?: [{ type: 'web_search'; search_context_size: 'low' }]; tool_choice: 'auto' | 'none'; max_tool_calls: 1;
 }
+export interface HostedResponsesContext { requestID: string; purpose: HostedHelperPurpose }
 /** One network attempt only. The implementation must honor the signal, bound the body and never retry. */
-export interface HostedResponsesTransport { send(body: HostedResponsesRequest, signal: AbortSignal): Promise<unknown> }
+export interface HostedResponsesTransport {
+  send(body: HostedResponsesRequest, signal: AbortSignal, context: HostedResponsesContext): Promise<unknown>
+}
 export interface HostedHelperUsage { inputTokens: number; cachedInputTokens: number; cacheWriteTokens: number; outputTokens: number; searchCalls: number }
 export interface HostedHelperResult {
   requestID: string; text: string; sources: Array<{ title: string; url: string }>;
@@ -165,7 +168,8 @@ export class HostedHelpers {
     let timeout: NodeJS.Timeout | undefined;
     try {
       if (Date.now() >= reservation.active_until.getTime()) throw new Error('Reserved request deadline passed.');
-      raw = await Promise.race([this.transport.send(providerBody, controller.signal), new Promise<never>((_, reject) => {
+      raw = await Promise.race([this.transport.send(providerBody, controller.signal,
+        { requestID: input.requestID, purpose: input.purpose }), new Promise<never>((_, reject) => {
         timeout = setTimeout(() => { controller.abort(); reject(new Error('Provider deadline exceeded.')); },
           Math.min(reservation.timeout_ms, reservation.active_until.getTime() - Date.now()));
       })]);

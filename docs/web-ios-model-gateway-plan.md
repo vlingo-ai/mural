@@ -500,7 +500,16 @@ Mural API 的 Live adapter 首轮实现也已完成：
 
 Phase 4 已从语言兼容分支创建隔离分支 `codex/phase-4-gateway-api`。第一项服务端门禁已完成：
 公开 `POST /v1/live/sessions` 只允许 `en` 与 `zh-CN`，而 `LiveProvider` 的八种旧 locale
-仍保留给历史兼容测试和旧记录恢复；`yue-Hant-HK` 继续关闭。Responses adapter 开发前的
-契约审计发现当前 Gateway 标准化响应没有保留搜索来源、实际搜索调用数和缓存写入 token，
-因此这些字段被明确列为 Phase 4A，必须先在 Model Gateway 独立 worktree 中以向后兼容字段
-补齐，再由 Mural adapter 消费，禁止以请求参数推断实际用量。
+仍保留给历史兼容测试和旧记录恢复；`yue-Hant-HK` 继续关闭。
+
+Phase 4A 已在 Model Gateway 隔离分支 `codex/phase-4-response-observability` 完成并建立
+stacked draft PR #10：`TokenUsage` 以向后兼容字段补齐缓存写入 token 与实际 Web Search
+调用数，Responses 结果补齐最多 12 条经校验、去重的 HTTPS 来源；Gateway 全量 273 项测试
+通过。Mural 的最低契约锁现在会拒绝缺少这些字段的旧 Gateway，并通过新契约。
+
+Mural Responses adapter 已接入现有 `HostedHelpers` 预算、并发、超时与账本流水线：meaning、
+assessment、普通推理和搜索分别解析为稳定逻辑模型，响应 ID 在落库前做不可逆摘要，供应商
+响应正文和 ID 不进入日志；实际缓存/搜索用量和引用来源由 Gateway 返回，不从请求参数猜测。
+配置了 Gateway 时 Live 与 Responses 一起走 Gateway；缺省路径仍保留显式的 OpenAI 短期
+回滚实现。TypeScript check、跨仓库契约检查、39 项聚焦测试和无数据库全量 362 项测试通过，
+PostgreSQL 全量与 GitHub 检查待本分支推送后执行。

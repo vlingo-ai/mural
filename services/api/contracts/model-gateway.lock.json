@@ -12,7 +12,15 @@
     "LiveSessionCreateRequest",
     "LiveSessionResponse",
     "ModelGatewayCapabilities",
+    "ResponseSource",
     "TokenUsage"
+  ],
+  "requiredResponseFields": [
+    "sources"
+  ],
+  "requiredResponseUsageFields": [
+    "cache_write_input_tokens",
+    "web_search_calls"
   ],
   "requiredSidebandSchemas": [
     "events/live-client-commands.v1.schema.json",

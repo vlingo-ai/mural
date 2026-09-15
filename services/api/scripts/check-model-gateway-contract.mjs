@@ -30,6 +30,14 @@ for (const schema of lock.requiredSchemas) {
   assert.ok(schemas[schema], `Missing required Model Gateway schema: ${schema}`);
 }
 
+for (const field of lock.requiredResponseFields) {
+  assert.ok(schemas.GatewayResponse?.properties?.[field], `Missing required GatewayResponse field: ${field}`);
+}
+
+for (const field of lock.requiredResponseUsageFields) {
+  assert.ok(schemas.TokenUsage?.properties?.[field], `Missing required TokenUsage field: ${field}`);
+}
+
 for (const schemaPath of lock.requiredSidebandSchemas) {
   const schema = await loadJSON(schemaPath);
   assert.equal(typeof schema, 'object');
