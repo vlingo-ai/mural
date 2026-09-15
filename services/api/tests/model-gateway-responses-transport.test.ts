@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ModelGatewayResponsesTransport } from '../src/model-gateway/responses-transport.js';
+import { ModelGatewayClient } from '../src/model-gateway/client.js';
 import type { HostedResponsesContext, HostedResponsesRequest } from '../src/hosted-helpers.js';
 
 const key = 'synthetic-model-gateway-key-for-local-tests';
@@ -19,10 +20,10 @@ const gatewayResult = (model: string) => ({ object: 'gateway.response', id: 'pro
 test('Gateway Responses adapter maps helper purposes to logical models and preserves trusted accounting', async () => {
   const requests: Array<{ url: string; init: RequestInit; body: any }> = [];
   let nextModel = '';
-  const transport = new ModelGatewayResponsesTransport('https://gateway.example.test', key, { request: (async (url, init) => {
+  const transport = new ModelGatewayResponsesTransport(new ModelGatewayClient('https://gateway.example.test', key, { request: (async (url, init) => {
     const body = JSON.parse(String(init?.body)); requests.push({ url: String(url), init: init!, body }); nextModel = body.model;
     return new Response(JSON.stringify(gatewayResult(nextModel)), { status: 200 });
-  }) as typeof fetch });
+  }) as typeof fetch }));
   const cases: Array<[HostedResponsesContext['purpose'], HostedResponsesRequest, string]> = [
     ['meaning', base, 'mural.translation.fast'],
     ['lookup', base, 'mural.reasoning.default'],
@@ -50,9 +51,9 @@ test('Gateway Responses adapter maps helper purposes to logical models and prese
 });
 
 test('Gateway Responses adapter maps structured output back into the existing funded pipeline', async () => {
-  const transport = new ModelGatewayResponsesTransport('https://gateway.example.test', key, { request: (async () =>
+  const transport = new ModelGatewayResponsesTransport(new ModelGatewayClient('https://gateway.example.test', key, { request: (async () =>
     new Response(JSON.stringify({ ...gatewayResult('mural.assessment.default'), output_text: null, output_json: { score: 4 },
-      usage: { ...gatewayResult('').usage, web_search_calls: 0 }, sources: [] }), { status: 200 })) as typeof fetch });
+      usage: { ...gatewayResult('').usage, web_search_calls: 0 }, sources: [] }), { status: 200 })) as typeof fetch }));
   const body = { ...base, text: { format: { type: 'json_schema' as const, name: 'mural_result' as const, strict: true as const,
     schema: { type: 'object' } } }, max_output_tokens: 2200 as const };
   const result = await transport.send(body, new AbortController().signal, context('assessment')) as any;
@@ -62,18 +63,11 @@ test('Gateway Responses adapter maps structured output back into the existing fu
 test('Gateway Responses adapter fails closed on rejection and malformed accounting without retaining bodies', async () => {
   for (const response of [new Response(`private failure ${key}`, { status: 503 }),
     new Response(JSON.stringify({ ...gatewayResult('mural.reasoning.default'), usage: { input_tokens: -1 } }), { status: 200 })]) {
-    const transport = new ModelGatewayResponsesTransport('https://gateway.example.test', key,
-      { request: (async () => response) as typeof fetch });
+    const transport = new ModelGatewayResponsesTransport(new ModelGatewayClient('https://gateway.example.test', key,
+      { request: (async () => response) as typeof fetch }));
     await assert.rejects(transport.send(base, new AbortController().signal, context('help')), error => {
       assert.equal((error as { code: string }).code, 'hosted_helper_provider_unavailable');
       assert.equal(String(error).includes(key), false); return true;
     });
   }
-});
-
-test('Gateway Responses adapter rejects unsafe destinations and credentials', () => {
-  for (const [origin, credential] of ([['not a URL', key], ['http://gateway.internal:8000', key],
-    ['https://user@gateway.example.test', key], ['https://gateway.example.test/path', key],
-    ['https://gateway.example.test', 'short']] as Array<[string, string]>))
-    assert.throws(() => new ModelGatewayResponsesTransport(origin, credential), { code: 'model_gateway_configuration_invalid' });
 });

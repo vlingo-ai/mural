@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ModelGatewayLiveProvider } from '../src/model-gateway/live-provider.js';
+import { ModelGatewayClient } from '../src/model-gateway/client.js';
 
 const key = 'synthetic-model-gateway-key-for-local-tests';
 const until = async (predicate: () => boolean) => {
@@ -36,7 +37,7 @@ test('Gateway Live adapter maps creation, trusted usage, close, and hangup', asy
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address() as { port: number };
-  const provider = new ModelGatewayLiveProvider(`http://127.0.0.1:${address.port}`, key);
+  const provider = new ModelGatewayLiveProvider(new ModelGatewayClient(`http://127.0.0.1:${address.port}`, key));
   try {
     const created = await provider.create('v=0\r\nprivate-offer', 'es-ES', {
       instructions: 'private-instructions',
@@ -94,7 +95,7 @@ test('Gateway Live adapter fails closed on invalid sideband events', async () =>
   websocket.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address() as { port: number };
-  const provider = new ModelGatewayLiveProvider(`http://127.0.0.1:${address.port}`, key);
+  const provider = new ModelGatewayLiveProvider(new ModelGatewayClient(`http://127.0.0.1:${address.port}`, key));
   try {
     let losses = 0;
     await provider.attach('live_gateway_2', () => assert.fail('Invalid usage must not be accepted.'), () => { losses++; });
@@ -113,14 +114,14 @@ test('Gateway Live adapter fails closed on invalid sideband events', async () =>
 test('Gateway Live adapter classifies rejected, uncertain, and malformed creates without leaking bodies', async () => {
   for (const [status, category] of [[429, 'http_rejected'], [503, 'http_uncertain'], [200, 'invalid_success']] as const) {
     let attempts = 0, cancelled = false;
-    const provider = new ModelGatewayLiveProvider('https://gateway.example.test', key, { request: (async () => {
+    const provider = new ModelGatewayLiveProvider(new ModelGatewayClient('https://gateway.example.test', key, { request: (async () => {
       attempts++;
       const stream = new ReadableStream({ start(controller) {
         controller.enqueue(new TextEncoder().encode(status === 200 ? key : `private failure ${key}`));
         controller.close();
       }, cancel() { cancelled = true; } });
       return new Response(stream, { status, headers: { 'x-request-id': 'gateway_request_1' } });
-    }) as typeof fetch });
+    }) as typeof fetch }));
     await assert.rejects(provider.create('v=0', 'en'), error => {
       assert.equal((error as { category: string }).category, category);
       assert.equal(String(error).includes(key), false); return true;
@@ -128,12 +129,4 @@ test('Gateway Live adapter classifies rejected, uncertain, and malformed creates
     assert.equal(attempts, 1);
     if (status !== 200) assert.equal(cancelled, true);
   }
-});
-
-test('Gateway Live adapter rejects unsafe destinations and short credentials', () => {
-  for (const [origin, credential] of [
-    ['not a URL', key],
-    ['http://gateway.internal:8000', key], ['https://user@gateway.example.test', key],
-    ['https://gateway.example.test/path', key], ['https://gateway.example.test', 'short'],
-  ] as [string, string][]) assert.throws(() => new ModelGatewayLiveProvider(origin, credential), { code: 'model_gateway_configuration_invalid' });
 });

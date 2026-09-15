@@ -384,9 +384,8 @@ GATEWAY_API_KEY=...
 OPENAI_API_KEY=...
 
 # mural/services/api/.env
-MODEL_GATEWAY_BASE_URL=http://127.0.0.1:8000
+MODEL_GATEWAY_URL=http://127.0.0.1:8000
 MODEL_GATEWAY_API_KEY=...
-MODEL_GATEWAY_CONTRACT_VERSION=...
 ```
 
 ## 9. 当前基线与下一步
@@ -512,4 +511,10 @@ assessment、普通推理和搜索分别解析为稳定逻辑模型，响应 ID 
 响应正文和 ID 不进入日志；实际缓存/搜索用量和引用来源由 Gateway 返回，不从请求参数猜测。
 配置了 Gateway 时 Live 与 Responses 一起走 Gateway；缺省路径仍保留显式的 OpenAI 短期
 回滚实现。TypeScript check、跨仓库契约检查、39 项聚焦测试和无数据库全量 362 项测试通过，
-PostgreSQL 全量与 GitHub 检查待本分支推送后执行。
+PostgreSQL 全量及本分支 GitHub checks 已通过。
+
+Phase 4 的共享 Gateway client 已补齐：启动时验证公开 `/healthz` 且不发送 Gateway
+credential；Live 与 Responses 共用目标、鉴权和超时边界；连续三次 transport、timeout、
+`429` 或 `5xx` 可用性故障后开路 15 秒，再只允许一个恢复探针。客户端主动取消不计入
+故障，模型创建仍不做自动重试。新增聚焦测试后，无数据库全量 364 项中 92 项通过、
+272 项按预期因缺少测试数据库跳过。

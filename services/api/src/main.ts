@@ -16,6 +16,7 @@ import { OpenAIHostedResponses } from './hosted-responses-transport.js';
 import { InstallationGuestMinuteAttestor } from './guest-minutes.js';
 import { ModelGatewayLiveProvider } from './model-gateway/live-provider.js';
 import { ModelGatewayResponsesTransport } from './model-gateway/responses-transport.js';
+import { ModelGatewayClient } from './model-gateway/client.js';
 
 const databaseURL = process.env.DATABASE_URL;
 if (!databaseURL) { console.error('DATABASE_URL is required.'); process.exit(1); }
@@ -59,8 +60,10 @@ try {
     const lifetimeFundingCapNano = BigInt(process.env.HOSTED_VOICE_LIFETIME_CAP_NANO ?? '0');
     const gatewayURL = process.env.MODEL_GATEWAY_URL, gatewayKey = process.env.MODEL_GATEWAY_API_KEY;
     if (Boolean(gatewayURL) !== Boolean(gatewayKey)) throw new Error('Model Gateway configuration is incomplete.');
+    const gateway = gatewayURL && gatewayKey ? new ModelGatewayClient(gatewayURL, gatewayKey) : undefined;
+    await gateway?.checkHealth();
     if (process.env.HOSTED_HELPERS_EXPERIMENTAL === 'true') {
-      const responses = gatewayURL && gatewayKey ? new ModelGatewayResponsesTransport(gatewayURL, gatewayKey) :
+      const responses = gateway ? new ModelGatewayResponsesTransport(gateway) :
         new OpenAIHostedResponses(process.env.OPENAI_API_KEY ?? '');
       hostedHelpers = new HostedHelpers(db, responses, {
         accountAllowlist: accounts, aggregateFundingCapNano: lifetimeFundingCapNano,publicMinuteAccess,publicPaidAccess,
@@ -72,8 +75,8 @@ try {
       });
       await hostedHelpers.expireBudgets();
     }
-    const liveProvider = gatewayURL && gatewayKey
-      ? new ModelGatewayLiveProvider(gatewayURL, gatewayKey)
+    const liveProvider = gateway
+      ? new ModelGatewayLiveProvider(gateway)
       : new OpenAILiveProvider(process.env.OPENAI_API_KEY ?? '');
     hosted = new HostedVoice(db, liveProvider,
       { accountAllowlist: accounts, billingUnit, lifetimeFundingCapNano,publicMinuteAccess,publicPaidAccess, helpers: hostedHelpers,

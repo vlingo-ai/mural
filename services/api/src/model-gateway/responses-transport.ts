@@ -6,8 +6,8 @@ import type {
   HostedResponsesRequest,
   HostedResponsesTransport,
 } from '../hosted-helpers.js';
+import { ModelGatewayClient } from './client.js';
 
-type GatewayResponsesOptions = { request?: typeof fetch };
 type JSONRecord = Record<string, any>;
 
 const object = (value: unknown): value is JSONRecord => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -23,27 +23,16 @@ const logicalModel = (body: HostedResponsesRequest, purpose: HostedResponsesCont
 
 /** One-shot provider-neutral Responses transport for Mural's existing funded helper pipeline. */
 export class ModelGatewayResponsesTransport implements HostedResponsesTransport {
-  readonly #origin: URL;
-  readonly #key: string;
-  readonly #request: typeof fetch;
+  readonly #client: ModelGatewayClient;
 
-  constructor(origin: string, key: string, options: GatewayResponsesOptions = {}) {
-    try { this.#origin = new URL(origin); }
-    catch { throw new ServiceError('model_gateway_configuration_invalid', 503); }
-    const local = this.#origin.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(this.#origin.hostname);
-    if ((this.#origin.protocol !== 'https:' && !local) || this.#origin.username || this.#origin.password ||
-        this.#origin.search || this.#origin.hash || !['', '/'].includes(this.#origin.pathname) ||
-        !/^[\x21-\x7e]{32,512}$/.test(key)) throw new ServiceError('model_gateway_configuration_invalid', 503);
-    this.#key = key;
-    this.#request = options.request ?? fetch;
-  }
+  constructor(client: ModelGatewayClient) { this.#client = client; }
 
   async send(body: HostedResponsesRequest, signal: AbortSignal, context: HostedResponsesContext): Promise<unknown> {
     const model = logicalModel(body, context.purpose);
     try {
-      const response = await this.#request(new URL('/v1/responses', this.#origin), {
-        method: 'POST', redirect: 'error', signal,
-        headers: { Authorization: `Bearer ${this.#key}`, 'Content-Type': 'application/json',
+      const response = await this.#client.request('/v1/responses', {
+        method: 'POST', signal,
+        headers: { Authorization: this.#client.authorization, 'Content-Type': 'application/json',
           'Idempotency-Key': context.requestID },
         body: JSON.stringify({ model, input: body.input, instructions: body.instructions,
           max_output_tokens: body.max_output_tokens, reasoning: body.reasoning,

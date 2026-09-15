@@ -106,7 +106,10 @@ The default remains `HOSTED_VOICE_EXPERIMENTAL=false`. The production Compose fi
 - `HOSTED_VOICE_EXPERIMENTAL=true` and either a dedicated `OPENAI_API_KEY`, or both
   `MODEL_GATEWAY_URL` and `MODEL_GATEWAY_API_KEY`. Gateway is preferred for both Live and
   hosted helper Responses; its production origin must use HTTPS, while exact loopback HTTP
-  origins are accepted locally. Direct OpenAI remains the explicit short-term fallback.
+  origins are accepted locally. Startup validates Gateway's public `/healthz` response without
+  sending its credential. Live and Responses share a retry-free client with bounded timeouts;
+  three consecutive transport, timeout, `429`, or `5xx` failures open a 15-second circuit before
+  one recovery probe. Direct OpenAI remains the explicit short-term fallback.
 - Explicit existing account UUIDs in `HOSTED_VOICE_ACCOUNT_ALLOWLIST`; sandbox purchases never qualify a public user automatically.
 - `HOSTED_VOICE_LIFETIME_CAP_NANO`, between $0.50 and $25 expressed in nanoUSD. It bounds admission against persisted lifetime exposure, including unresolved sessions. It does not reset on restart.
 
