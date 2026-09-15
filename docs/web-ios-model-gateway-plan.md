@@ -14,7 +14,6 @@ Model Gateway 是独立仓库，负责所有模型供应商接入和路由；Mur
 ```text
 /Volumes/Kingston/MyProj/vlingo-ai/mural
 /Volumes/Kingston/DeepTutor/model-gateway
-/Volumes/Kingston/DeepTutor/model-gateway-phase-1-contracts  # 已合并的 Phase 1/2 隔离 worktree
 /Volumes/Kingston/DeepTutor/model-gateway-phase-3-live       # 当前 Phase 3 隔离 worktree
 ```
 
@@ -84,7 +83,8 @@ model-gateway/contracts/
 ## 4. Model Gateway 的必要演进
 
 当前 Model Gateway 是 Apple Silicon 上的 FastAPI + MLX 音频网关，已经实现 ASR、
-强制对齐、阅读诊断和流式转写；LLM、Responses 和 Live 尚未实现。
+强制对齐、阅读诊断、流式转写和 OpenAI Responses。Phase 3 隔离分支已实现 OpenAI
+Live WebRTC session creation 与可信 sideband，待合并和跨端真实语音验收。
 
 为了同时支持本地 MLX 和可部署的云端模型代理，应先拆分运行能力：
 
@@ -401,3 +401,22 @@ job 重跑后 61 项设备测试全部通过，因此未为该偶发基础设施
 Phase 2 的实现与真实调用门禁已完成。Phase 3 已从两个仓库各自最新 `origin/main`
 创建 `codex/phase-3-live-sideband` 分支；Model Gateway 使用独立 worktree
 `/Volumes/Kingston/DeepTutor/model-gateway-phase-3-live`，主 checkout 不承载本阶段修改。
+
+Phase 3 Gateway 首轮实现已于 2026-09-15 完成：
+
+- 使用官方 OpenAI Python SDK 3.14.x 创建 `gpt-live-1` WebRTC session，并建立可信
+  sideband；OpenAI SDK 锁定在 `<4`，避免未经验证的主版本升级。
+- Gateway 只返回自己的不透明 session ID；OpenAI API key 和上游 session ID 不跨越
+  Gateway/Mural API 信任边界。
+- DataChannel client/server event allowlist 在调用 OpenAI 前校验；model delegation
+  必须解析到已配置的 Responses 逻辑别名。
+- 标准化 ready、transcript、delegation、累计音频秒数、错误与关闭事件；支持
+  mute/unmute、instructions/thinking/commentary、delegation result 和关闭命令。
+- sideband 传输断开后允许可信后端重新连接；上游不支持的 response cancel 明确以
+  `400` fail closed。
+- Ruff/format、272 项全量测试（含 Metal 生命周期测试）和 Mural 跨仓库契约检查全部
+  通过。本地 capabilities 冒烟返回 `mural.live.default`、`webrtc`、`sideband=true`，
+  服务随后停止且端口关闭。
+- 真实 OpenAI Live smoke 尚未执行：自动化浏览器环境无法提供可用 WebRTC offer，且
+  安全策略禁止内联测试页。按计划在 Mural API adapter 和正式浏览器测试页接通后，
+  执行一次无自动重试、短时、可立即关闭的 Web/iOS 双向语音验收。
