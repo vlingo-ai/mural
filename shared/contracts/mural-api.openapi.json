@@ -430,7 +430,14 @@
             "const": "topicSearch"
           },
           "funding": {
-            "$ref": "#/components/schemas/LiveSessionFunding"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LiveSessionFunding"
+              },
+              {
+                "$ref": "#/components/schemas/AccountAIValueFunding"
+              }
+            ]
           },
           "query": {
             "type": "string",
@@ -458,6 +465,18 @@
           "sessionID": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "AccountAIValueFunding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "account"
           }
         }
       },

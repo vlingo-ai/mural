@@ -520,15 +520,24 @@ credential；Live 与 Responses 共用目标、鉴权和超时边界；连续三
 272 项按预期因缺少测试数据库跳过。
 
 Phase 4B 的首个公开业务推理路径已落地：`POST /v1/model-tasks` 只接受有界业务数据和
-显式 `liveSession` funding，不接受 prompt、schema、工具、供应商或模型名；服务端按
+显式 funding，不接受 prompt、schema、工具、供应商或模型名；服务端按
 translation、assessment、teaching reply、topic search 生成固定教学策略和评估 schema，
 再复用该会话已有的 helper 预算、幂等、防重和可信 Gateway 用量结算。评估请求携带
 最多十轮有界上下文与待评 fragments，因为服务端当前按隐私设计不保存 transcript。
-会话前的 “The world today” 搜索不会冒充语音分钟：在独立 account AI-value 预留与结算
-完成前，Web/iOS 不得把它切到共享后端；已有 BYOK 行为暂留到该小阶段完成。
+会话前的 “The world today” 搜索已增加独立 `account` AI-value funding：只对会员开放，
+在一次 Gateway 请求前按保守上限建立账户预留，成功后仅按可信 usage 精确结算；未知结果
+永久保留该次 hold，供应商越界保存不可变账务证据并停止后续准入，两者都不自动重试。
+该路径不占用或冒充语音分钟，数据库不保存 query、prompt、输出、transcript、供应商模型名
+或 credential；默认仍由 `ACCOUNT_MODEL_TASKS_EXPERIMENTAL=false` 关闭。
 
 Phase 4 的无付费端到端路径也已通过：真实 Mural HTTP 路由、Bearer 鉴权、分钟账本、
 Live/Helper 控制器和两个 Gateway adapter 连接本地 fake HTTP/WebSocket Gateway；验证
 `mural.live.default` 与 `mural.translation.fast` 的路由、公开响应不泄露内部 session ID，
-以及可信 usage 回写。PostgreSQL 17.11 全量 365 项测试全部通过、0 跳过、0 失败；一次性
-实例仅监听 `127.0.0.1:55435`，验证后已停止并删除临时数据目录，未调用付费模型。
+以及可信 usage 回写。加入独立账户级 topic search 后，PostgreSQL 17.11 全量 373 项测试
+全部通过、0 跳过、0 失败；最新一次性实例仅监听 `127.0.0.1:55437`，测试后已停止并删除，
+未调用付费模型。
+
+PR #3 的 Android API 36 headless emulator 曾在无宿主或 guest OOM 的情况下退出。CI 保持
+Android 36 compile SDK，但把设备测试固定到稳定的 API 35 default image，并将完整套件分成
+四个全部必需的 shard；修正后的 Android build、4/4 emulator shards、Server、Swift Core、
+Contracts 与 secret scan 均已通过，没有跳过界面覆盖。

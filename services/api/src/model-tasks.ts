@@ -3,14 +3,16 @@ import { ServiceError } from './errors.js';
 import type { HostedHelperInput, HostedHelperPurpose, HostedHelperResult } from './hosted-helpers.js';
 import { supportsPublicLanguage } from './live-provider.js';
 
-type Funding = { type: 'liveSession'; sessionID: string };
+type LiveSessionFunding = { type: 'liveSession'; sessionID: string };
+type AccountFunding = { type: 'account' };
+type Funding = LiveSessionFunding | AccountFunding;
 type ContextTurn = { speaker: 'user' | 'assistant'; text: string };
 type AssessmentFragment = { id: string; text: string; meaningVisible: boolean; typed: boolean };
 export type ModelTask =
-  | { kind: 'translation'; funding: Funding; text: string; sourceLanguage?: string | null; targetLanguage: string }
-  | { kind: 'assessment'; funding: Funding; language: string; context: ContextTurn[];
+  | { kind: 'translation'; funding: LiveSessionFunding; text: string; sourceLanguage?: string | null; targetLanguage: string }
+  | { kind: 'assessment'; funding: LiveSessionFunding; language: string; context: ContextTurn[];
       passage: { id: string; fragments: AssessmentFragment[] } }
-  | { kind: 'teachingReply'; funding: Funding; language: string; text: string; context: ContextTurn[] }
+  | { kind: 'teachingReply'; funding: LiveSessionFunding; language: string; text: string; context: ContextTurn[] }
   | { kind: 'topicSearch'; funding: Funding; language: string; query: string };
 
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value) && !Buffer.isBuffer(value);
@@ -23,7 +25,9 @@ const MEANING_LANGUAGES = new Set(['English', 'French', 'German', 'Spanish', 'No
   'Chinese (Simplified)', 'Polish', 'Arabic', 'Ukrainian']);
 
 function funding(value: unknown): Funding {
-  if (!object(value) || !exactKeys(value, ['type', 'sessionID']) || value.type !== 'liveSession' ||
+  if (!object(value)) throw invalid();
+  if (value.type === 'account' && exactKeys(value, ['type'])) return { type: 'account' };
+  if (!exactKeys(value, ['type', 'sessionID']) || value.type !== 'liveSession' ||
       typeof value.sessionID !== 'string' || !UUID.test(value.sessionID)) throw invalid();
   return { type: 'liveSession', sessionID: value.sessionID.toLowerCase() };
 }
@@ -47,6 +51,7 @@ export function parseModelTask(value: unknown): ModelTask {
   const paidBy = funding(value.funding);
   if (value.kind === 'translation') {
     if (!exactKeys(value, ['kind', 'funding', 'text', 'sourceLanguage', 'targetLanguage']) || !cleanText(value.text, 8_000) ||
+        paidBy.type !== 'liveSession' ||
         typeof value.targetLanguage !== 'string' || !MEANING_LANGUAGES.has(value.targetLanguage) ||
         (value.sourceLanguage !== undefined && value.sourceLanguage !== null && !cleanText(value.sourceLanguage, 32))) throw invalid();
     return { kind: value.kind, funding: paidBy, text: value.text, targetLanguage: value.targetLanguage,
@@ -54,6 +59,7 @@ export function parseModelTask(value: unknown): ModelTask {
   }
   if (value.kind === 'assessment') {
     if (!exactKeys(value, ['kind', 'funding', 'language', 'context', 'passage']) || !object(value.passage) ||
+        paidBy.type !== 'liveSession' ||
         !exactKeys(value.passage, ['id', 'fragments']) || typeof value.passage.id !== 'string' || !UUID.test(value.passage.id) ||
         !Array.isArray(value.passage.fragments) || !value.passage.fragments.length || value.passage.fragments.length > 20) throw invalid();
     const fragments = value.passage.fragments.map(item => {
@@ -66,7 +72,8 @@ export function parseModelTask(value: unknown): ModelTask {
       passage: { id: value.passage.id.toLowerCase(), fragments } };
   }
   if (value.kind === 'teachingReply') {
-    if (!exactKeys(value, ['kind', 'funding', 'language', 'text', 'context']) || !cleanText(value.text, 8_000)) throw invalid();
+    if (!exactKeys(value, ['kind', 'funding', 'language', 'text', 'context']) || paidBy.type !== 'liveSession' ||
+        !cleanText(value.text, 8_000)) throw invalid();
     return { kind: value.kind, funding: paidBy, language: language(value.language), text: value.text, context: context(value.context) };
   }
   if (value.kind === 'topicSearch') {
