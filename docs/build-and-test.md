@@ -18,9 +18,14 @@ Create an iPhone 17 simulator in Xcode’s **Devices and Simulators** window. If
 xcodebuild -project apps/ios/Mural.xcodeproj -scheme Mural \
   -destination 'platform=iOS Simulator,name=iPhone 17,arch=arm64' \
   -derivedDataPath .build/DerivedData \
-  CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+  ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
   -parallel-testing-enabled NO test
 ```
+
+Leave local signing enabled for UI tests so Xcode installs a normal **Sign to Run
+Locally** build. The first launch after installing Xcode, a simulator runtime, or a
+large binary dependency can spend extra time in macOS security scanning; wait for
+that launch to finish before diagnosing an otherwise blank simulator screen.
 
 The core suite covers evidence validation, transcript revisions, language isolation, recall spacing, archive validation, translation cancellation, and managed-account configuration and security parsing. Native UI tests exercise the screens with in-memory data. Neither suite needs an API key. Configured provider sign-in and account deletion need the separate device checks in [managed accounts](managed-accounts.md).
 
