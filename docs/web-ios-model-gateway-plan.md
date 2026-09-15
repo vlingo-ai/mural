@@ -14,7 +14,8 @@ Model Gateway 是独立仓库，负责所有模型供应商接入和路由；Mur
 ```text
 /Volumes/Kingston/MyProj/vlingo-ai/mural
 /Volumes/Kingston/DeepTutor/model-gateway
-/Volumes/Kingston/DeepTutor/model-gateway-phase-1-contracts  # 隔离 worktree，当前 Phase 2 分支
+/Volumes/Kingston/DeepTutor/model-gateway-phase-1-contracts  # 已合并的 Phase 1/2 隔离 worktree
+/Volumes/Kingston/DeepTutor/model-gateway-phase-3-live       # 当前 Phase 3 隔离 worktree
 ```
 
 两个仓库在逻辑、版本和部署上同级，不要求位于同一个本机父目录。
@@ -345,10 +346,12 @@ MODEL_GATEWAY_CONTRACT_VERSION=...
 
 截至 2026-09-15：
 
-- Mural：upstream、origin 的 `main` 均为 `926fd95`；当前隔离分支已经 rebase 到该基线。
+- Mural：`upstream/main` 为 `926fd95`；`origin/main` 在该上游基线上包含已 squash 合并的
+  Phase 1 提交 `f8d6c03`。Phase 3 分支从该提交创建。
 - Mural API：TypeScript 类型检查和构建通过；PostgreSQL 17.11 隔离实例下 353 项测试
   全部通过、0 项跳过、0 项失败；跨仓库 Gateway 契约检查通过。
-- Model Gateway：`main`，提交 `13a33c4`，与 `origin/main` 同步且干净。
+- Model Gateway：Phase 1/2 已 squash 合并到 `origin/main`，提交 `a464af8`；主 checkout
+  保持干净，Phase 3 从该提交创建独立 worktree。
 - Model Gateway：Ruff/format 通过；Phase 2 基线为 261 项非 Metal 测试通过，Metal
   测试也已在沙箱外通过。
 - Model Gateway：主 checkout 保持在 `origin/main`；Phase 2 仅在独立 worktree 开发。
@@ -370,8 +373,7 @@ Phase 1 已在隔离分支完成首轮实现：
 - 最新 monorepo 引入 `apps/android/`、`apps/ios/`、`services/api/` 和
   `shared/contracts/`；2026-09-15 已完成 Phase 1 文件迁移和最新基线全量复验。
 
-Phase 2 的离线实现已提交到 Model Gateway 的 `codex/phase-2-openai-responses`
-（`41a2b2f`）：
+Phase 2 的离线实现已通过 Model Gateway PR #8 squash 合并到 `main`（`a464af8`）：
 
 - 增加 OpenAI Responses provider adapter；四个 Mural 逻辑模型分别由环境变量映射，
   不在代码中固定供应商模型 ID。
@@ -391,5 +393,11 @@ Phase 2 的离线实现已提交到 Model Gateway 的 `codex/phase-2-openai-resp
 无自动重试。测试后 Gateway 已停止且端口 8011 已关闭。Platform 当时显示余额为 0，
 但请求成功；不据此推断账户的免费额度、后付费状态或余额刷新机制。
 
-Phase 2 的实现与真实调用门禁已完成。下一步是发布 Model Gateway 隔离分支供审查，
-通过 PR 后再打兼容版本并开始 Phase 3 Live adapter；不会直接合并 `main`。
+Mural Phase 1 已通过 PR #1 squash 合并到 `main`（`f8d6c03`），该 PR 的 contracts、
+secret scan、Swift Core、Server、Android 和 Emulator 共 7 项检查全部通过。Emulator
+首轮运行因设备进程从 ADB 消失而失败；报告没有业务断言，宿主机没有 OOM 证据，原
+job 重跑后 61 项设备测试全部通过，因此未为该偶发基础设施故障修改产品代码。
+
+Phase 2 的实现与真实调用门禁已完成。Phase 3 已从两个仓库各自最新 `origin/main`
+创建 `codex/phase-3-live-sideband` 分支；Model Gateway 使用独立 worktree
+`/Volumes/Kingston/DeepTutor/model-gateway-phase-3-live`，主 checkout 不承载本阶段修改。
