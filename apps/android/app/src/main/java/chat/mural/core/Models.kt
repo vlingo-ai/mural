@@ -147,13 +147,13 @@ object ArchiveCodec {
         if (v == 2) return root
         val m = root.toMutableMap()
         val p = root["preferences"]?.jsonObject?.toMutableMap() ?: throw ArchiveError.INVALID
-        p["learningLanguageID"] = JsonPrimitive(LanguageRegistry.defaultID)
-        p["hiddenWords"] = buildJsonArray { root["preferences"]?.jsonObject?.get("hiddenWords")?.jsonArray?.forEach { add(JsonPrimitive("${LanguageRegistry.defaultID}|${it.jsonPrimitive.content}")) } }
+        p["learningLanguageID"] = JsonPrimitive(LanguageRegistry.legacyDefaultID)
+        p["hiddenWords"] = buildJsonArray { root["preferences"]?.jsonObject?.get("hiddenWords")?.jsonArray?.forEach { add(JsonPrimitive("${LanguageRegistry.legacyDefaultID}|${it.jsonPrimitive.content}")) } }
         m["preferences"] = JsonObject(p)
         m["sessions"] = buildJsonArray {
             root["sessions"]?.jsonArray?.forEach { el ->
-                val s = el.jsonObject.toMutableMap(); s["languageID"] = JsonPrimitive(LanguageRegistry.defaultID)
-                s["topics"] = buildJsonArray { s["topics"]?.jsonArray?.forEach { t -> val x=t.jsonObject.toMutableMap(); x["languageID"]=JsonPrimitive(LanguageRegistry.defaultID); add(JsonObject(x)) } }
+                val s = el.jsonObject.toMutableMap(); s["languageID"] = JsonPrimitive(LanguageRegistry.legacyDefaultID)
+                s["topics"] = buildJsonArray { s["topics"]?.jsonArray?.forEach { t -> val x=t.jsonObject.toMutableMap(); x["languageID"]=JsonPrimitive(LanguageRegistry.legacyDefaultID); add(JsonObject(x)) } }
                 add(JsonObject(s))
             } ?: throw ArchiveError.INVALID
         }

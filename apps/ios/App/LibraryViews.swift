@@ -402,7 +402,10 @@ struct LearningLanguagePicker: View {
     let coordinator: ConversationCoordinator
     var body: some View {
         Picker("Learning language", selection: Binding(get: { coordinator.language.id }, set: { coordinator.selectLanguage($0) })) {
-            ForEach(LanguageRegistry.all) { language in Text(language.settingsTitle).tag(language.id) }
+            if !LanguageRegistry.isAvailable(coordinator.language.id) {
+                Text("Choose an available language").tag(coordinator.language.id)
+            }
+            ForEach(LanguageRegistry.availableLanguages) { language in Text(language.settingsTitle).tag(language.id) }
         }
         .pickerStyle(.menu)
         .disabled(coordinator.isRunning)

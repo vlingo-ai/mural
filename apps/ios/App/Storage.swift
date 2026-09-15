@@ -48,7 +48,7 @@ import MuralCore
     var learningSessions: [SessionRecord] { sessions.filter { $0.languageID == language.id } }
     var learner: LearnerState { LearningEngine.project(archive.sessions, languageID: language.id, hiddenWords: archive.preferences.hiddenWords) }
     func selectLanguage(_ id: String) {
-        guard LanguageRegistry.module(for: id) != nil else { return }
+        guard LanguageRegistry.isAvailable(id) else { return }
         archive.preferences.learningLanguageID = id; persist()
     }
     func updatePreferences(_ change: (inout Preferences) -> Void) { change(&archive.preferences); persist() }

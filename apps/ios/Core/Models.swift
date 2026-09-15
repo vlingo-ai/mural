@@ -232,16 +232,16 @@ public struct Archive: Codable, Sendable {
         if version == 2 { return data }
         guard var preferences = root["preferences"] as? [String: Any],
               let sessions = root["sessions"] as? [[String: Any]] else { throw ArchiveError.invalid }
-        preferences["learningLanguageID"] = LanguageRegistry.defaultID
+        preferences["learningLanguageID"] = LanguageRegistry.legacyDefaultID
         if let hidden = preferences["hiddenWords"] as? [String] {
-            preferences["hiddenWords"] = hidden.map { LanguageRegistry.defaultID + "|" + $0 }
+            preferences["hiddenWords"] = hidden.map { LanguageRegistry.legacyDefaultID + "|" + $0 }
         }
         root["preferences"] = preferences
         root["sessions"] = sessions.map { original in
-            var session = original; session["languageID"] = LanguageRegistry.defaultID
+            var session = original; session["languageID"] = LanguageRegistry.legacyDefaultID
             if let topics = session["topics"] as? [[String: Any]] {
                 session["topics"] = topics.map { original in
-                    var topic = original; topic["languageID"] = LanguageRegistry.defaultID; return topic
+                    var topic = original; topic["languageID"] = LanguageRegistry.legacyDefaultID; return topic
                 }
             }
             return session

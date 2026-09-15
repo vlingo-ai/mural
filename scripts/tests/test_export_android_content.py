@@ -31,8 +31,10 @@ public struct LanguageModule: Identifiable, Sendable {{
 
 public enum LanguageRegistry {{
     public static let defaultID = "{default_id}"
-    public static let all: [LanguageModule] = [{refs}]
-    public static func module(for id: String) -> LanguageModule? {{ all.first {{ $0.id == id }} }}
+    public static let legacyDefaultID = "nb"
+    public static let knownLanguages: [LanguageModule] = [{refs}]
+    public static let availableLanguages: [LanguageModule] = [{refs}]
+    public static func module(for id: String) -> LanguageModule? {{ knownLanguages.first {{ $0.id == id }} }}
 }}
 
 public enum MeaningLanguages {{
@@ -113,7 +115,7 @@ class ExportAndroidContentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             core = write_core(pathlib.Path(tmp), ['Zulu', 'Alpha'])
             result = eac.generate(core)
-            self.assertIn('val all = listOf(zulu, alpha)', result)
+            self.assertIn('val knownLanguages = listOf(zulu, alpha)', result)
             self.assertLess(result.index('private val zulu'), result.index('private val alpha'))
 
     def test_fifth_module_appears_in_output(self):
@@ -121,7 +123,7 @@ class ExportAndroidContentTests(unittest.TestCase):
             core = write_core(pathlib.Path(tmp), ['Norwegian', 'Spanish', 'English', 'French', 'German'])
             result = eac.generate(core)
             self.assertIn('private val german = LanguageModule(', result)
-            self.assertIn('val all = listOf(norwegian, spanish, english, french, german)', result)
+            self.assertIn('val knownLanguages = listOf(norwegian, spanish, english, french, german)', result)
 
     def test_unknown_field_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -147,10 +149,10 @@ class ExportAndroidContentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             core = write_core(pathlib.Path(tmp), ['Norwegian'])
             path = core / 'Languages/LanguageModule.swift'
-            path.write_text(path.read_text().replace('public static let all', 'public static let every'))
+            path.write_text(path.read_text().replace('public static let knownLanguages', 'public static let every'))
             with self.assertRaises(SystemExit) as ctx:
                 eac.language_files(core)
-            self.assertIn('LanguageRegistry.all', str(ctx.exception))
+            self.assertIn('LanguageRegistry.knownLanguages', str(ctx.exception))
 
     def test_malformed_theme_is_reported(self):
         with self.assertRaises(SystemExit) as ctx:
@@ -177,6 +179,9 @@ class ExportAndroidContentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             output = eac.generate(write_core(pathlib.Path(tmp), ['Spanish', 'Norwegian']))
             self.assertIn('const val defaultID = "sp"', output)
+            self.assertIn('const val legacyDefaultID = "nb"', output)
+            self.assertIn('val knownLanguages = listOf(spanish, norwegian)', output)
+            self.assertIn('val availableLanguages = listOf(spanish, norwegian)', output)
 
     def test_generation_is_deterministic(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -83,8 +83,8 @@ final class LanguageTests: XCTestCase {
         XCTAssertEqual(migrated.sessions[0].fragments, session.fragments)
         XCTAssertEqual(migrated.sessions[0].topics[0].languageID, "nb")
         XCTAssertEqual(migrated.sessions[0].topics[0].text, session.topics[0].text)
-        XCTAssertEqual(LearningEngine.project(migrated.sessions).words.first?.independentCount, 1)
-        XCTAssertTrue(LearningEngine.project(migrated.sessions, hiddenWords: migrated.preferences.hiddenWords).words.isEmpty)
+        XCTAssertEqual(LearningEngine.project(migrated.sessions, languageID: "nb").words.first?.independentCount, 1)
+        XCTAssertTrue(LearningEngine.project(migrated.sessions, languageID: "nb", hiddenWords: migrated.preferences.hiddenWords).words.isEmpty)
         XCTAssertEqual(try Archive.decode(migrated.encoded()).preferences.hiddenWords, original.preferences.hiddenWords)
     }
 
@@ -116,8 +116,8 @@ final class LanguageTests: XCTestCase {
     }
 
     func testEveryModuleHasCompleteCurriculumAndStableThemeIDs() {
-        XCTAssertEqual(Set(LanguageRegistry.all.map(\.id)).count, LanguageRegistry.all.count)
-        for language in LanguageRegistry.all {
+        XCTAssertEqual(Set(LanguageRegistry.knownLanguages.map(\.id)).count, LanguageRegistry.knownLanguages.count)
+        for language in LanguageRegistry.knownLanguages {
             XCTAssertEqual(language.teachingFocus.count, 6)
             XCTAssertTrue(language.teachingFocus.allSatisfy { !$0.isEmpty })
             XCTAssertEqual(Set(language.themes.map(\.id)), Set(ConversationTheme.shared.map(\.id)))
@@ -212,7 +212,7 @@ final class LanguageTests: XCTestCase {
     }
 
     func testLanguageRedirectUsesTheSelectedTargetInsteadOfAnEnglishBlacklist() {
-        for language in LanguageRegistry.all {
+        for language in LanguageRegistry.knownLanguages {
             XCTAssertFalse(TeachingPolicy.shouldRedirectSpeech(language: language, detectedLanguageID: language.id, confidence: 0.99))
             let otherID = language.id == "en" ? "fr" : "en"
             XCTAssertTrue(TeachingPolicy.shouldRedirectSpeech(language: language, detectedLanguageID: otherID, confidence: 0.99))

@@ -16,13 +16,14 @@ struct OnboardingView: View {
     init(coordinator: ConversationCoordinator, done: @escaping () -> Void) {
         self.coordinator = coordinator
         self.done = done
-        _targetID = State(initialValue: coordinator.language.id)
+        _targetID = State(initialValue: LanguageRegistry.isAvailable(coordinator.language.id)
+            ? coordinator.language.id : LanguageRegistry.defaultID)
         _meaningLanguage = State(initialValue: coordinator.store.preferences.meaningLanguage)
         _hasChosenMeaning = State(initialValue: coordinator.store.preferences.meaningLanguage != Preferences().meaningLanguage)
     }
 
-    private var target: LanguageModule { LanguageRegistry.module(for: targetID) ?? .norwegian }
-    private var greeting: String { reduceMotion ? target.greeting : LanguageRegistry.all[greetingIndex].greeting }
+    private var target: LanguageModule { LanguageRegistry.module(for: targetID) ?? .english }
+    private var greeting: String { reduceMotion ? target.greeting : LanguageRegistry.availableLanguages[greetingIndex].greeting }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -87,7 +88,7 @@ struct OnboardingView: View {
                 do { try await Task.sleep(for: .seconds(3.8)) } catch { return }
                 guard !Task.isCancelled else { return }
                 if scenePhase == .active {
-                    withAnimation(.easeInOut(duration: 0.6)) { greetingIndex = (greetingIndex + 1) % LanguageRegistry.all.count }
+                    withAnimation(.easeInOut(duration: 0.6)) { greetingIndex = (greetingIndex + 1) % LanguageRegistry.availableLanguages.count }
                 }
             }
         }
@@ -110,7 +111,7 @@ struct OnboardingView: View {
                 .font(.system(.title2, design: .rounded, weight: .semibold)).tracking(-0.5)
                 .multilineTextAlignment(.center).accessibilityIdentifier("onboarding-language-title")
             VStack(spacing: 10) {
-                ForEach(LanguageRegistry.all) { language in
+                ForEach(LanguageRegistry.availableLanguages) { language in
                     Button { targetID = language.id } label: {
                         HStack(spacing: 14) {
                             VStack(alignment: .leading, spacing: 3) {
