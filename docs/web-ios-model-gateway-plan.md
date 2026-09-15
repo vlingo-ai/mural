@@ -420,3 +420,17 @@ Phase 3 Gateway 首轮实现已于 2026-09-15 完成：
 - 真实 OpenAI Live smoke 尚未执行：自动化浏览器环境无法提供可用 WebRTC offer，且
   安全策略禁止内联测试页。按计划在 Mural API adapter 和正式浏览器测试页接通后，
   执行一次无自动重试、短时、可立即关闭的 Web/iOS 双向语音验收。
+
+Mural API 的 Live adapter 首轮实现也已完成：
+
+- `services/api/src/model-gateway/` 新增 Gateway Live provider，复用 upstream 现有
+  `HostedVoice` 会话、PostgreSQL 账本、恢复、分钟额度和关闭 watchdog。
+- `MODEL_GATEWAY_URL` 与 `MODEL_GATEWAY_API_KEY` 必须成对配置；Gateway 为首选路径，
+  原有 OpenAI 直连 provider 作为短期回滚实现保留。
+- Mural 发送稳定逻辑模型、受限 history、服务端 prompt 和 DataChannel allowlist；
+  只保存 Gateway 不透明 session ID，不保存 SDP、prompt、转写或音频；该内部 ID 不随
+  `POST /v1/live/sessions` 的公开响应返回给 Web/iOS 客户端。
+- Mural sideband 只接受协议版本、session ID 和 sequence 均有效的累计音频 usage 与
+  terminal close；transcript 等业务事件不进入计费回调，连接丢失不结算。
+- TypeScript check、无数据库单测和 PostgreSQL 17.11 全量 357 项测试全部通过；一次性
+  数据库仅监听 `127.0.0.1:55434`，测试后已停止并删除临时数据目录。

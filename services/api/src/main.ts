@@ -14,6 +14,7 @@ import { configuredMinuteCommerce } from './minute-commerce-config.js';
 import { HostedHelpers } from './hosted-helpers.js';
 import { OpenAIHostedResponses } from './hosted-responses-transport.js';
 import { InstallationGuestMinuteAttestor } from './guest-minutes.js';
+import { ModelGatewayLiveProvider } from './model-gateway/live-provider.js';
 
 const databaseURL = process.env.DATABASE_URL;
 if (!databaseURL) { console.error('DATABASE_URL is required.'); process.exit(1); }
@@ -66,7 +67,12 @@ try {
       });
       await hostedHelpers.expireBudgets();
     }
-    hosted = new HostedVoice(db, new OpenAILiveProvider(process.env.OPENAI_API_KEY ?? ''),
+    const gatewayURL = process.env.MODEL_GATEWAY_URL, gatewayKey = process.env.MODEL_GATEWAY_API_KEY;
+    if (Boolean(gatewayURL) !== Boolean(gatewayKey)) throw new Error('Model Gateway configuration is incomplete.');
+    const liveProvider = gatewayURL && gatewayKey
+      ? new ModelGatewayLiveProvider(gatewayURL, gatewayKey)
+      : new OpenAILiveProvider(process.env.OPENAI_API_KEY ?? '');
+    hosted = new HostedVoice(db, liveProvider,
       { accountAllowlist: accounts, billingUnit, lifetimeFundingCapNano,publicMinuteAccess,publicPaidAccess, helpers: hostedHelpers,
         onStartupFailure: diagnostic => console.warn(JSON.stringify({ event: 'live_startup_failed', ...diagnostic })) });
     await hosted.start();

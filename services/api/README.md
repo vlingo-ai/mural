@@ -1,6 +1,6 @@
 # Run Mural's commercial backend foundation
 
-This backend prepares accounts, a credit ledger, and **Stripe sandbox** payments. Public funded conversations and free trials remain unavailable; live Stripe keys are rejected. A disabled, operator-allowlisted voice experiment now has a real network adapter and durable accounting, tested entirely against a local fake provider. The existing iPhone BYOK build continues to operate independently.
+This backend prepares accounts, a credit ledger, and **Stripe sandbox** payments. Public funded conversations and free trials remain unavailable; live Stripe keys are rejected. A disabled, operator-allowlisted voice experiment has durable accounting plus direct OpenAI and Model Gateway Live adapters, tested against local fake providers. The existing iPhone BYOK build continues to operate independently.
 
 Consumer pricing is moving to **conversation minutes**. The time ledger, configurable welcome allowance, guest-to-account transfer and audited grants are implemented separately from provider cost accounting. They do not activate hosted calls or real purchases. Read [conversation minutes](../../docs/conversation-minutes.md) and [how to manage free minutes](../../docs/manage-free-minutes.md) before configuring the operator controls.
 
@@ -93,7 +93,7 @@ All monetary strings are integer **nanoUSD**: 1 USD = 1,000,000,000 nanoUSD. A d
 | `POST /v1/checkout` | Bearer token; `Idempotency-Key`; `product` = `ai-10-usd` or `ai-25-usd` | `checkoutURL`, `orderID`, `sandbox: true`, itemized `quote` |
 | `POST /v1/webhooks/stripe` | Raw signed Stripe JSON | Atomic payment/refund journal update and duplicate receipt |
 | `POST /v1/trial/eligibility` | Apple attestation proof | `503 trial_attestation_unavailable` until a verified adapter is configured |
-| `POST /v1/live/sessions` | Bearer token; `Idempotency-Key`; `sdp`; `language` (`nb-NO`, `es-ES`, `en-US`, `fr-FR`, `de-DE`, `it-IT`, `pt-BR`, `zh-CN`) | Default `503`; allowlisted experiment returns `sessionID`, `providerSessionID`, `sdp`, `deadline`, `reservedNanoUSD`, `rateVersion`, `experimental` |
+| `POST /v1/live/sessions` | Bearer token; `Idempotency-Key`; `sdp`; `language` (`nb-NO`, `es-ES`, `en-US`, `fr-FR`, `de-DE`, `it-IT`, `pt-BR`, `zh-CN`) | Default `503`; allowlisted experiment returns public `sessionID`, `sdp`, `deadline`, reservation policy and `experimental`; provider/Gateway session IDs remain server-only |
 | `GET /v1/live/sessions/:id` | Bearer token belonging to the session owner | Minimal state, cumulative milliseconds, confirmed provider cost and customer debit |
 | `POST /v1/live/sessions/:id/close` | Bearer token belonging to the session owner | Requests server closure; never accepts client-reported usage |
 
@@ -103,7 +103,9 @@ Error responses contain a safe `error.code` only. Request bodies, keys, ID token
 
 The default remains `HOSTED_VOICE_EXPERIMENTAL=false`. The production Compose file deliberately does not forward hosted-provider credentials. To conduct a separately authorized engineering test, an operator must supply all of the following through a private deployment override:
 
-- `HOSTED_VOICE_EXPERIMENTAL=true` and a dedicated `OPENAI_API_KEY`.
+- `HOSTED_VOICE_EXPERIMENTAL=true` and either a dedicated `OPENAI_API_KEY`, or both
+  `MODEL_GATEWAY_URL` and `MODEL_GATEWAY_API_KEY`. Gateway is preferred; its production
+  origin must use HTTPS, while exact loopback HTTP origins are accepted locally.
 - Explicit existing account UUIDs in `HOSTED_VOICE_ACCOUNT_ALLOWLIST`; sandbox purchases never qualify a public user automatically.
 - `HOSTED_VOICE_LIFETIME_CAP_NANO`, between $0.50 and $25 expressed in nanoUSD. It bounds admission against persisted lifetime exposure, including unresolved sessions. It does not reset on restart.
 
@@ -112,6 +114,15 @@ Each call reserves $0.50 of wallet value before one provider create, targets a 6
 A PostgreSQL advisory lock permits one controller. On restart it reattaches saved provider IDs and requests closure. The watchdog checks deadlines and reversed funding, attempts graceful closure, and retries HTTP hangup. An uncertain creation, lost sideband, regressing final usage, or missing final event keeps the reservation unresolved and blocks new funding. No provider success is inferred from an HTTP hangup alone. There is no automated operator override that invents final usage.
 
 The sideband adapter discards audio, transcripts, and session snapshots before the accounting callback. Only identifiers, duration, money, state, and fixed reason codes reach PostgreSQL. Live uses fixed client delegation; no Responses model or search tool is funded by this experiment. Hosted teacher analysis, subtitles, and research tools still need separate server budgets and implementation.
+
+With Model Gateway configured, Mural sends the client's SDP offer, fixed logical model
+`mural.live.default`, bounded initial history, product instructions and explicit DataChannel
+event allowlists to Gateway. Mural stores only Gateway's opaque session ID. The browser/iOS
+media path still terminates at the selected Live provider; Mural's server connects to
+Gateway's authenticated `vlingo.live.sideband@1.0` WebSocket and accepts only ordered,
+session-bound cumulative audio usage and terminal close evidence for billing. Gateway
+transport loss is never treated as final usage, and watchdog hangup reconnects only long
+enough to send the trusted close command.
 
 A 600-second wall-clock closure request is **not an absolute provider spending guarantee during a network partition**. OpenAI’s general guide describes hangup for Live sessions, while the fetched endpoint reference calls it a SIP operation. WebRTC hangup and terminal usage recovery must be confirmed with the provider and a real bounded test. No such paid call was made here. Keep public hosted voice off until those limits and reconciliation are verified.
 
@@ -141,7 +152,7 @@ docker compose -p mural-foundation-smoke -f tests/compose.smoke.yaml down --volu
 - Confirm the operator's merchant country, tax treatment, channel fees, retention periods, and live receipt details. Then implement live payment activation, taxes, dispute resolution, support tooling, and operator reconciliation.
 - Separate migration and runtime database privileges; add financial backup/restore verification, operational alerts without content, and tested provider-level spending protection.
 
-Local verification on 15 September 2026: TypeScript checks and the production build passed, and **353 tests passed with no skips** against an isolated local PostgreSQL 17.11 database. They cover ledger races, Checkout retry/mapping/deletion races, signed raw webhooks, JWTs, Apple revocation, access requests, accounts, and HTTP/WebSocket voice metering and recovery. The Model Gateway contract check also passed against `vlingo.model-gateway@1.0`. The earlier container hardening checks remain recorded: read-only filesystem, dropped capabilities, localhost-only API port, passing database readiness, and zero known dependency vulnerabilities. No paid provider calls or real payments were made.
+Local verification on 15 September 2026: TypeScript checks passed, and **357 tests passed with no skips** against an isolated local PostgreSQL 17.11 database. They cover ledger races, Checkout retry/mapping/deletion races, signed raw webhooks, JWTs, Apple revocation, access requests, accounts, HTTP/WebSocket voice metering and recovery, and the Model Gateway Live adapter. The Model Gateway contract check also passed against `vlingo.model-gateway@1.0`. The earlier container hardening checks remain recorded: read-only filesystem, dropped capabilities, localhost-only API port, passing database readiness, and zero known dependency vulnerabilities. No paid provider calls or real payments were made.
 
 
 ## Provider contracts

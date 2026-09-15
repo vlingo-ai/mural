@@ -353,8 +353,10 @@ export function createApp(services: Services) {
       throw new ServiceError('invalid_request');
     const key = request.headers['idempotency-key'];
     if (typeof key !== 'string') throw new ServiceError('idempotency_key_required');
-    return services.hosted.create(account, key, stringField(body, 'sdp', 65_536), stringField(body, 'language', 10),
+    const { providerSessionID: _privateProviderSessionID, ...publicSession } = await services.hosted.create(
+      account, key, stringField(body, 'sdp', 65_536), stringField(body, 'language', 10),
       { instructions: body.instructions, history: body.history }, body.requestedMilliseconds as number | undefined);
+    return publicSession;
   });
   app.get('/v1/live/sessions/:id', async request => {
     if (!services.hosted) throw new ServiceError('hosted_voice_not_ready', 503);
