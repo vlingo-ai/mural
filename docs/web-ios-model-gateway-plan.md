@@ -349,13 +349,15 @@ MODEL_GATEWAY_CONTRACT_VERSION=...
 - Mural API：TypeScript 类型检查和构建通过；PostgreSQL 17.11 隔离实例下 353 项测试
   全部通过、0 项跳过、0 项失败；跨仓库 Gateway 契约检查通过。
 - Model Gateway：`main`，提交 `13a33c4`，与 `origin/main` 同步且干净。
-- Model Gateway：Ruff 通过；251 项非 Metal 测试通过，Metal 测试也已在沙箱外通过。
-- Model Gateway：已有 `.venv` 和 `.env`，已有进程监听 8000；未读取或输出密钥。
+- Model Gateway：Ruff/format 通过；Phase 2 基线为 261 项非 Metal 测试通过，Metal
+  测试也已在沙箱外通过。
+- Model Gateway：主 checkout 保持在 `origin/main`；Phase 2 仅在独立 worktree 开发。
+  本地 `.env` 被 Git 忽略且权限为 `0600`；没有输出或提交密钥。
 - Mural Android：OpenJDK 17、Android platform 36/build-tools 35.0.0 已就绪；unit test、
   lint 和 debug assemble 通过。跨平台 Python 套件 53 项、内容导出和兼容检查通过。
 - Mural iOS：Xcode 26.6、Swift 6.3.3、iOS 26.5 Simulator runtime 已就绪；74 项
   Swift 测试、generic Simulator build 和 iPhone 17 的 20 项 UI 测试全部通过。
-- Phase 0 已完成；未进行付费模型调用。此前残留的 App Store `mas install` 进程已结束。
+- Phase 0 已完成。此前残留的 App Store `mas install` 进程已结束。
 
 Phase 1 已在隔离分支完成首轮实现：
 
@@ -383,5 +385,11 @@ Phase 2 的离线实现已提交到 Model Gateway 的 `codex/phase-2-openai-resp
 - Ruff/format 通过；261 项非 Metal 全量回归通过，唯一排除项仍是已记录的沙箱
   Metal 设备测试；Mural 跨仓库契约检查继续通过。
 
-下一门禁是一次用户明确授权、设定模型与费用上限的真实 OpenAI smoke test。通过后
-再发布 Model Gateway 分支/版本并开始 Phase 3 Live adapter；在授权前不会产生付费调用。
+真实 OpenAI smoke test 已于 2026-09-15 通过：localhost-only Gateway 使用
+`mural.translation.fast → gpt-5.6-luna` 完成一次 HTTP 200 请求，返回预期文本，usage
+为 31 input、9 output、40 total tokens；`store=false`、32 output-token 上限、无工具、
+无自动重试。测试后 Gateway 已停止且端口 8011 已关闭。Platform 当时显示余额为 0，
+但请求成功；不据此推断账户的免费额度、后付费状态或余额刷新机制。
+
+Phase 2 的实现与真实调用门禁已完成。下一步是发布 Model Gateway 隔离分支供审查，
+通过 PR 后再打兼容版本并开始 Phase 3 Live adapter；不会直接合并 `main`。
