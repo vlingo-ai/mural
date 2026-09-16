@@ -247,7 +247,7 @@ integration('the HTTP error boundary maps only the known refund-debt database ex
     const hold = await reserveMinutes(f.db, account.id, 'held-for-refund', 60_000);
     await f.webhook(f.stripeEvent(order.orderID, 'paid', 997)); await finishMinuteReservation(f.db, hold, null);
     handler = id => reserveMinutes(f.db, id, 'blocked-by-refund', 1);
-    const request = { method: 'POST' as const, url: '/v1/live/sessions', headers: { ...account.headers, 'idempotency-key': 'http-refund-block' }, payload: { sdp: 'v=0', language: 'es-ES' } };
+    const request = { method: 'POST' as const, url: '/v1/live/sessions', headers: { ...account.headers, 'idempotency-key': 'http-refund-block' }, payload: { sdp: 'v=0', language: 'en' } };
     const response = await f.app.inject(request);
     assert.equal(response.statusCode, 409); assert.deepEqual(response.json(), { error: { code: 'minute_purchase_reconciliation_required' } });
     handler = async () => { throw Object.assign(new Error('private database detail'), { code: 'P0001' }); };

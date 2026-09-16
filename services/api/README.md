@@ -1,6 +1,6 @@
 # Run Mural's commercial backend foundation
 
-This backend prepares accounts, a credit ledger, and **Stripe sandbox** payments. Public funded conversations and free trials remain unavailable; live Stripe keys are rejected. A disabled, operator-allowlisted voice experiment has durable accounting plus direct OpenAI and Model Gateway Live adapters, tested against local fake providers. The existing iPhone BYOK build continues to operate independently.
+This backend prepares accounts, a credit ledger, and **Stripe sandbox** payments. Public funded conversations and free trials remain unavailable; live Stripe keys are rejected. A disabled, operator-allowlisted voice experiment has durable accounting plus direct OpenAI and Model Gateway Live/Responses adapters, tested against local fake providers. The existing iPhone BYOK build continues to operate independently.
 
 Consumer pricing is moving to **conversation minutes**. The time ledger, configurable welcome allowance, guest-to-account transfer and audited grants are implemented separately from provider cost accounting. They do not activate hosted calls or real purchases. Read [conversation minutes](../../docs/conversation-minutes.md) and [how to manage free minutes](../../docs/manage-free-minutes.md) before configuring the operator controls.
 
@@ -93,9 +93,10 @@ All monetary strings are integer **nanoUSD**: 1 USD = 1,000,000,000 nanoUSD. A d
 | `POST /v1/checkout` | Bearer token; `Idempotency-Key`; `product` = `ai-10-usd` or `ai-25-usd` | `checkoutURL`, `orderID`, `sandbox: true`, itemized `quote` |
 | `POST /v1/webhooks/stripe` | Raw signed Stripe JSON | Atomic payment/refund journal update and duplicate receipt |
 | `POST /v1/trial/eligibility` | Apple attestation proof | `503 trial_attestation_unavailable` until a verified adapter is configured |
-| `POST /v1/live/sessions` | Bearer token; `Idempotency-Key`; `sdp`; `language` (`nb-NO`, `es-ES`, `en-US`, `fr-FR`, `de-DE`, `it-IT`, `pt-BR`, `zh-CN`) | Default `503`; allowlisted experiment returns public `sessionID`, `sdp`, `deadline`, reservation policy and `experimental`; provider/Gateway session IDs remain server-only |
+| `POST /v1/live/sessions` | Bearer token; `Idempotency-Key`; `sdp`; `language` (`en` or `zh-CN`) | Default `503`; allowlisted experiment returns public `sessionID`, `sdp`, `deadline`, reservation policy and `experimental`; provider/Gateway session IDs remain server-only |
 | `GET /v1/live/sessions/:id` | Bearer token belonging to the session owner | Minimal state, cumulative milliseconds, confirmed provider cost and customer debit |
 | `POST /v1/live/sessions/:id/close` | Bearer token belonging to the session owner | Requests server closure; never accepts client-reported usage |
+| `POST /v1/model-tasks` | Member Bearer token; `Idempotency-Key`; prompt-free business task and explicit funding | Translation, assessment and teaching reply use an owned Live session; topic search may instead reserve verified account AI value when separately enabled |
 
 Error responses contain a safe `error.code` only. Request bodies, keys, ID tokens, bearer tokens, Stripe payloads, and conversations are not logged. Expired authentication records are pruned every 15 minutes. The basic in-memory rate limit does not trust forwarded client-IP headers; behind Caddy it applies conservatively to the proxy address. Configure and test a trusted-proxy policy before scaling it.
 
@@ -104,8 +105,12 @@ Error responses contain a safe `error.code` only. Request bodies, keys, ID token
 The default remains `HOSTED_VOICE_EXPERIMENTAL=false`. The production Compose file deliberately does not forward hosted-provider credentials. To conduct a separately authorized engineering test, an operator must supply all of the following through a private deployment override:
 
 - `HOSTED_VOICE_EXPERIMENTAL=true` and either a dedicated `OPENAI_API_KEY`, or both
-  `MODEL_GATEWAY_URL` and `MODEL_GATEWAY_API_KEY`. Gateway is preferred; its production
-  origin must use HTTPS, while exact loopback HTTP origins are accepted locally.
+  `MODEL_GATEWAY_URL` and `MODEL_GATEWAY_API_KEY`. Gateway is preferred for both Live and
+  hosted helper Responses; its production origin must use HTTPS, while exact loopback HTTP
+  origins are accepted locally. Startup validates Gateway's public `/healthz` response without
+  sending its credential. Live and Responses share a retry-free client with bounded timeouts;
+  three consecutive transport, timeout, `429`, or `5xx` failures open a 15-second circuit before
+  one recovery probe. Direct OpenAI remains the explicit short-term fallback.
 - Explicit existing account UUIDs in `HOSTED_VOICE_ACCOUNT_ALLOWLIST`; sandbox purchases never qualify a public user automatically.
 - `HOSTED_VOICE_LIFETIME_CAP_NANO`, between $0.50 and $25 expressed in nanoUSD. It bounds admission against persisted lifetime exposure, including unresolved sessions. It does not reset on restart.
 
@@ -113,7 +118,12 @@ Each call reserves $0.50 of wallet value before one provider create, targets a 6
 
 A PostgreSQL advisory lock permits one controller. On restart it reattaches saved provider IDs and requests closure. The watchdog checks deadlines and reversed funding, attempts graceful closure, and retries HTTP hangup. An uncertain creation, lost sideband, regressing final usage, or missing final event keeps the reservation unresolved and blocks new funding. No provider success is inferred from an HTTP hangup alone. There is no automated operator override that invents final usage.
 
-The sideband adapter discards audio, transcripts, and session snapshots before the accounting callback. Only identifiers, duration, money, state, and fixed reason codes reach PostgreSQL. Live uses fixed client delegation; no Responses model or search tool is funded by this experiment. Hosted teacher analysis, subtitles, and research tools still need separate server budgets and implementation.
+The sideband adapter discards audio, transcripts, and session snapshots before the accounting callback. Only identifiers, duration, money, state, and fixed reason codes reach PostgreSQL. Live uses fixed application delegation; model-initiated delegation is not funded by this experiment. Hosted helpers use their separate server-owned budgets, request limits and one-shot transport.
+
+`tests/model-gateway-e2e.test.ts` exercises the complete public Mural HTTP path against a local
+fake Gateway and PostgreSQL without provider credentials or paid model calls. It covers shared
+health, Live WebRTC negotiation metadata, trusted sideband attachment, helper routing and usage
+settlement.
 
 With Model Gateway configured, Mural sends the client's SDP offer, fixed logical model
 `mural.live.default`, bounded initial history, product instructions and explicit DataChannel
@@ -123,6 +133,26 @@ Gateway's authenticated `vlingo.live.sideband@1.0` WebSocket and accepts only or
 session-bound cumulative audio usage and terminal close evidence for billing. Gateway
 transport loss is never treated as final usage, and watchdog hangup reconnects only long
 enough to send the trusted close command.
+
+When hosted helpers are enabled with the same Gateway configuration, Mural maps meaning,
+assessment, ordinary reasoning and search requests to stable logical model aliases. The
+Gateway result must report cached and cache-write input tokens, output tokens and actual
+Web Search calls; Mural never infers billable usage from the requested tools. Citation URLs
+must be credential-free HTTPS sources, are bounded and deduplicated by Gateway, and are
+validated again before being returned to a client.
+
+The public `/v1/model-tasks` route never accepts model names, provider settings, prompts,
+tools or output schemas. Translation, assessment and teaching reply require an owned Live
+session and settle through its existing helper budget. Topic search also accepts the explicit
+`{"type":"account"}` funding mode when `ACCOUNT_MODEL_TASKS_EXPERIMENTAL=true` and paid AI
+value is enabled. That path is member-only, admits at most one concurrent request per account,
+reserves the conservative maximum provider cost before one network attempt, and settles only
+trusted Gateway usage. An unknown outcome retains the exact request hold indefinitely; an
+observed provider overrun records immutable billing evidence and stops further admissions.
+Neither case is automatically retried. Durable rows contain no topic query, prompt, output,
+transcript, provider model name or credential. Apply
+`operations/account-model-task-runtime-grants.sql` after the actual-value grants when using a
+restricted runtime database role.
 
 A 600-second wall-clock closure request is **not an absolute provider spending guarantee during a network partition**. OpenAI’s general guide describes hangup for Live sessions, while the fetched endpoint reference calls it a SIP operation. WebRTC hangup and terminal usage recovery must be confirmed with the provider and a real bounded test. No such paid call was made here. Keep public hosted voice off until those limits and reconciliation are verified.
 

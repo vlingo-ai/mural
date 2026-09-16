@@ -248,15 +248,22 @@ Mural：
 
 ### Phase 4：Mural API 接入 Model Gateway
 
+- 先完成 Phase 4A 契约扩展：Gateway 的标准化 Responses 结果必须携带经校验的搜索来源、
+  实际 Web Search 调用数和缓存写入 token；Mural 不得猜测这些影响展示或计费的字段。
 - 在 `services/api/src/model-gateway/` 新增 Gateway client、超时、熔断和健康检查。
 - 实现现有 `LiveProvider` 和 `HostedResponsesTransport` 接口的 Gateway adapter；保留
   `OpenAILiveProvider` 与 `OpenAIHostedResponses` 作为短期、显式关闭的回滚实现。
 - 复用 upstream 已有 Live session broker、sideband、启动恢复、分钟账本、访客额度
   和托管 helper，不重新实现第二套业务后端。
-- 将 iOS 现有 Responses 业务调用迁到 Mural API，由 API 组装业务 prompt。
+- 冻结 iOS 现有 Responses 调用到公开 model-task 的映射；实际调用点与 iOS
+  `LiveTransport` 在 Phase 6 原子切换。translation、assessment 和 teaching reply
+  必须使用 Mural 签发的公开 Live `sessionID` 结算，不能拿供应商 session ID 冒充，
+  也不能为了提前迁移而改用账户余额；独立 account-funded topic search 不受此依赖限制。
 - 补齐公开业务 inference 和会话事件契约；已有 Live 路由保持兼容。
 - 使用现有账号体系鉴权；开发模式使用明确受限的本地凭据，不开放匿名生产接口。
 - 增加 request ID、用户配额、审计日志和敏感字段脱敏。
+- 公开 Live session 入口仅接受 `en` 与 `zh-CN`；历史 provider locale 只保留在内部兼容层，
+  `yue-Hant-HK` 在 Phase 7A 验收前必须被服务端拒绝。
 
 验收：Mural API 的正常生产路径不再要求客户端 OpenAI key，也不直接调用模型供应商；
 现有 Android/iOS、账号、账本、支付和托管语音测试不回归。
@@ -380,17 +387,18 @@ GATEWAY_API_KEY=...
 OPENAI_API_KEY=...
 
 # mural/services/api/.env
-MODEL_GATEWAY_BASE_URL=http://127.0.0.1:8000
+MODEL_GATEWAY_URL=http://127.0.0.1:8000
 MODEL_GATEWAY_API_KEY=...
-MODEL_GATEWAY_CONTRACT_VERSION=...
 ```
 
 ## 9. 当前基线与下一步
 
-截至 2026-09-15：
+截至 2026-09-16：
 
-- Mural：`upstream/main` 为 `926fd95`；`origin/main` 在该上游基线上包含已 squash 合并的
-  Phase 1 提交 `f8d6c03`。Phase 3 分支从该提交创建。
+- Mural：`upstream/main` 已前进到 `3a12147`（Android preview 7）；独立同步 PR #5
+  全矩阵通过后以 merge commit `ff96e59` 进入 `origin/main`，保留 upstream 祖先关系。
+  stacked PR #2、#3、#4 随后按顺序重基并使用 `--force-with-lease` 更新，没有把同步
+  改动混入功能提交。
 - Mural API：TypeScript 类型检查和构建通过；PostgreSQL 17.11 隔离实例下 353 项测试
   全部通过、0 项跳过、0 项失败；跨仓库 Gateway 契约检查通过。
 - Model Gateway：Phase 1/2 已 squash 合并到 `origin/main`，提交 `a464af8`；主 checkout
@@ -493,3 +501,55 @@ Mural API 的 Live adapter 首轮实现也已完成：
   会话入口的服务端 allowlist 从历史 provider 能力收紧为 `en`、`zh-CN`。
 - Swift 74 项、Android 314 项、Python 53 项和 iPhone 17 Simulator UI 18 项测试通过；
   两端构建、Android lint、内容生成检查和跨平台契约检查通过。未调用任何付费模型。
+
+Phase 4 已从语言兼容分支创建隔离分支 `codex/phase-4-gateway-api`。第一项服务端门禁已完成：
+公开 `POST /v1/live/sessions` 只允许 `en` 与 `zh-CN`，而 `LiveProvider` 的八种旧 locale
+仍保留给历史兼容测试和旧记录恢复；`yue-Hant-HK` 继续关闭。
+
+Phase 4A 已在 Model Gateway 隔离分支 `codex/phase-4-response-observability` 完成并建立
+stacked draft PR #10：`TokenUsage` 以向后兼容字段补齐缓存写入 token 与实际 Web Search
+调用数，Responses 结果补齐最多 12 条经校验、去重的 HTTPS 来源；Gateway 全量 273 项测试
+通过。Mural 的最低契约锁现在会拒绝缺少这些字段的旧 Gateway，并通过新契约。
+
+Mural Responses adapter 已接入现有 `HostedHelpers` 预算、并发、超时与账本流水线：meaning、
+assessment、普通推理和搜索分别解析为稳定逻辑模型，响应 ID 在落库前做不可逆摘要，供应商
+响应正文和 ID 不进入日志；实际缓存/搜索用量和引用来源由 Gateway 返回，不从请求参数猜测。
+配置了 Gateway 时 Live 与 Responses 一起走 Gateway；缺省路径仍保留显式的 OpenAI 短期
+回滚实现。TypeScript check、跨仓库契约检查、39 项聚焦测试和无数据库全量 362 项测试通过，
+PostgreSQL 全量及本分支 GitHub checks 已通过。
+
+Phase 4 的共享 Gateway client 已补齐：启动时验证公开 `/healthz` 且不发送 Gateway
+credential；Live 与 Responses 共用目标、鉴权和超时边界；连续三次 transport、timeout、
+`429` 或 `5xx` 可用性故障后开路 15 秒，再只允许一个恢复探针。客户端主动取消不计入
+故障，模型创建仍不做自动重试。新增聚焦测试后，无数据库全量 364 项中 92 项通过、
+272 项按预期因缺少测试数据库跳过。
+
+Phase 4B 的首个公开业务推理路径已落地：`POST /v1/model-tasks` 只接受有界业务数据和
+显式 funding，不接受 prompt、schema、工具、供应商或模型名；服务端按
+translation、assessment、teaching reply、topic search 生成固定教学策略和评估 schema，
+再复用该会话已有的 helper 预算、幂等、防重和可信 Gateway 用量结算。评估请求携带
+最多十轮有界上下文与待评 fragments，因为服务端当前按隐私设计不保存 transcript。
+会话前的 “The world today” 搜索已增加独立 `account` AI-value funding：只对会员开放，
+在一次 Gateway 请求前按保守上限建立账户预留，成功后仅按可信 usage 精确结算；未知结果
+永久保留该次 hold，供应商越界保存不可变账务证据并停止后续准入，两者都不自动重试。
+该路径不占用或冒充语音分钟，数据库不保存 query、prompt、输出、transcript、供应商模型名
+或 credential；默认仍由 `ACCOUNT_MODEL_TASKS_EXPERIMENTAL=false` 关闭。
+
+Phase 4 的无付费端到端路径也已通过：真实 Mural HTTP 路由、Bearer 鉴权、分钟账本、
+Live/Helper 控制器和两个 Gateway adapter 连接本地 fake HTTP/WebSocket Gateway；验证
+`mural.live.default` 与 `mural.translation.fast` 的路由、公开响应不泄露内部 session ID，
+以及可信 usage 回写。加入独立账户级 topic search 后，PostgreSQL 17.11 全量 373 项测试
+全部通过、0 跳过、0 失败；最新一次性实例仅监听 `127.0.0.1:55437`，测试后已停止并删除，
+未调用付费模型。
+
+PR #3 的 Android API 36 headless emulator 曾在无宿主或 guest OOM 的情况下退出。CI 保持
+Android 36 compile SDK，但把设备测试固定到稳定的 API 35 default image，并将完整套件分成
+四个全部必需的 shard；修正后的 Android build、4/4 emulator shards、Server、Swift Core、
+Contracts 与 secret scan 均已通过，没有跳过界面覆盖。
+
+2026-09-16 的 upstream 同步吸收了 International English 启动修复、安全错误引用和
+Android preview 7。同步 PR #5 的 Android、emulator、Server、Swift Core、Contracts、
+release-files 与 secret scan 全部通过；重基后的 Phase 4 继续同时保留公开 `en`/`zh-CN`
+门禁、内部 `en-US` 历史 provider 兼容、账户级 model task 和不含敏感内容的启动诊断。
+Phase 4 PR #4 的中断遗留 Gitleaks 命中已确认是测试幂等键误报，修订提交历史后本地
+Gitleaks 8.30.1 与 GitHub secret scan 均通过；未发现或轮换任何真实密钥。

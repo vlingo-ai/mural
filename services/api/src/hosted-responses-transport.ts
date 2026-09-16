@@ -1,5 +1,5 @@
 import { boundedJSON } from './live-provider.js';
-import type { HostedResponsesRequest, HostedResponsesTransport } from './hosted-helpers.js';
+import type { HostedResponsesContext, HostedResponsesRequest, HostedResponsesTransport } from './hosted-helpers.js';
 import { ServiceError } from './errors.js';
 
 /** Fixed provider destination, one attempt, no redirects or retained response content. */
@@ -9,7 +9,7 @@ export class OpenAIHostedResponses implements HostedResponsesTransport {
     if (!/^[\x21-\x7e]{20,512}$/.test(key)) throw new ServiceError('hosted_helpers_configuration_invalid', 503);
     this.#key = key;
   }
-  async send(body: HostedResponsesRequest, signal: AbortSignal): Promise<unknown> {
+  async send(body: HostedResponsesRequest, signal: AbortSignal, _context?: HostedResponsesContext): Promise<unknown> {
     try {
       const response = await this.request('https://api.openai.com/v1/responses', {
         method: 'POST', redirect: 'error', signal,

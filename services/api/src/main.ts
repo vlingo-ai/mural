@@ -15,12 +15,16 @@ import { HostedHelpers } from './hosted-helpers.js';
 import { OpenAIHostedResponses } from './hosted-responses-transport.js';
 import { InstallationGuestMinuteAttestor } from './guest-minutes.js';
 import { ModelGatewayLiveProvider } from './model-gateway/live-provider.js';
+import { ModelGatewayResponsesTransport } from './model-gateway/responses-transport.js';
+import { ModelGatewayClient } from './model-gateway/client.js';
+import { AccountModelTasks } from './account-model-tasks.js';
 
 const databaseURL = process.env.DATABASE_URL;
 if (!databaseURL) { console.error('DATABASE_URL is required.'); process.exit(1); }
 const db = connectDatabase(databaseURL);
 let hosted: HostedVoice | undefined;
 let hostedHelpers: HostedHelpers | undefined;
+let accountModelTasks: AccountModelTasks | undefined;
 let minuteCommerce: Awaited<ReturnType<typeof configuredMinuteCommerce>>;
 try {
   const origin = new URL(process.env.PUBLIC_ORIGIN ?? 'http://localhost:8080');
@@ -47,6 +51,10 @@ try {
     throw new Error('Invalid guest minute gate.');
   if (process.env.HOSTED_HELPERS_EXPERIMENTAL && !['true', 'false'].includes(process.env.HOSTED_HELPERS_EXPERIMENTAL))
     throw new Error('Invalid helper gate.');
+  if (process.env.ACCOUNT_MODEL_TASKS_EXPERIMENTAL && !['true', 'false'].includes(process.env.ACCOUNT_MODEL_TASKS_EXPERIMENTAL))
+    throw new Error('Invalid account model task gate.');
+  if (process.env.ACCOUNT_MODEL_TASKS_EXPERIMENTAL === 'true' && !publicPaidAccess)
+    throw new Error('Account model tasks require paid AI value.');
   if (process.env.HOSTED_HELPERS_EXPERIMENTAL === 'true' &&
     (process.env.HOSTED_VOICE_EXPERIMENTAL !== 'true' || process.env.HOSTED_VOICE_BILLING_UNIT !== 'milliseconds'))
     throw new Error('Hosted helpers require minute-funded voice.');
@@ -56,8 +64,14 @@ try {
     const accounts = new Set((process.env.HOSTED_VOICE_ACCOUNT_ALLOWLIST ?? '').split(',').filter(Boolean));
     if ([...accounts].some(account => !/^[a-f0-9-]{36}$/.test(account))) throw new Error();
     const lifetimeFundingCapNano = BigInt(process.env.HOSTED_VOICE_LIFETIME_CAP_NANO ?? '0');
+    const gatewayURL = process.env.MODEL_GATEWAY_URL, gatewayKey = process.env.MODEL_GATEWAY_API_KEY;
+    if (Boolean(gatewayURL) !== Boolean(gatewayKey)) throw new Error('Model Gateway configuration is incomplete.');
+    const gateway = gatewayURL && gatewayKey ? new ModelGatewayClient(gatewayURL, gatewayKey) : undefined;
+    await gateway?.checkHealth();
     if (process.env.HOSTED_HELPERS_EXPERIMENTAL === 'true') {
-      hostedHelpers = new HostedHelpers(db, new OpenAIHostedResponses(process.env.OPENAI_API_KEY ?? ''), {
+      const responses = gateway ? new ModelGatewayResponsesTransport(gateway) :
+        new OpenAIHostedResponses(process.env.OPENAI_API_KEY ?? '');
+      hostedHelpers = new HostedHelpers(db, responses, {
         accountAllowlist: accounts, aggregateFundingCapNano: lifetimeFundingCapNano,publicMinuteAccess,publicPaidAccess,
         helperBudgetNanoPerMinute: BigInt(process.env.HOSTED_HELPER_BUDGET_PER_MINUTE_NANO ?? '50000000'),
         maxRequestsPerMinute: Number(process.env.HOSTED_HELPER_REQUESTS_PER_MINUTE ?? '24'),
@@ -65,12 +79,15 @@ try {
         maxConcurrentPerSession: 2, maxConcurrentGlobal: 10, postSessionMilliseconds: 120_000,
         inputFramingTokenAllowance: 4096, searchInputTokenAllowance: 1_050_000, timeoutMilliseconds: 30_000,
       });
+      if (process.env.ACCOUNT_MODEL_TASKS_EXPERIMENTAL === 'true') accountModelTasks = new AccountModelTasks(db, responses, {
+        maxRequestsPerMinute: Number(process.env.ACCOUNT_MODEL_TASK_REQUESTS_PER_MINUTE ?? '3'),
+        maxConcurrentPerAccount: 1, maxConcurrentGlobal: 10, inputFramingTokenAllowance: 4096,
+        searchInputTokenAllowance: 1_050_000, timeoutMilliseconds: 30_000,
+      });
       await hostedHelpers.expireBudgets();
     }
-    const gatewayURL = process.env.MODEL_GATEWAY_URL, gatewayKey = process.env.MODEL_GATEWAY_API_KEY;
-    if (Boolean(gatewayURL) !== Boolean(gatewayKey)) throw new Error('Model Gateway configuration is incomplete.');
-    const liveProvider = gatewayURL && gatewayKey
-      ? new ModelGatewayLiveProvider(gatewayURL, gatewayKey)
+    const liveProvider = gateway
+      ? new ModelGatewayLiveProvider(gateway)
       : new OpenAILiveProvider(process.env.OPENAI_API_KEY ?? '');
     hosted = new HostedVoice(db, liveProvider,
       { accountAllowlist: accounts, billingUnit, lifetimeFundingCapNano,publicMinuteAccess,publicPaidAccess, helpers: hostedHelpers,
@@ -98,7 +115,7 @@ try {
     !(appleClient && appleRevoker)) throw new Error('No account identity provider configured.');
   const app = createApp({ db, auth: { googleClientID: process.env.GOOGLE_CLIENT_ID, appleClientID: appleClient,
     googleAndroidServerClientID, googleAndroidClientIDs }, payments, appleRevoker, hosted, hostedHelpers,
-    minuteCommerce, accessRequests, accounts, aiReports,guestMinuteAttestor,
+    accountModelTasks, minuteCommerce, accessRequests, accounts, aiReports,guestMinuteAttestor,
     onStartupDiagnostic: diagnostic => console.warn(JSON.stringify({ event: 'conversation_request_failed', ...diagnostic })) });
   const cleanup = setInterval(() => {
     void pruneAuthenticationRecords(db).catch(() => { console.error('Account retention cleanup failed.'); });

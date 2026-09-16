@@ -11,8 +11,7 @@ import {
   type Sideband,
   type VoiceUsage,
 } from '../live-provider.js';
-
-type GatewayOptions = { timeoutMilliseconds?: number; request?: typeof fetch };
+import { ModelGatewayClient } from './client.js';
 
 const CLIENT_EVENTS = [
   'session.input_audio.mute', 'session.input_audio.unmute', 'session.instructions.append',
@@ -33,25 +32,14 @@ const gatewaySessionPath = (id: string) => {
 
 /** Creation and trusted sideband use Gateway; client media stays on WebRTC. */
 export class ModelGatewayLiveProvider implements LiveProvider {
-  readonly #origin: URL;
-  readonly #key: string;
+  readonly #client: ModelGatewayClient;
   readonly #timeout: number;
-  readonly #request: typeof fetch;
 
-  constructor(origin: string, key: string, options: GatewayOptions = {}) {
-    try { this.#origin = new URL(origin); }
-    catch { throw new ServiceError('model_gateway_configuration_invalid', 503); }
-    const local = this.#origin.protocol === 'http:' &&
-      ['127.0.0.1', 'localhost', '::1'].includes(this.#origin.hostname);
-    if ((this.#origin.protocol !== 'https:' && !local) || this.#origin.username ||
-        this.#origin.password || this.#origin.search || this.#origin.hash ||
-        !['', '/'].includes(this.#origin.pathname) || !/^[\x21-\x7e]{32,512}$/.test(key))
-      throw new ServiceError('model_gateway_configuration_invalid', 503);
-    this.#key = key;
-    this.#timeout = options.timeoutMilliseconds ?? 10_000;
+  constructor(client: ModelGatewayClient, timeoutMilliseconds = 10_000) {
+    this.#client = client;
+    this.#timeout = timeoutMilliseconds;
     if (!Number.isSafeInteger(this.#timeout) || this.#timeout < 100 || this.#timeout > 60_000)
       throw new ServiceError('model_gateway_configuration_invalid', 503);
-    this.#request = options.request ?? fetch;
   }
 
   async create(sdp: string, language: string, input?: LiveContext): Promise<{ sessionID: string; sdp: string }> {
@@ -59,16 +47,16 @@ export class ModelGatewayLiveProvider implements LiveProvider {
     const instructions = liveInstructions(language, context);
     let responseStatus: number | undefined, requestID: string | null = null;
     try {
-      const response = await this.#request(new URL('/v1/live/sessions', this.#origin), {
-        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(this.#timeout),
-        headers: { Authorization: `Bearer ${this.#key}`, 'Content-Type': 'application/json' },
+      const response = await this.#client.request('/v1/live/sessions', {
+        method: 'POST',
+        headers: { Authorization: this.#client.authorization, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'mural.live.default', transport: { type: 'webrtc', sdp },
           session: { instructions, voice: 'marin', input: context.history,
             data_channel: { allowed_client_events: CLIENT_EVENTS, allowed_server_events: SERVER_EVENTS },
             delegation: { type: 'application' } }, metadata: {},
         }),
-      });
+      }, this.#timeout);
       responseStatus = response.status; requestID = response.headers.get('x-request-id');
       if (!response.ok) {
         const rejection = response.status >= 400 && response.status < 500 && response.status !== 408
@@ -151,9 +139,9 @@ export class ModelGatewayLiveProvider implements LiveProvider {
   }
 
   #socket(sessionID: string): WebSocket {
-    const url = new URL(`${gatewaySessionPath(sessionID)}/sideband`, this.#origin);
-    url.protocol = this.#origin.protocol === 'https:' ? 'wss:' : 'ws:';
-    return new WebSocket(url, { headers: { Authorization: `Bearer ${this.#key}` },
+    const url = new URL(`${gatewaySessionPath(sessionID)}/sideband`, this.#client.origin);
+    url.protocol = this.#client.origin.protocol === 'https:' ? 'wss:' : 'ws:';
+    return new WebSocket(url, { headers: { Authorization: this.#client.authorization },
       handshakeTimeout: this.#timeout, maxPayload: 524_288, perMessageDeflate: false, followRedirects: false });
   }
 }

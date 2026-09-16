@@ -63,11 +63,15 @@ test('hosted HTTP authenticates guest ownership, recovers uncertain sessions and
     assert.equal((await app.inject('/v1/live/sessions/current')).statusCode, 401);
     assert.equal(calls.length, 0);
     const created = await app.inject({ method: 'POST', url: '/v1/live/sessions', headers: { ...headers, 'idempotency-key': 'create-live' },
-      payload: { sdp: 'v=0', language: 'es-ES' } });
+      payload: { sdp: 'v=0', language: 'en' } });
     assert.equal(created.statusCode, 200);
     assert.equal(created.json().sessionID, sessionID);
     assert.equal(created.json().providerSessionID, undefined);
     assert.equal(JSON.stringify(created.json()).includes('private_gateway_session_id'), false);
+    const hiddenLanguage = await app.inject({ method: 'POST', url: '/v1/live/sessions',
+      headers: { ...headers, 'idempotency-key': 'hidden-language' }, payload: { sdp: 'v=0', language: 'es-ES' } });
+    assert.equal(hiddenLanguage.statusCode, 400);
+    assert.deepEqual(hiddenLanguage.json(), { error: { code: 'invalid_language' } });
     const recovered = await app.inject({ url: '/v1/live/sessions/current', headers });
     assert.deepEqual(recovered.json(), { session: status }); assert.equal(recovered.headers['cache-control'], 'no-store');
     assert.deepEqual((await app.inject({ url: '/v1/live/sessions/current', headers: otherHeaders })).json(), { session: null });
