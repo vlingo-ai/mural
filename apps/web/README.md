@@ -11,7 +11,7 @@ Server history is authoritative; IndexedDB contains only an account-keyed dispos
 The full local stack can be started from the Mural repository root with:
 
 ```sh
-MURAL_MODEL_GATEWAY_DIR=/absolute/path/to/model-gateway-phase-3-live ./scripts/run-web-stack.sh
+MURAL_MODEL_GATEWAY_DIR=/absolute/path/to/model-gateway-phase-5-5-livekit ./scripts/run-web-stack.sh
 ```
 
 The command reuses the existing Model Gateway worktree and its private `.env`, starts the installed
@@ -40,7 +40,7 @@ To run the LiveKit spike with the isolated worker worktree:
 
 ```sh
 MURAL_LIVEKIT_SPIKE=true \
-MURAL_MODEL_GATEWAY_DIR=/Volumes/Kingston/DeepTutor/model-gateway-phase-3-live \
+MURAL_MODEL_GATEWAY_DIR=/Volumes/Kingston/DeepTutor/model-gateway-phase-5-5-livekit \
 MURAL_LIVEKIT_WORKER_DIR=/Volumes/Kingston/DeepTutor/model-gateway-phase-5-5-livekit/workers/livekit-gpt-live \
 ./scripts/run-web-stack.sh
 ```

@@ -20,7 +20,7 @@ Model Gateway 是独立仓库，负责所有模型供应商接入和路由；Mur
 ```text
 /Volumes/Kingston/MyProj/vlingo-ai/mural
 /Volumes/Kingston/DeepTutor/model-gateway
-/Volumes/Kingston/DeepTutor/model-gateway-phase-3-live       # 当前 Phase 3 隔离 worktree
+/Volumes/Kingston/DeepTutor/model-gateway-phase-5-5-livekit  # 当前 Phase 5.5 隔离 worktree（包含 Phase 3/4）
 ```
 
 两个仓库在逻辑、版本和部署上同级，不要求位于同一个本机父目录。
@@ -516,8 +516,9 @@ secret scan、Swift Core、Server、Android 和 Emulator 共 7 项检查全部�
 job 重跑后 61 项设备测试全部通过，因此未为该偶发基础设施故障修改产品代码。
 
 Phase 2 的实现与真实调用门禁已完成。Phase 3 已从两个仓库各自最新 `origin/main`
-创建 `codex/phase-3-live-sideband` 分支；Model Gateway 使用独立 worktree
-`/Volumes/Kingston/DeepTutor/model-gateway-phase-3-live`，主 checkout 不承载本阶段修改。
+创建 `codex/phase-3-live-sideband` 分支；其独立 worktree 后续由继承 Phase 3/4 的
+`/Volumes/Kingston/DeepTutor/model-gateway-phase-5-5-livekit` 取代并退役，主 checkout
+不承载本阶段修改。
 
 Phase 3 Gateway 首轮实现已于 2026-09-15 完成：
 

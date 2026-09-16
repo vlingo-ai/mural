@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_dir="${0:A:h:h}"
-gateway_dir="${MURAL_MODEL_GATEWAY_DIR:-/Volumes/Kingston/DeepTutor/model-gateway-phase-3-live}"
+gateway_dir="${MURAL_MODEL_GATEWAY_DIR:-/Volumes/Kingston/DeepTutor/model-gateway-phase-5-5-livekit}"
 gateway_port="${MURAL_MODEL_GATEWAY_PORT:-8012}"
 livekit_spike="${MURAL_LIVEKIT_SPIKE:-false}"
 livekit_worker_dir="${MURAL_LIVEKIT_WORKER_DIR:-/Volumes/Kingston/DeepTutor/model-gateway-phase-5-5-livekit/workers/livekit-gpt-live}"
