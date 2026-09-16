@@ -20,6 +20,7 @@
   "dependencies": {
     "fastify": "5.12.4",
     "jose": "6.2.12",
+    "livekit-server-sdk": "^2.19.0",
     "pg": "8.23.0",
     "stripe": "22.6.2",
     "ws": "8.21.0"

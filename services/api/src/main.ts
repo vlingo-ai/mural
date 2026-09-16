@@ -19,6 +19,7 @@ import { ModelGatewayResponsesTransport } from './model-gateway/responses-transp
 import { ModelGatewayClient } from './model-gateway/client.js';
 import { AccountModelTasks } from './account-model-tasks.js';
 import { webOrigins } from './web-cors.js';
+import { LiveKitLiveProvider } from './livekit/live-provider.js';
 
 const databaseURL = process.env.DATABASE_URL;
 if (!databaseURL) { console.error('DATABASE_URL is required.'); process.exit(1); }
@@ -87,9 +88,14 @@ try {
       });
       await hostedHelpers.expireBudgets();
     }
-    const liveProvider = gateway
-      ? new ModelGatewayLiveProvider(gateway)
-      : new OpenAILiveProvider(process.env.OPENAI_API_KEY ?? '');
+    const livekit = process.env.LIVEKIT_URL;
+    if (livekit && (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET || !process.env.LIVEKIT_CONTROL_SECRET))
+      throw new Error('LiveKit configuration is incomplete.');
+    const liveProvider = livekit ? new LiveKitLiveProvider({ url: livekit,
+      apiKey: process.env.LIVEKIT_API_KEY!, apiSecret: process.env.LIVEKIT_API_SECRET!,
+      controlSecret: process.env.LIVEKIT_CONTROL_SECRET!, agentName: process.env.LIVEKIT_AGENT_NAME }) : gateway
+        ? new ModelGatewayLiveProvider(gateway)
+        : new OpenAILiveProvider(process.env.OPENAI_API_KEY ?? '');
     hosted = new HostedVoice(db, liveProvider,
       { accountAllowlist: accounts, billingUnit, lifetimeFundingCapNano,publicMinuteAccess,publicPaidAccess, helpers: hostedHelpers,
         onStartupFailure: diagnostic => console.warn(JSON.stringify({ event: 'live_startup_failed', ...diagnostic })) });
@@ -132,11 +138,12 @@ try {
   const retryGuestLinks=()=>{if(!guestLinkFlight)guestLinkFlight=finalizeDeferredGuestLinks(db)
     .catch(()=>{console.error('Guest allowance transfer retry failed.');}).finally(()=>{guestLinkFlight=undefined;});};
   const guestLinkCleanup=setInterval(retryGuestLinks,60_000);guestLinkCleanup.unref();retryGuestLinks();
-  const close = async () => {
+  let closeFlight: Promise<void> | undefined;
+  const close = () => closeFlight ??= (async () => {
     clearInterval(cleanup);clearInterval(guestLinkCleanup);await guestLinkFlight; await app.close(); await hosted?.stop(); await minuteCommerce?.runner.stop();
     await db.end(); process.exit(0);
-  };
-  process.on('SIGTERM', close); process.on('SIGINT', close);
+  })();
+  process.on('SIGTERM', () => { void close(); }); process.on('SIGINT', () => { void close(); });
   await app.listen({ port: Number(process.env.PORT ?? 8080), host: '0.0.0.0' });
   minuteCommerce?.runner.start();
   console.info('Mural API is running.');

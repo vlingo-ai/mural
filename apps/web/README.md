@@ -31,9 +31,24 @@ For separate manual startup:
 4. Paste a short-lived Mural account or guest bearer into the development field. Do not paste an
    OpenAI or Model Gateway key.
 
-The browser creates a WebRTC offer locally, sends only the SDP and public language identity to
-`POST /v1/live/sessions`, then applies the returned answer. Audio continues over WebRTC; the Mural
-API and Model Gateway remain the control, policy and accounting boundary.
+The browser first reads the server's live capability. The stable rollback path creates an OpenAI
+WebRTC offer as before. In the optional Phase 5.5 path it receives a short-lived `livekit-room`
+token and joins through the LiveKit browser SDK; that SDK is loaded only when selected. In both
+paths the Mural API and Model Gateway remain the control, policy and accounting boundary.
+
+To run the LiveKit spike with the isolated worker worktree:
+
+```sh
+MURAL_LIVEKIT_SPIKE=true \
+MURAL_MODEL_GATEWAY_DIR=/Volumes/Kingston/DeepTutor/model-gateway-phase-3-live \
+MURAL_LIVEKIT_WORKER_DIR=/Volumes/Kingston/DeepTutor/model-gateway-phase-5-5-livekit/workers/livekit-gpt-live \
+./scripts/run-web-stack.sh
+```
+
+The script starts a loopback LiveKit development server and supplies secrets only through process
+environment variables. LiveKit spike mode defaults to the isolated `mural_web_livekit_spike_dev`
+database; `MURAL_WEB_DATABASE_NAME` can select another development database whose name ends in
+`_dev`. Do not use the development `devkey`/`secret` pair outside loopback.
 
 ## Checks
 

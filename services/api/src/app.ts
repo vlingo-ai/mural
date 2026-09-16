@@ -362,7 +362,8 @@ export function createApp(services: Services) {
   app.get('/v1/live/capabilities', async request => {
     if (!services.hosted?.minuteFunded || !services.hosted.available || !services.hostedHelpers || !request.headers.authorization) return { hostedMinutes: false };
     const account = await authenticate(db, request.headers.authorization, true);
-    return { hostedMinutes: services.hosted.allows(account) && services.hostedHelpers.allows(account), experimental: true };
+    return { hostedMinutes: services.hosted.allows(account) && services.hostedHelpers.allows(account),
+      transport: services.hosted.clientTransport, experimental: true };
   });
   app.post('/v1/live/sessions', async request => {
     if (!services.hosted?.available) throw new ServiceError('hosted_voice_not_ready', 503);
@@ -377,9 +378,23 @@ export function createApp(services: Services) {
     const key = request.headers['idempotency-key'];
     if (typeof key !== 'string') throw new ServiceError('idempotency_key_required');
     const { providerSessionID: _privateProviderSessionID, ...publicSession } = await services.hosted.create(
-      account, key, stringField(body, 'sdp', 65_536), language,
+      account, key, body.sdp === undefined ? '' : stringField(body, 'sdp', 65_536), language,
       { instructions: body.instructions, history: body.history }, body.requestedMilliseconds as number | undefined);
     return publicSession;
+  });
+  app.post('/internal/livekit/sessions/:id/events', { bodyLimit: HOSTED_HELPER_BODY_LIMIT }, async request => {
+    if (!services.hosted) throw new ServiceError('livekit_control_unavailable', 404);
+    const id = uuid((request.params as { id: string }).id);
+    const event = await services.hosted.acceptTrustedEvent(id, request.headers.authorization, request.body);
+    if (event.type !== 'session.delegation.created') return { accepted: true };
+    if (!services.hostedHelpers) throw new ServiceError('hosted_helpers_not_ready', 503);
+    const owner = (await db.query('SELECT account_id,language FROM hosted_sessions WHERE id=$1 AND state<>\'closed\'', [id])).rows[0];
+    if (!owner) throw new ServiceError('live_session_not_found', 404);
+    const task = parseModelTask({ kind: 'teachingReply', funding: { type: 'liveSession', sessionID: id },
+      language: owner.language, text: event.text, context: event.context });
+    const result = await services.hostedHelpers.request(owner.account_id, id,
+      modelTaskHelperInput(owner.account_id, `livekit:${event.delegationID}`, task));
+    return publicModelTaskResult(task, result);
   });
   app.get('/v1/live/sessions/:id', async request => {
     if (!services.hosted) throw new ServiceError('hosted_voice_not_ready', 503);

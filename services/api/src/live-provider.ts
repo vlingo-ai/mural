@@ -3,6 +3,12 @@ import WebSocket from 'ws';
 import { ServiceError } from './errors.js';
 
 export type VoiceUsage = { type: 'session.usage.updated' | 'session.closed'; usage: { seconds: number } };
+export type LiveProviderRejection = { type: 'session.provider.rejected'; providerStatus: number; requestID?: string };
+export type LiveDelegation = { type: 'session.delegation.created'; delegationID: string; text: string;
+  context: Array<{ speaker: 'user' | 'assistant'; text: string }> };
+export type LiveClientTransport = { type: 'webrtc'; sdp: string } |
+  { type: 'livekit-room'; url: string; token: string };
+export type LiveCreateResult = { sessionID: string; transport: LiveClientTransport };
 export interface Sideband { closeSession(): void; disconnect(): void }
 export interface LiveContext {
   instructions?: string;
@@ -32,9 +38,13 @@ export function parseLiveContext(value: unknown): LiveContext {
   return { instructions: source.instructions as string | undefined, history: messages };
 }
 export interface LiveProvider {
-  create(sdp: string, language: string, context?: LiveContext): Promise<{ sessionID: string; sdp: string }>;
+  readonly clientTransport?: LiveClientTransport['type'];
+  create(sdp: string, language: string, context?: LiveContext, muralSessionID?: string):
+    Promise<LiveCreateResult | { sessionID: string; sdp: string }>;
   attach(sessionID: string, onUsage: (event: VoiceUsage) => void, onLoss: () => void): Promise<Sideband>;
   hangup(sessionID: string): Promise<void>;
+  acceptTrustedEvent?(sessionID: string, authorization: string | undefined, body: unknown):
+    LiveDelegation | LiveProviderRejection | VoiceUsage;
 }
 const languages: Record<string, string> = { 'nb-NO': 'Norwegian Bokmål with an Eastern Norwegian pronunciation',
   'es-ES': 'Spanish from Spain', 'en': 'English', 'en-US': 'English', 'fr-FR': 'French from France',
@@ -72,6 +82,7 @@ export class LiveCreateRejectedError extends LiveCreateFailure {
 
 /** Production URLs are fixed. Tests may inject a loopback-only transport origin. */
 export class OpenAILiveProvider implements LiveProvider {
+  readonly clientTransport = 'webrtc' as const;
   private readonly origin: URL;
   constructor(private readonly key: string, options: { testOrigin?: string; timeoutMilliseconds?: number } = {}) {
     this.origin = new URL(options.testOrigin ?? 'https://api.openai.com');
@@ -81,7 +92,8 @@ export class OpenAILiveProvider implements LiveProvider {
     if (!key || this.origin.username || this.origin.password) throw new ServiceError('live_not_configured', 503);
   }
   private readonly timeout: number;
-  async create(sdp: string, language: string, input?: LiveContext) {
+  async create(sdp: string, language: string, input?: LiveContext): Promise<{ sessionID: string; sdp: string }> {
+    if (!sdp) throw new ServiceError('invalid_live_offer');
     const context = parseLiveContext(input);
     const instructions = liveInstructions(language, context);
     let responseStatus: number | undefined, requestID: string | null = null;

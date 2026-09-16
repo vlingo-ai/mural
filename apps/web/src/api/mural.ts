@@ -1,4 +1,4 @@
-import type { AccountProfile, AuthChallenge, AuthExchange, ConversationDetail, ConversationSummary, LiveSessionResult, ProviderLocale } from './contracts';
+import type { AccountProfile, AuthChallenge, AuthExchange, ConversationDetail, ConversationSummary, LiveCapabilities, LiveSessionResult, ProviderLocale } from './contracts';
 
 type Fetch = typeof globalThis.fetch;
 type ErrorBody = { error?: { code?: string } };
@@ -28,7 +28,7 @@ export class MuralAPI {
   }
 
   async createLiveSession(input: {
-    sdp: string;
+    sdp?: string;
     language: ProviderLocale;
     instructions?: string;
     history?: Array<{ speaker: 'user' | 'assistant'; text: string }>;
@@ -36,6 +36,8 @@ export class MuralAPI {
   }, idempotencyKey: string): Promise<LiveSessionResult> {
     return this.request('/v1/live/sessions', input, idempotencyKey);
   }
+
+  liveCapabilities(): Promise<LiveCapabilities> { return this.get('/v1/live/capabilities'); }
 
   async createModelTask<T>(input: unknown, idempotencyKey: string): Promise<T> {
     return this.request('/v1/model-tasks', input, idempotencyKey);

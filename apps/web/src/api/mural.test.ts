@@ -6,7 +6,7 @@ describe('MuralAPI', () => {
     const calls: Array<[RequestInfo | URL, RequestInit | undefined]> = [];
     const send: typeof fetch = async (input, init) => {
       calls.push([input, init]);
-      return new Response(JSON.stringify({ sessionID: crypto.randomUUID(), sdp: 'v=0' }), {
+      return new Response(JSON.stringify({ sessionID: crypto.randomUUID(), transport: { type: 'webrtc', sdp: 'v=0' } }), {
         status: 200, headers: { 'content-type': 'application/json' },
       });
     };

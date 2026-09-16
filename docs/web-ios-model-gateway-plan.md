@@ -64,6 +64,12 @@ Live 的默认链路：
 只有供应商不支持 WebRTC 时，才启用“客户端到服务器 WebSocket 音频代理”适配器。
 这是一种供应商能力降级，不是默认架构。
 
+在进入 Phase 6 前增加 Phase 5.5，验证是否把默认实时媒体链路收敛为 LiveKit。
+OpenAI 官方将 LiveKit 列为 GPT-Live partner integration；该阶段只验证
+`gpt-live-1`，不接入 Gemini 或其他第二供应商。验证通过前，本节描述的现有 OpenAI
+直连链路仍是稳定回滚路径；验证通过后再以独立 ADR 更新目标架构，不能在 spike 中
+提前删除或改写稳定路径。
+
 ## 3. Contracts 的归属
 
 Contracts 属于各自服务，但不在客户端手工复制：
@@ -281,9 +287,68 @@ Mural：
 
 验收：本地执行一条命令启动 Web、Mural API、PostgreSQL，并连接现有 Model Gateway；随后完成一次受控的真实 Live smoke test。
 
+### Phase 5.5：LiveKit + GPT-Live 单供应商验证
+
+目标：只验证 LiveKit 能否在不改变 Mural 产品语义的前提下，完整承载当前
+`gpt-live-1` 功能，并据此决定 Phase 6 是否采用 LiveKit-only 客户端媒体链路。
+
+明确不在本阶段实施：
+
+- 不接入 Gemini Live 或任何第二供应商。
+- 不设计以 Gemini WebSocket 为前提的公开 transport union。
+- 不实现会话中供应商切换、自动故障转移或多供应商路由。
+- 不删除现有 OpenAI WebRTC、Gateway sideband 或 Mural 回滚实现。
+- 不在 spike 结论前确定 LiveKit Cloud 或自托管生产部署。
+
+实施步骤：
+
+1. 在隔离分支/worktree 中运行最小 LiveKit 开发环境；优先使用本地开发服务器，避免
+   为技术验证提前绑定生产托管方案。
+2. 在 Model Gateway 仓库增加独立的 Live Agent Worker，由它加入 LiveKit room，并使用
+   LiveKit 官方 OpenAI 插件的 `GPTLiveModel` 连接 `gpt-live-1`。Provider 密钥只存在于
+   可信 Worker 环境，不进入 Web、iOS 或 Mural API。
+3. Mural API 继续负责用户鉴权、会话创建、额度预留、强制关闭和最终结算；它只签发
+   短期 room token 并接收可信的生命周期及 usage 事件，不处理音频、SDP 或供应商原始事件。
+4. Web 测试客户端只使用 LiveKit WebRTC SDK 加入房间；不同时加入 Gemini 或自定义
+   PCM WebSocket，以保证本阶段只回答单一架构问题。
+5. 复用当前 Mural 的英语/普通话指令、会话历史、字幕、翻译、文本输入、打断、委托
+   Responses/工具、停止、断网恢复和分钟账本，避免把 LiveKit 示例对话误当作 Mural 验收。
+6. 先用 fake provider 和确定性事件验证创建、关闭、usage、余额耗尽和失败结算；账户
+   具备额度后再执行一次有上限的真实 `gpt-live-1` 语音 smoke。
+
+验收门禁：
+
+- 同一个 Web 客户端只通过 LiveKit WebRTC 完成英语和普通话双向语音、自然打断、字幕、
+  文本输入、工具/委托与主动停止。
+- 客户端和浏览器网络请求中不存在 OpenAI API key；Mural 能可信获得累计 usage，并在
+  余额耗尽、用户停止或 Worker 丢失时安全结算且不遗留 reservation。
+- 现有 OpenAI 直连测试保持通过，能够作为可显式启用的回滚路径。
+- 记录首音延迟、打断延迟、断线恢复、CPU/内存和额外媒体带宽；与当前直连基线相比
+  没有不可接受的产品回归。
+- 明确产出一份 ADR：若通过，Phase 6 采用 LiveKit-only 客户端媒体链路；若不通过，
+  保留当前直连架构并单独处理后续供应商，不以 spike 代码改变生产默认值。
+
+当前进度（2026-09-16）：
+
+- [x] 隔离 Model Gateway worktree 与独立 LiveKit Worker 依赖环境。
+- [x] 本地 LiveKit Server 启动、Worker 注册，以及 Mural 建房/dispatch/token/删房冒烟。
+- [x] Mural 短期 room token、可信 usage/delegation 回调、Web capability 与回滚传输契约。
+- [x] Web LiveKit 音频发布/订阅、字幕、`lk.chat` 文本输入及 SDK 按需加载。
+- [x] Worker 使用 `gpt-live-1`、`delegation=client`，教学回复仍走 Mural → Model Gateway。
+- [x] fake/确定性验证与现有 WebRTC 回归测试。
+- [x] 真实零余额拒绝：请求到达 OpenAI；`credit_balance_exhausted` 不重试，Mural 以
+  0ms/0 成本关闭并完整释放 600000ms 预留，Web 不误报 Active。
+- [ ] 有余额账户的真实英语与普通话双向语音、打断、usage 和最终结算。
+- [ ] Worker 丢失、断网恢复和无遗留 reservation 验收。
+- [ ] 性能基线完成后，将 `docs/adr/0001-livekit-gpt-live-spike.md` 从 Proposed 改为 Accepted
+  或 Rejected；在此之前不得进入 Phase 6 的 LiveKit-only 切换。
+
 ### Phase 6：iOS 切换到共享后端
 
-- 抽象 `LiveTransport` 和 `InferenceClient`，增加 Mural API 实现。
+- 以 Phase 5.5 ADR 为前置门禁：通过则让 Web/iOS 统一使用 LiveKit SDK 和 Mural room
+  凭据；未通过则保留当前 `LiveTransport` 抽象和 OpenAI WebRTC 路径。
+- 抽象 `InferenceClient`，增加 Mural API 实现；不得把 LiveKit、OpenAI 或供应商型号
+  泄漏到学习业务接口。
 - Release 默认不接受或存储供应商 key；Debug 可暂时保留 BYOK 回滚模式。
 - iOS 使用与 Web 相同的公开契约、鉴权、Live session broker 和学习数据接口。
 - 增加离线缓存、恢复、登录过期和网络切换测试。

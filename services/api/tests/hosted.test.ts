@@ -377,6 +377,25 @@ integration('zero-second finalized sessions consume the minimum and cannot resta
     assert.equal(f.creates, 40);
   } finally { await f.cleanup(); }
 });
+integration('trusted pre-session provider rejection releases minutes without the 15-second minimum', async () => {
+  const f = await fixture(2_000_000_000n, 600_000, 50_000_000n);
+  try {
+    (f.provider as OpenAILiveProvider & { acceptTrustedEvent: () => unknown }).acceptTrustedEvent = () =>
+      ({ type: 'session.provider.rejected', providerStatus: 429, requestID: 'req_runtime_rejection' });
+    const live = await f.controller.create(f.account, 'runtime-rejection', 'v=0', 'en');
+    await f.controller.acceptTrustedEvent(live.sessionID, 'test-control', {
+      type: 'session.provider.rejected', providerStatus: 429,
+    });
+    assert.deepEqual(await f.minutes(), { balance_ms: '600000', reserved_ms: '0' });
+    const row = (await f.db.query(`SELECT state,charged_ms,provider_cost_nano,funding_exposure_nano,
+      provider_rejection_status,provider_rejection_request_id,close_reason FROM hosted_sessions WHERE id=$1`,
+      [live.sessionID])).rows[0];
+    assert.deepEqual(row, { state: 'closed', charged_ms: '0', provider_cost_nano: '0', funding_exposure_nano: '0',
+      provider_rejection_status: 429, provider_rejection_request_id: 'req_runtime_rejection',
+      close_reason: 'provider_runtime_rejected' });
+    assert.equal((await f.db.query('SELECT liability_nano FROM hosted_helper_sessions')).rows[0].liability_nano, '0');
+  } finally { await f.cleanup(); }
+});
 integration('the final sub-minimum residue is charged once without a negative minute wallet', async () => {
   const f = await fixture(2_000_000_000n, 2_000, 50_000_000n);
   try {

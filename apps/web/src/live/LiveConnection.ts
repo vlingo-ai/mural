@@ -1,11 +1,13 @@
 import type { TranscriptEvent } from '../api/contracts';
 import { providerLocale, type AvailableLanguage } from '../api/contracts';
 import type { MuralAPI } from '../api/mural';
+import type { Room, TranscriptionSegment } from 'livekit-client';
 
 export type LiveState = 'idle' | 'requesting-microphone' | 'connecting' | 'active' | 'closing' | 'failed';
 
 export class LiveConnection {
   private peer?: RTCPeerConnection;
+  private room?: Room;
   private channel?: RTCDataChannel;
   private local?: MediaStream;
   private remote = new MediaStream();
@@ -13,7 +15,10 @@ export class LiveConnection {
   private sessionID?: string;
   private language?: AvailableLanguage;
   private context: Array<{ speaker: 'user' | 'assistant'; text: string }> = [];
+  private transcriptionText = new Map<string, string>();
   private historyWrite: Promise<void> = Promise.resolve();
+  private liveKitReady = false;
+  private liveKitReadyTimer?: number;
 
   constructor(
     private readonly api: MuralAPI,
@@ -37,9 +42,23 @@ export class LiveConnection {
       });
       if (this.closed) return;
       this.onState('connecting');
+      const capabilities = await this.api.liveCapabilities();
+      if (!capabilities.hostedMinutes) throw new Error('Hosted voice is not available.');
+      if (capabilities.transport === 'livekit-room') await this.connectLiveKit(language);
+      else await this.connectWebRTC(language);
+    } catch (error) {
+      this.disconnect();
+      this.onState('failed');
+      throw error;
+    }
+  }
+
+  private async connectWebRTC(language: AvailableLanguage): Promise<void> {
+      const local = this.local;
+      if (!local) throw new Error('No local microphone stream.');
       const peer = new RTCPeerConnection();
       this.peer = peer;
-      for (const track of this.local.getTracks()) peer.addTrack(track, this.local);
+      for (const track of local.getTracks()) peer.addTrack(track, local);
       peer.ontrack = ({ track }) => {
         this.remote.addTrack(track);
         this.onRemoteStream(this.remote);
@@ -86,24 +105,90 @@ export class LiveConnection {
       if (this.closed) return;
       this.sessionID = result.sessionID;
       this.onSession(result.sessionID);
-      await peer.setRemoteDescription({ type: 'answer', sdp: result.sdp });
+      if (result.transport.type !== 'webrtc') throw new Error('Mural returned an unexpected live transport.');
+      await peer.setRemoteDescription({ type: 'answer', sdp: result.transport.sdp });
       this.onEvent({ type: 'mural.session.created', session: { id: result.sessionID } });
-    } catch (error) {
-      this.disconnect();
-      this.onState('failed');
-      throw error;
+  }
+
+  private async connectLiveKit(language: AvailableLanguage): Promise<void> {
+    const { LocalAudioTrack, Room: LiveKitRoom, RoomEvent, Track } = await import('livekit-client');
+    const result = await this.api.createLiveSession({ language: providerLocale(language),
+      requestedMilliseconds: 15 * 60_000 }, crypto.randomUUID());
+    if (result.transport.type !== 'livekit-room') throw new Error('Mural returned an unexpected live transport.');
+    const room = new LiveKitRoom({ adaptiveStream: true, dynacast: true });
+    this.room = room;
+    room.on(RoomEvent.TrackSubscribed, track => {
+      if (track.kind !== Track.Kind.Audio) return;
+      this.remote.addTrack(track.mediaStreamTrack);
+      this.onRemoteStream(this.remote);
+    });
+    room.on(RoomEvent.TrackUnsubscribed, track => {
+      if (track.kind === Track.Kind.Audio) this.remote.removeTrack(track.mediaStreamTrack);
+    });
+    room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
+      if (participant?.isLocal === false) this.markLiveKitActive();
+      this.receiveTranscriptions(segments, participant?.isLocal === true);
+    });
+    room.on(RoomEvent.Reconnecting, () => { if (!this.closed) this.onState('connecting'); });
+    room.on(RoomEvent.Reconnected, () => { if (!this.closed) this.onState(this.liveKitReady ? 'active' : 'connecting'); });
+    room.on(RoomEvent.Disconnected, () => { if (!this.closed) this.onState('failed'); });
+    await room.connect(result.transport.url, result.transport.token);
+    if (this.closed) { await room.disconnect(); return; }
+    const track = this.local?.getAudioTracks()[0];
+    if (!track) throw new Error('No local microphone track.');
+    await room.localParticipant.publishTrack(new LocalAudioTrack(track));
+    this.sessionID = result.sessionID;
+    this.onSession(result.sessionID);
+    this.liveKitReadyTimer = globalThis.setTimeout(() => {
+      if (!this.closed && !this.liveKitReady) {
+        this.onState('failed');
+        if (this.sessionID) void this.api.closeLiveSession(this.sessionID).catch(() => {});
+        void this.room?.disconnect();
+      }
+    }, 20_000);
+    this.onEvent({ type: 'mural.session.created', session: { id: result.sessionID } });
+  }
+
+  private markLiveKitActive(): void {
+    if (this.closed || this.liveKitReady) return;
+    this.liveKitReady = true;
+    if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
+    this.liveKitReadyTimer = undefined;
+    this.onState('active');
+  }
+
+  private receiveTranscriptions(segments: TranscriptionSegment[], local: boolean): void {
+    for (const segment of segments) {
+      if (!segment.text) continue;
+      const speaker = local ? 'user' : 'assistant';
+      const previous = this.transcriptionText.get(segment.id) ?? '';
+      const delta = segment.text.startsWith(previous) ? segment.text.slice(previous.length) : segment.text;
+      this.transcriptionText.set(segment.id, segment.text);
+      if (delta) {
+        this.addContext(speaker, delta);
+        this.onEvent({ type: 'session.transcript.appended', event_id: segment.id,
+          speaker, text: delta, source: 'live' });
+      }
+      if (segment.final && this.sessionID) void this.persistEvent(this.sessionID,
+        { eventID: segment.id, speaker, text: segment.text, source: 'live' });
+      if (segment.final) this.transcriptionText.delete(segment.id);
     }
   }
 
   async sendText(text: string): Promise<boolean> {
     const clean = text.trim().slice(0, 2_000);
-    if (!clean || this.channel?.readyState !== 'open' || !this.sessionID || !this.language) return false;
+    const livekit = this.room?.state === 'connected';
+    if (!clean || (!livekit && this.channel?.readyState !== 'open') || !this.sessionID || !this.language) return false;
     const priorContext = this.context.slice(-10);
     const eventID = crypto.randomUUID();
     this.context.push({ speaker: 'user', text: clean });
     this.context = this.context.slice(-10);
     this.onEvent({ type: 'session.transcript.appended', event_id: eventID, speaker: 'user', text: clean, source: 'typed' });
     await this.persistEvent(this.sessionID, { eventID, speaker: 'user', text: clean, source: 'typed' });
+    if (livekit) {
+      await this.room!.localParticipant.sendText(clean, { topic: 'lk.chat' });
+      return true;
+    }
     const result = await this.api.createModelTask<{ kind: 'teachingReply'; text: string }>({
       kind: 'teachingReply',
       funding: { type: 'liveSession', sessionID: this.sessionID },
@@ -119,6 +204,7 @@ export class LiveConnection {
   close(): void {
     this.onState('closing');
     if (this.channel?.readyState === 'open') this.channel.send(JSON.stringify({ type: 'session.close', event_id: crypto.randomUUID() }));
+    if (this.room) void this.room.disconnect();
     if (this.sessionID) void this.api.closeLiveSession(this.sessionID).catch(() => {});
     globalThis.setTimeout(() => this.disconnect(), 1_000);
   }
@@ -129,12 +215,18 @@ export class LiveConnection {
     this.channel = undefined;
     this.peer?.close();
     this.peer = undefined;
+    if (this.room) void this.room.disconnect();
+    this.room = undefined;
     this.local?.getTracks().forEach(track => track.stop());
     this.local = undefined;
     this.sessionID = undefined;
     this.onSession(undefined);
     this.language = undefined;
     this.context = [];
+    this.transcriptionText.clear();
+    this.liveKitReady = false;
+    if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
+    this.liveKitReadyTimer = undefined;
     this.remote.getTracks().forEach(track => this.remote.removeTrack(track));
     this.onState('idle');
   }

@@ -16,7 +16,9 @@ test('development sign-in, Live captions, teaching tools and server history form
       close() { this.readyState = 'closed'; }
     }
     class Peer {
-      connectionState = 'connected'; iceGatheringState = 'complete'; localDescription?: { type: string; sdp: string };
+      get connectionState() { return 'connected'; }
+      get iceGatheringState() { return 'complete'; }
+      localDescription?: { type: string; sdp: string };
       ontrack?: (event: any) => void; onconnectionstatechange?: () => void; channel = new Channel();
       addTrack() {} createDataChannel() { return this.channel; }
       async createOffer() { return { type: 'offer', sdp: 'v=0\r\nbrowser-fixture-offer' }; }
@@ -24,7 +26,7 @@ test('development sign-in, Live captions, teaching tools and server history form
       async setRemoteDescription() { queueMicrotask(() => { this.channel.onopen?.(); this.channel.onmessage?.({ data: JSON.stringify({ type: 'session.started' }) });
         this.channel.onmessage?.({ data: JSON.stringify({ type: 'session.input_transcript.delta', event_id: 'input-1', delta: 'Good ' }) });
         this.channel.onmessage?.({ data: JSON.stringify({ type: 'session.input_transcript.delta', event_id: 'input-2', delta: 'morning' }) }); }); }
-      addEventListener() {} removeEventListener() {} close() { this.connectionState = 'closed'; }
+      addEventListener() {} removeEventListener() {} close() {}
     }
     Object.defineProperty(window, 'RTCPeerConnection', { value: Peer });
     Object.defineProperty(navigator, 'mediaDevices', { value: {
@@ -35,10 +37,13 @@ test('development sign-in, Live captions, teaching tools and server history form
     const request = route.request(), url = new URL(request.url()), body = request.postDataJSON?.(); calls.push({ path: url.pathname, body });
     const json = (value: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) });
     if (url.pathname === '/v1/account') return json({ accountID: '22222222-2222-4222-8222-222222222222', email: 'learner@example.test', providers: ['google'], createdAt: new Date().toISOString() });
+    if (url.pathname === '/v1/live/capabilities') return json({ hostedMinutes: true, transport: 'webrtc', experimental: true });
     if (url.pathname === '/v1/conversations' && request.method() === 'GET') return json({ conversations: [{ id: sessionID, language: 'en', state: 'active', createdAt: new Date().toISOString(), deadline: new Date().toISOString(), preview: 'Good morning', eventCount: 2, resultCount: 0 }] });
     if (url.pathname === `/v1/conversations/${sessionID}`) return json({ id: sessionID, language: 'en', state: 'active', createdAt: new Date().toISOString(), deadline: new Date().toISOString(), observedMilliseconds: 0, chargedMilliseconds: null,
       events: [{ eventID: 'input-1', speaker: 'user', text: 'Good morning', source: 'live', createdAt: new Date().toISOString() }], results: [] });
-    if (url.pathname === '/v1/live/sessions') return json({ sessionID, sdp: 'v=0\r\nbrowser-fixture-answer', deadline: new Date().toISOString(), reservedMilliseconds: 60_000, billingBasis: 'connected-conversation-time', experimental: true });
+    if (url.pathname === '/v1/live/sessions') return json({ sessionID,
+      transport: { type: 'webrtc', sdp: 'v=0\r\nbrowser-fixture-answer' }, deadline: new Date().toISOString(),
+      reservedMilliseconds: 60_000, billingBasis: 'connected-conversation-time', experimental: true });
     if (url.pathname.endsWith('/events')) {
       if (body.eventID === 'input-1') await new Promise(resolve => setTimeout(resolve, 50));
       acceptedTranscriptEvents.push(body.eventID);

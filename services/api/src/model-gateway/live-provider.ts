@@ -32,6 +32,7 @@ const gatewaySessionPath = (id: string) => {
 
 /** Creation and trusted sideband use Gateway; client media stays on WebRTC. */
 export class ModelGatewayLiveProvider implements LiveProvider {
+  readonly clientTransport = 'webrtc' as const;
   readonly #client: ModelGatewayClient;
   readonly #timeout: number;
 
@@ -43,6 +44,7 @@ export class ModelGatewayLiveProvider implements LiveProvider {
   }
 
   async create(sdp: string, language: string, input?: LiveContext): Promise<{ sessionID: string; sdp: string }> {
+    if (!sdp) throw new ServiceError('invalid_live_offer');
     const context = parseLiveContext(input);
     const instructions = liveInstructions(language, context);
     let responseStatus: number | undefined, requestID: string | null = null;

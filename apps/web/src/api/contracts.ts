@@ -21,12 +21,14 @@ export type TranscriptEvent = {
 
 export type LiveSessionResult = {
   sessionID: string;
-  sdp: string;
+  transport: { type: 'webrtc'; sdp: string } | { type: 'livekit-room'; url: string; token: string };
   deadline: string;
   reservedMilliseconds: number;
   billingBasis: string;
   experimental: true;
 };
+
+export type LiveCapabilities = { hostedMinutes: boolean; transport?: 'webrtc' | 'livekit-room'; experimental?: true };
 
 export type AuthChallenge = { challengeID: string; nonce: string; expiresInSeconds: number };
 export type AuthExchange = { accountID: string; accessToken: string; expiresInSeconds: number };
