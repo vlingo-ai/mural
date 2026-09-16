@@ -255,7 +255,10 @@ Mural：
   `OpenAILiveProvider` 与 `OpenAIHostedResponses` 作为短期、显式关闭的回滚实现。
 - 复用 upstream 已有 Live session broker、sideband、启动恢复、分钟账本、访客额度
   和托管 helper，不重新实现第二套业务后端。
-- 将 iOS 现有 Responses 业务调用迁到 Mural API，由 API 组装业务 prompt。
+- 冻结 iOS 现有 Responses 调用到公开 model-task 的映射；实际调用点与 iOS
+  `LiveTransport` 在 Phase 6 原子切换。translation、assessment 和 teaching reply
+  必须使用 Mural 签发的公开 Live `sessionID` 结算，不能拿供应商 session ID 冒充，
+  也不能为了提前迁移而改用账户余额；独立 account-funded topic search 不受此依赖限制。
 - 补齐公开业务 inference 和会话事件契约；已有 Live 路由保持兼容。
 - 使用现有账号体系鉴权；开发模式使用明确受限的本地凭据，不开放匿名生产接口。
 - 增加 request ID、用户配额、审计日志和敏感字段脱敏。
@@ -390,10 +393,12 @@ MODEL_GATEWAY_API_KEY=...
 
 ## 9. 当前基线与下一步
 
-截至 2026-09-15：
+截至 2026-09-16：
 
-- Mural：`upstream/main` 为 `926fd95`；`origin/main` 在该上游基线上包含已 squash 合并的
-  Phase 1 提交 `f8d6c03`。Phase 3 分支从该提交创建。
+- Mural：`upstream/main` 已前进到 `3a12147`（Android preview 7）；独立同步 PR #5
+  全矩阵通过后以 merge commit `ff96e59` 进入 `origin/main`，保留 upstream 祖先关系。
+  stacked PR #2、#3、#4 随后按顺序重基并使用 `--force-with-lease` 更新，没有把同步
+  改动混入功能提交。
 - Mural API：TypeScript 类型检查和构建通过；PostgreSQL 17.11 隔离实例下 353 项测试
   全部通过、0 项跳过、0 项失败；跨仓库 Gateway 契约检查通过。
 - Model Gateway：Phase 1/2 已 squash 合并到 `origin/main`，提交 `a464af8`；主 checkout
@@ -541,3 +546,10 @@ PR #3 的 Android API 36 headless emulator 曾在无宿主或 guest OOM 的情�
 Android 36 compile SDK，但把设备测试固定到稳定的 API 35 default image，并将完整套件分成
 四个全部必需的 shard；修正后的 Android build、4/4 emulator shards、Server、Swift Core、
 Contracts 与 secret scan 均已通过，没有跳过界面覆盖。
+
+2026-09-16 的 upstream 同步吸收了 International English 启动修复、安全错误引用和
+Android preview 7。同步 PR #5 的 Android、emulator、Server、Swift Core、Contracts、
+release-files 与 secret scan 全部通过；重基后的 Phase 4 继续同时保留公开 `en`/`zh-CN`
+门禁、内部 `en-US` 历史 provider 兼容、账户级 model task 和不含敏感内容的启动诊断。
+Phase 4 PR #4 的中断遗留 Gitleaks 命中已确认是测试幂等键误报，修订提交历史后本地
+Gitleaks 8.30.1 与 GitHub secret scan 均通过；未发现或轮换任何真实密钥。
