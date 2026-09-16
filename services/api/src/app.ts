@@ -24,6 +24,7 @@ import { supportsPublicLanguage } from './live-provider.js';
 import { assertWebPreflight } from './web-cors.js';
 import { modelTaskHelperInput, parseModelTask, publicModelTaskResult } from './model-tasks.js';
 import type { AccountModelTasks } from './account-model-tasks.js';
+import { appendConversationEvent, conversationDetail, listConversations, parseConversationEvent, recordLearningResult } from './conversation-history.js';
 
 export interface Services { db: Database; auth: AuthConfig; payments?: SandboxPayments; attestor?: TrialAttestor; minuteAttestor?: MinuteAttestor; guestMinuteAttestor?: GuestMinuteAttestor; appleRevoker?: AppleRevoker; hosted?: HostedVoice; accessRequests?: AccessRequests; aiReports?: AIReports;
   onStartupDiagnostic?: (diagnostic: StartupDiagnostic) => void | Promise<void>;
@@ -113,7 +114,8 @@ export function createApp(services: Services) {
     const proxy = services.accounts?.admission.config ?? services.accessRequests?.config;
     if (proxy) {
       let network: string;
-      try { network = trustedClientNetwork(request.headers, request.raw.socket.remoteAddress ?? request.ip, proxy.proxyToken); }
+      try { network = trustedClientNetwork(request.headers, request.raw.socket.remoteAddress ?? request.ip, proxy.proxyToken,
+        'allowLocalLoopback' in proxy && proxy.allowLocalLoopback === true); }
       catch { throw new ServiceError('trusted_proxy_required', 503); }
       networkKey = createHmac('sha256', Buffer.from(proxy.hmacKey, 'hex')).update(network).digest('hex');
     }
@@ -193,7 +195,7 @@ export function createApp(services: Services) {
       return reply.code(202).send({ accepted: true });
     }
   });
-  app.get('/v1/auth/providers', async () => ({ google: Boolean(services.accounts && services.auth.googleClientID),
+  app.get('/v1/auth/providers', async () => ({ google: Boolean(services.accounts && (services.auth.googleClientID || services.auth.googleWebClientID)),
     googleAndroid: Boolean(services.accounts && services.auth.googleAndroidServerClientID && services.auth.googleAndroidClientIDs?.length),
     apple: Boolean(services.accounts && services.auth.appleClientID && services.appleRevoker) }));
   app.get('/v1/feedback/capabilities', async () => ({ aiReports: Boolean(services.aiReports?.config) }));
@@ -399,6 +401,13 @@ export function createApp(services: Services) {
     const account = await authenticate(db, request.headers.authorization, true);
     return services.hostedHelpers.request(account, uuid((request.params as { id: string }).id), request.body);
   });
+  app.get('/v1/conversations', async request => listConversations(db,
+    await authenticate(db, request.headers.authorization, true)));
+  app.get('/v1/conversations/:id', async request => conversationDetail(db,
+    await authenticate(db, request.headers.authorization, true), uuid((request.params as { id: string }).id)));
+  app.post('/v1/conversations/:id/events', { bodyLimit: 8192 }, async request => appendConversationEvent(db,
+    await authenticate(db, request.headers.authorization, true), uuid((request.params as { id: string }).id),
+    parseConversationEvent(request.body)));
   app.post('/v1/model-tasks', { bodyLimit: HOSTED_HELPER_BODY_LIMIT }, async request => {
     const account = await authenticate(db, request.headers.authorization, true);
     const key = request.headers['idempotency-key'];
@@ -414,7 +423,10 @@ export function createApp(services: Services) {
       if (!services.hosted?.minuteFunded || !services.hostedHelpers) throw new ServiceError('hosted_helpers_not_ready', 503);
       result = await services.hostedHelpers.request(account, task.funding.sessionID, input);
     }
-    return publicModelTaskResult(task, result);
+    const publicResult = publicModelTaskResult(task, result);
+    if (task.funding.type === 'liveSession')
+      await recordLearningResult(db, account, task.funding.sessionID, key, task.kind, publicResult);
+    return publicResult;
   });
   app.get('/payment-return', async (_request, reply) => reply.type('text/html').send('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Mural sandbox</title><body><h1>Return to Mural</h1><p>This is a sandbox payment test. The app checks payment confirmation independently.</p></body></html>'));
   return app;

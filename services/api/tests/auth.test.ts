@@ -55,6 +55,14 @@ test('Google authorized party and multiple audiences cannot authorize another cl
   const authorized = await new SignJWT({ ...claims, azp: 'mural-test-client' }).setProtectedHeader({ alg: 'RS256', kid: 'test-key' }).sign(privateKey);
   assert.equal((await verifyIdentity('google', authorized, digest(nonce), { googleClientID: 'mural-test-client' }, keys)).subject, 'subject');
 });
+test('Google Web and native audiences coexist without treating either as an Android client', async () => {
+  const create = (audience: string) => new SignJWT({ nonce, azp: audience }).setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
+    .setSubject('subject-123').setAudience(audience).setIssuer('https://accounts.google.com').setIssuedAt().setExpirationTime('5m').sign(privateKey);
+  const config = { googleClientID: 'mural-test-client', googleWebClientID: 'mural-web-client' };
+  assert.equal((await verifyIdentity('google', await create('mural-web-client'), digest(nonce), config, keys)).subject, 'subject-123');
+  assert.equal((await verifyIdentity('google', await create('mural-test-client'), digest(nonce), config, keys)).subject, 'subject-123');
+  await assert.rejects(verifyIdentity('google', await create('foreign-client'), digest(nonce), config, keys));
+});
 test('Android Google tokens require their server audience and an allowlisted Android party', async () => {
   const config = { googleClientID: 'mural-test-client', googleAndroidServerClientID: 'mural-android-server',
     googleAndroidClientIDs: ['mural-android-debug', 'mural-android-play'] };

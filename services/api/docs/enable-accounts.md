@@ -8,6 +8,11 @@ Create a Google **iOS** OAuth client for the app's bundle ID and use that same c
 
 Mural's Google project is External/In production as of September 12, 2026, with verified and published branding. It requests only `openid` and `email`. For a separate development project, note that Testing is not an invitation-only gate for these basic identity scopes. Workspace policies can still block authorization. [Google OAuth app states](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview)
 
+For Web, create a separate Google **Web application** OAuth client, configure its exact HTTPS and
+local development origins, set it as `GOOGLE_WEB_CLIENT_ID` on the server and
+`VITE_GOOGLE_CLIENT_ID` at Web build time. The backend accepts either the native or Web audience;
+do not replace `GOOGLE_CLIENT_ID`, because doing so would break existing iOS sign-in.
+
 For Apple later, configure the native client/bundle ID and Sign in with Apple capability, then supply `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY_PATH`. Mount the `.p8` key read-only in the API container. Startup imports it as an ES256 key before offering Apple signup. A successful local key import does not verify portal configuration; complete a real sign-in and deletion test before enabling the app button. The backend must be able to exchange a fresh Apple code and revoke the returned token. [Apple token revocation](https://developer.apple.com/documentation/signinwithapplerestapi/revoke-tokens)
 
 ## Apply the migration and runtime grants

@@ -97,6 +97,9 @@ All monetary strings are integer **nanoUSD**: 1 USD = 1,000,000,000 nanoUSD. A d
 | `GET /v1/live/sessions/:id` | Bearer token belonging to the session owner | Minimal state, cumulative milliseconds, confirmed provider cost and customer debit |
 | `POST /v1/live/sessions/:id/close` | Bearer token belonging to the session owner | Requests server closure; never accepts client-reported usage |
 | `POST /v1/model-tasks` | Member Bearer token; `Idempotency-Key`; prompt-free business task and explicit funding | Translation, assessment and teaching reply use an owned Live session; topic search may instead reserve verified account AI value when separately enabled |
+| `GET /v1/conversations` | Member Bearer token | Server-authoritative recent sessions with bounded previews and result counts |
+| `GET /v1/conversations/:id` | Member Bearer token belonging to the session owner | Ordered transcript fragments and learning results; no raw audio or provider credential |
+| `POST /v1/conversations/:id/events` | Member Bearer token belonging to the session owner; bounded idempotent event | Appends one live or typed transcript fragment |
 
 Error responses contain a safe `error.code` only. Request bodies, keys, ID tokens, bearer tokens, Stripe payloads, and conversations are not logged. Expired authentication records are pruned every 15 minutes. The basic in-memory rate limit does not trust forwarded client-IP headers; behind Caddy it applies conservatively to the proxy address. Configure and test a trusted-proxy policy before scaling it.
 
@@ -153,6 +156,12 @@ Neither case is automatically retried. Durable rows contain no topic query, prom
 transcript, provider model name or credential. Apply
 `operations/account-model-task-runtime-grants.sql` after the actual-value grants when using a
 restricted runtime database role.
+
+Conversation history stores only bounded text fragments and validated learning results; raw audio,
+SDP, provider session identifiers and credentials are excluded. Apply
+`operations/conversation-history-runtime-grants.sql` after migration 026 when using the restricted
+runtime role. Product selectors admit only current launch locales, while stored locale strings remain
+readable for older native clients and historical sessions.
 
 A 600-second wall-clock closure request is **not an absolute provider spending guarantee during a network partition**. OpenAI’s general guide describes hangup for Live sessions, while the fetched endpoint reference calls it a SIP operation. WebRTC hangup and terminal usage recovery must be confirmed with the provider and a real bounded test. No such paid call was made here. Keep public hosted voice off until those limits and reconciliation are verified.
 

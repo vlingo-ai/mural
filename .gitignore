@@ -31,6 +31,8 @@ marketing/demo/
 .swiftpm/
 node_modules/
 apps/web/dist/
+apps/web/test-results/
+apps/web/playwright-report/
 __pycache__/
 *.py[cod]
 

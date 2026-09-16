@@ -33,4 +33,22 @@ describe('MuralAPI', () => {
     expect(() => new MuralAPI('http://api.example.test', () => 'token')).toThrow(/HTTPS/);
     expect(() => new MuralAPI('https://user:secret@api.example.test', () => 'token')).toThrow(/HTTPS/);
   });
+
+  it('creates authentication challenges without sending an authorization header', async () => {
+    const send = vi.fn(async (_input, init) => {
+      expect(new Headers(init?.headers).has('authorization')).toBe(false);
+      return new Response(JSON.stringify({ challengeID: crypto.randomUUID(), nonce: 'nonce', expiresInSeconds: 300 }), { status: 200 });
+    });
+    await new MuralAPI('https://api.example.test', () => undefined, send as typeof fetch).createAuthChallenge();
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('uses authenticated GET without a request body for server history', async () => {
+    const send = vi.fn(async (_input, init) => {
+      expect(init?.method).toBe('GET'); expect(init?.body).toBeUndefined();
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer test-session');
+      return new Response(JSON.stringify({ conversations: [] }), { status: 200 });
+    });
+    await new MuralAPI('https://api.example.test', () => 'test-session', send as typeof fetch).conversations();
+  });
 });

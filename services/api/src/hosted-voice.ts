@@ -140,16 +140,16 @@ export class HostedVoice {
         await sql.query('INSERT INTO minute_reservations(id,account_id,idempotency_key,amount_ms,public_minutes) VALUES($1,$2,$3,$4,$5)',
           [reservation, account, `hosted:${key}`, reservedMilliseconds,this.publicMinuteAccess]);
         await appendMinuteEntry(sql, account, `minute-reserve:${reservation}`, 'reserve', 0, reservedMilliseconds);
-        await sql.query(`INSERT INTO hosted_sessions(id,account_id,idempotency_key,minute_reservation_id,reserved_ms,rate_version,state,deadline,funding_exposure_nano,minimum_charge_ms,public_minutes,funding_mode)
-          VALUES($1,$2,$3,$4,$5,$6,'creating',$7,$8,15000,$9,'minutes')`, [id, account, key, reservation, reservedMilliseconds, RATE_VERSION, deadline, funding.toString(),this.publicMinuteAccess]);
+        await sql.query(`INSERT INTO hosted_sessions(id,account_id,idempotency_key,minute_reservation_id,reserved_ms,rate_version,state,deadline,funding_exposure_nano,minimum_charge_ms,public_minutes,funding_mode,language)
+          VALUES($1,$2,$3,$4,$5,$6,'creating',$7,$8,15000,$9,'minutes',$10)`, [id, account, key, reservation, reservedMilliseconds, RATE_VERSION, deadline, funding.toString(),this.publicMinuteAccess,language]);
         await this.config.helpers?.reserveSessionBudget(sql, account, id);
       } else if (paid) {
         deadline=new Date(this.now()+Math.max(30_000,reservedMilliseconds));
         await reservePaidInTransaction(sql,account,reservation,`hosted:${key}`,paidReserve.voice,RATE_VERSION);
         await sql.query(`INSERT INTO hosted_sessions(id,account_id,idempotency_key,reservation_id,rate_version,state,deadline,
-          funding_exposure_nano,minimum_charge_ms,funding_mode,limit_ms)
-          VALUES($1,$2,$3,$4,$5,'creating',$6,$7,15000,'ai-value',$8)`,
-          [id,account,key,reservation,RATE_VERSION,deadline,paidReserve.voice.toString(),reservedMilliseconds]);
+          funding_exposure_nano,minimum_charge_ms,funding_mode,limit_ms,language)
+          VALUES($1,$2,$3,$4,$5,'creating',$6,$7,15000,'ai-value',$8,$9)`,
+          [id,account,key,reservation,RATE_VERSION,deadline,paidReserve.voice.toString(),reservedMilliseconds,language]);
         await this.config.helpers!.reserveSessionBudget(sql,account,id);
       } else {
         if (exposure + HOLD > this.config.lifetimeFundingCapNano) throw new ServiceError('hosted_funding_cap_reached', 503);
@@ -157,8 +157,8 @@ export class HostedVoice {
         await sql.query('INSERT INTO reservations(id,account_id,idempotency_key,reserved_nano,rate_version) VALUES($1,$2,$3,$4,$5)',
           [reservation, account, `hosted:${key}`, HOLD.toString(), RATE_VERSION]);
         await appendEntry(sql, account, `reservation:${reservation}`, 'reserve', 0n, HOLD, RATE_VERSION);
-        await sql.query(`INSERT INTO hosted_sessions(id,account_id,idempotency_key,reservation_id,rate_version,state,deadline,funding_exposure_nano)
-          VALUES($1,$2,$3,$4,$5,'creating',$6,$7)`, [id, account, key, reservation, RATE_VERSION, deadline, HOLD.toString()]);
+        await sql.query(`INSERT INTO hosted_sessions(id,account_id,idempotency_key,reservation_id,rate_version,state,deadline,funding_exposure_nano,language)
+          VALUES($1,$2,$3,$4,$5,'creating',$6,$7,$8)`, [id, account, key, reservation, RATE_VERSION, deadline, HOLD.toString(),language]);
       }
     });
     if ((minutes || paid) && !await this.prepareMinuteProviderAttempt(id, account))

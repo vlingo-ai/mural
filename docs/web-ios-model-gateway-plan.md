@@ -554,8 +554,7 @@ release-files 与 secret scan 全部通过；重基后的 Phase 4 继续同时�
 Phase 4 PR #4 的中断遗留 Gitleaks 命中已确认是测试幂等键误报，修订提交历史后本地
 Gitleaks 8.30.1 与 GitHub secret scan 均通过；未发现或轮换任何真实密钥。
 
-Phase 5 已从重基后的 Phase 4 顶部创建 `codex/phase-5-web-mvp` 隔离分支，并完成首个
-浏览器纵向切片：
+Phase 5 已从重基后的 Phase 4 顶部创建 `codex/phase-5-web-mvp` 隔离分支。工程实现已完成：
 
 - `apps/web/` 使用 React、TypeScript 与 Vite，提供 `en` / `zh` 选择并保留禁用的
   `yue-Hant-HK` 产品身份；开发 Bearer 只保存在内存，刷新即清除。
@@ -564,9 +563,23 @@ Phase 5 已从重基后的 Phase 4 顶部创建 `codex/phase-5-web-mvp` 隔离�
 - Mural API 新增显式 `MURAL_WEB_ALLOWED_ORIGINS`；只允许 HTTPS 或精确 loopback，
   preflight 仅开放所需 method/header，不启用 wildcard 或 cookie credential，并保留安全
   错误引用供浏览器报告。
-- Web 4 项单测、TypeScript 与 production build 已通过，实际浏览器布局、禁用粤语和
-  token 刷新清除行为已验收；GitHub Checks 已增加独立 Web job。
+- Google Web OAuth 使用独立 client ID、服务端 nonce 和 Mural token exchange；原生 iOS
+  与 Android audience 保持兼容。开发 Bearer 仍只用于本地验证。
+- topic search、translation、assessment、typed teaching reply、实时字幕和安全错误引用已
+  接入公开业务 API；字幕按 Live delta 的到达顺序累积，不把 fragment 误判为完整 turn。
+- PostgreSQL 成为会话文本与学习结果的权威数据源；写入按 provider event/idempotency key
+  去重，账号删除清除内容，IndexedDB 仅保存按账号隔离的可丢弃列表缓存。
+- Playwright 覆盖登录、WebRTC、字幕、文本教学、翻译与历史的单浏览器闭环；CI Web job
+  安装固定 Chromium 并执行单测、构建和 E2E。
+- `scripts/run-web-stack.sh` 一条命令复用现有 Model Gateway 隔离 worktree，启动独立
+  PostgreSQL 数据库、8012 Gateway、8080 API 与 5173 Web，并生成 12 小时本地会员 token；
+  不占用或修改其他项目正在使用的 8000 Gateway。
+- 本机一键栈、健康检查、账号/分钟/capabilities/history 路径均已通过。受控真实调用已
+  到达 Gateway/OpenAI，供应商因当前 API 账户余额为 0 返回 HTTP 429；系统未重试、未扣减
+  600000 ms 分钟、未遗留 reservation，拒绝会话被安全关闭并记录不含敏感内容的诊断引用。
+- 最终离线回归：Mural API/PostgreSQL 385 项、Swift Core 74 项、跨平台 Python 53 项、
+  Web 单元测试 6 项和 Playwright E2E 1 项全部通过；Gitleaks 8.30.1 未发现密钥泄漏。
 
-Phase 5 尚未完成生产 OAuth/guest 身份 UI、topic search/translation/assessment 界面、会话
-历史权威存储、fake-provider 浏览器 E2E、一键本地编排和真实 Live smoke，因此该分支仍是
-stacked 开发分支，不改变 PR #2/#3/#4 的 Draft 状态。
+因此 Phase 5 当前为“代码完成、真实付费验收待额度”状态。补充最小 OpenAI API 额度后只需
+重跑同一短时、无自动重试的 Live smoke，即可关闭最后一项外部验收门禁；在此之前 PR #6
+继续保持 Draft，且不改变 PR #2/#3/#4 的 Draft 状态。

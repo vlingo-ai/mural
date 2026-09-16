@@ -13,12 +13,14 @@ export class LiveConnection {
   private sessionID?: string;
   private language?: AvailableLanguage;
   private context: Array<{ speaker: 'user' | 'assistant'; text: string }> = [];
+  private historyWrite: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly api: MuralAPI,
     private readonly onState: (state: LiveState) => void,
     private readonly onEvent: (event: TranscriptEvent | Record<string, unknown>) => void,
     private readonly onRemoteStream: (stream: MediaStream) => void,
+    private readonly onSession: (sessionID: string | undefined) => void = () => {},
   ) {}
 
   async connect(language: AvailableLanguage, inputDeviceID?: string): Promise<void> {
@@ -47,15 +49,27 @@ export class LiveConnection {
       };
       const channel = peer.createDataChannel('oai-events', { ordered: true });
       this.channel = channel;
-      channel.onopen = () => this.onState('active');
+      channel.onopen = () => this.onState('connecting');
       channel.onmessage = ({ data }) => {
         if (typeof data !== 'string' || data.length > 262_144) return;
         try {
           const event = JSON.parse(data) as Record<string, unknown>;
+          if (event.type === 'session.started') this.onState('active');
+          if ((event.type === 'session.input_transcript.delta' || event.type === 'session.output_transcript.delta') &&
+              typeof event.delta === 'string' && event.delta.length && event.delta.length <= 4_000) {
+            const speaker = event.type === 'session.input_transcript.delta' ? 'user' : 'assistant';
+            const eventID = typeof event.event_id === 'string' ? event.event_id : crypto.randomUUID();
+            this.addContext(speaker, event.delta);
+            const transcript: TranscriptEvent = { type: 'session.transcript.appended', event_id: eventID,
+              speaker, text: event.delta, source: 'live' };
+            this.onEvent(transcript);
+            if (this.sessionID) void this.persistEvent(this.sessionID, {
+              eventID, speaker, text: event.delta, source: 'live',
+            });
+          }
           if (event.type === 'session.transcript.appended' &&
               (event.speaker === 'user' || event.speaker === 'assistant') && typeof event.text === 'string') {
-            this.context.push({ speaker: event.speaker, text: event.text });
-            this.context = this.context.slice(-10);
+            this.addContext(event.speaker, event.text);
           }
           if (typeof event.type === 'string') this.onEvent(event);
         } catch { /* Ignore malformed provider events. */ }
@@ -71,6 +85,7 @@ export class LiveConnection {
       }, crypto.randomUUID());
       if (this.closed) return;
       this.sessionID = result.sessionID;
+      this.onSession(result.sessionID);
       await peer.setRemoteDescription({ type: 'answer', sdp: result.sdp });
       this.onEvent({ type: 'mural.session.created', session: { id: result.sessionID } });
     } catch (error) {
@@ -87,7 +102,8 @@ export class LiveConnection {
     const eventID = crypto.randomUUID();
     this.context.push({ speaker: 'user', text: clean });
     this.context = this.context.slice(-10);
-    this.onEvent({ type: 'session.transcript.appended', event_id: eventID, speaker: 'user', text: clean });
+    this.onEvent({ type: 'session.transcript.appended', event_id: eventID, speaker: 'user', text: clean, source: 'typed' });
+    await this.persistEvent(this.sessionID, { eventID, speaker: 'user', text: clean, source: 'typed' });
     const result = await this.api.createModelTask<{ kind: 'teachingReply'; text: string }>({
       kind: 'teachingReply',
       funding: { type: 'liveSession', sessionID: this.sessionID },
@@ -103,6 +119,7 @@ export class LiveConnection {
   close(): void {
     this.onState('closing');
     if (this.channel?.readyState === 'open') this.channel.send(JSON.stringify({ type: 'session.close', event_id: crypto.randomUUID() }));
+    if (this.sessionID) void this.api.closeLiveSession(this.sessionID).catch(() => {});
     globalThis.setTimeout(() => this.disconnect(), 1_000);
   }
 
@@ -115,6 +132,7 @@ export class LiveConnection {
     this.local?.getTracks().forEach(track => track.stop());
     this.local = undefined;
     this.sessionID = undefined;
+    this.onSession(undefined);
     this.language = undefined;
     this.context = [];
     this.remote.getTracks().forEach(track => this.remote.removeTrack(track));
@@ -134,4 +152,19 @@ export class LiveConnection {
       peer.addEventListener('icegatheringstatechange', changed);
     });
   }
+
+  private addContext(speaker: 'user' | 'assistant', text: string): void {
+    const previous = this.context.at(-1);
+    if (previous?.speaker === speaker && BufferlessLength(previous.text + text) <= 4_000) previous.text += text;
+    else this.context.push({ speaker, text });
+    this.context = this.context.slice(-10);
+  }
+
+  private persistEvent(sessionID: string, event: { eventID: string; speaker: 'user' | 'assistant'; text: string; source: 'live' | 'typed' }): Promise<void> {
+    const write = this.historyWrite.then(() => this.api.appendConversationEvent(sessionID, event).then(() => {}));
+    this.historyWrite = write.catch(() => this.onEvent({ type: 'mural.history.sync_failed' }));
+    return write;
+  }
 }
+
+const BufferlessLength = (text: string) => new TextEncoder().encode(text).byteLength;

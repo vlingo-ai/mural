@@ -16,6 +16,7 @@ export type TranscriptEvent = {
   event_id?: string;
   speaker: 'user' | 'assistant';
   text: string;
+  source?: 'live' | 'typed';
 };
 
 export type LiveSessionResult = {
@@ -26,3 +27,13 @@ export type LiveSessionResult = {
   billingBasis: string;
   experimental: true;
 };
+
+export type AuthChallenge = { challengeID: string; nonce: string; expiresInSeconds: number };
+export type AuthExchange = { accountID: string; accessToken: string; expiresInSeconds: number };
+export type AccountProfile = { accountID: string; email: string | null; providers: Array<'google' | 'apple'>; createdAt: string };
+export type ConversationSummary = { id: string; language: string | null; state: string; createdAt: string;
+  deadline: string; preview: string | null; eventCount: number; resultCount: number };
+export type ConversationDetail = { id: string; language: string | null; state: string; createdAt: string; deadline: string;
+  observedMilliseconds: number; chargedMilliseconds: number | null;
+  events: Array<{ eventID: string; speaker: 'user' | 'assistant'; text: string; source: 'live' | 'typed'; createdAt: string }>;
+  results: Array<{ kind: string; result: unknown; createdAt: string }> };
