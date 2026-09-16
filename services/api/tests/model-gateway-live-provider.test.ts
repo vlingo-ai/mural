@@ -121,7 +121,7 @@ test('Gateway Live adapter classifies rejected, uncertain, and malformed creates
       }, cancel() { cancelled = true; } });
       return new Response(stream, { status, headers: { 'x-request-id': 'gateway_request_1' } });
     }) as typeof fetch });
-    await assert.rejects(provider.create('v=0', 'en-US'), error => {
+    await assert.rejects(provider.create('v=0', 'en'), error => {
       assert.equal((error as { category: string }).category, category);
       assert.equal(String(error).includes(key), false); return true;
     });

@@ -208,7 +208,7 @@ integration('600-second deadline forces close and HTTP fallback; missing final u
 integration('recovery reattaches the saved provider ID and closes without creating again', async () => {
   const f = await fixture();
   try {
-    const live = await f.controller.create(f.account, 'recovery-offer-key', 'v=0', 'en-US');
+    const live = await f.controller.create(f.account, 'recovery-offer-key', 'v=0', 'en');
     f.send(live.providerSessionID, { type: 'session.usage.updated', usage: { seconds: 30 } });
     await until(async () => (await f.controller.status(f.account, live.sessionID)).observedMilliseconds === 30_000);
     await f.restart(); assert.equal(f.creates, 1);
@@ -463,7 +463,7 @@ integration('refunding a minute purchase during speech closes and recovers relea
     evidence = { ...scope, orderID: order.orderID, transactionID: 'cs_minute_test', eventID: 'evt_paid', providerProduct: 'price_test',
       quantity: 1, currency: 'usd', totalMinor: 300, state: 'purchased', refundedMinor: 0 };
     await purchases.reconcile('stripe', {});
-    const live = await f.controller.create(f.account, 'minute-refund-live', 'v=0', 'en-US');
+    const live = await f.controller.create(f.account, 'minute-refund-live', 'v=0', 'en');
     evidence = { ...evidence, eventID: 'evt_refunded', refundedMinor: 300, state: 'voided' };
     await purchases.reconcile('stripe', {});
     assert.deepEqual(await f.minutes(), { balance_ms: '600000', reserved_ms: '600000' });

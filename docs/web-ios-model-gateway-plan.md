@@ -399,10 +399,11 @@ MODEL_GATEWAY_CONTRACT_VERSION=...
   测试也已在沙箱外通过。
 - Model Gateway：主 checkout 保持在 `origin/main`；Phase 2 仅在独立 worktree 开发。
   本地 `.env` 被 Git 忽略且权限为 `0600`；没有输出或提交密钥。
-- Mural Android：OpenJDK 17、Android platform 36/build-tools 35.0.0 已就绪；unit test、
-  lint 和 debug assemble 通过。跨平台 Python 套件 53 项、内容导出和兼容检查通过。
+- Mural Android：OpenJDK 17、Android platform 36/build-tools 35.0.0 已就绪；314 项
+  unit test、lint 和 debug assemble 通过。跨平台 Python 套件 53 项、内容导出和
+  兼容检查通过。
 - Mural iOS：Xcode 26.6、Swift 6.3.3、iOS 26.5 Simulator runtime 已就绪；74 项
-  Swift 测试、generic Simulator build 和 iPhone 17 的 20 项 UI 测试全部通过。
+  Swift 测试、generic Simulator build 和 iPhone 17 的 18 项当前 UI 测试全部通过。
 - Phase 0 已完成。此前残留的 App Store `mas install` 进程已结束。
 
 Phase 1 已在隔离分支完成首轮实现：
@@ -479,6 +480,16 @@ Mural API 的 Live adapter 首轮实现也已完成：
   数据库仅监听 `127.0.0.1:55434`，测试后已停止并删除临时数据目录。
 
 2026-09-15 已冻结目标语言决策：产品最终只开放 `en`、`zh`、`yue`，其中粤语明确
-采用香港繁体 `yue-Hant-HK`。旧语言采用“隐藏但保留历史解码”，不物理删除。当前代码
-仍使用单一 `LanguageRegistry.all` 且新安装默认 `nb`；`knownLanguages` / `availableLanguages`
-拆分、新默认 `en` 与 v1 迁移继续固定 `nb` 将作为独立兼容性改动实施，不混入 Live PR。
+采用香港繁体 `yue-Hant-HK`。旧语言采用“隐藏但保留历史解码”，不物理删除。
+该兼容层已在 stacked 分支 `codex/language-availability` 完成首轮实现，不混入 Live PR：
+
+- Swift 与生成的 Kotlin 注册表均拆成 `knownLanguages` 和 `availableLanguages`；前者保留
+  八种既有语言，后者当前仅为 `en`、`zh`。
+- 新安装默认语言改为 `en`，v1 archive 缺省语言继续固定迁移为 `nb`；学习投影、导入、
+  历史记录和隐藏词仍能按原语言解码。
+- iOS/Android onboarding、设置和新会话入口只接受可用语言；升级后仍处于历史语言的
+  用户必须先选择英语或普通话，禁止以隐藏语言创建新会话。
+- Mural API 的英语 locale 已与客户端统一为 `en`；Phase 4 接入共享后端时，再把公开
+  会话入口的服务端 allowlist 从历史 provider 能力收紧为 `en`、`zh-CN`。
+- Swift 74 项、Android 314 项、Python 53 项和 iPhone 17 Simulator UI 18 项测试通过；
+  两端构建、Android lint、内容生成检查和跨平台契约检查通过。未调用任何付费模型。

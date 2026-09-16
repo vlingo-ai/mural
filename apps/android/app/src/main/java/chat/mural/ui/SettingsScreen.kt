@@ -93,7 +93,7 @@ fun SettingsScreen(vm: MuralViewModel, onExport: () -> Unit, onImport: () -> Uni
                 SettingsGroup(stringResource(R.string.settings_just_your_pace),
                     stringResource(if (vm.isRunning) R.string.settings_language_running_footer else R.string.settings_language_footer)) {
                     SettingsChoiceRow(stringResource(R.string.settings_learning_language), vm.language.settingsTitle, vm.language.id,
-                        LanguageRegistry.all.map { it.id to it.settingsTitle }, "settings-learning-language", !vm.isRunning, vm::selectLanguage)
+                        LanguageRegistry.availableLanguages.map { it.id to it.settingsTitle }, "settings-learning-language", !vm.isRunning, vm::selectLanguage)
                     SettingsDivider()
                     SettingsMeaningSwitch(prefs.meaningVisible, vm::toggleMeaning)
                     SettingsDivider()

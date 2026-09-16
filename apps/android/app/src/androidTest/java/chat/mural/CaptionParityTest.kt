@@ -196,7 +196,7 @@ class CaptionParityTest {
             Triple("en", "I would like coffee.", "coffee"), Triple("fr", "Je voudrais du café.", "café"),
             Triple("de", "Ich möchte Kaffee.", "Kaffee"), Triple("it", "Vorrei un caffè.", "caffè"),
             Triple("pt", "Quero um café.", "café"), Triple("zh", "我想去银行。", "银行"))
-        assertEquals(LanguageRegistry.all.map { it.id }.toSet(), samples.map { it.first }.toSet())
+        assertEquals(LanguageRegistry.knownLanguages.map { it.id }.toSet(), samples.map { it.first }.toSet())
         for ((language, sentence, word) in samples) {
             show(language, sentence, "A short practice sentence.")
             compose.onNodeWithTag("target-caption").performScrollTo()

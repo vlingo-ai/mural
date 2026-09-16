@@ -5,7 +5,7 @@ import org.junit.Test
 import kotlinx.serialization.json.jsonObject
 
 class CoreTest {
-    private fun evidence(language:String="nb", day:Double=0.0, kind:EvidenceKind=EvidenceKind.independent, supported:Boolean=false, theme:String="walk"):SessionRecord {
+    private fun evidence(language:String=LanguageRegistry.defaultID, day:Double=0.0, kind:EvidenceKind=EvidenceKind.independent, supported:Boolean=false, theme:String="walk"):SessionRecord {
         val date=1_780_000_000.0 + day*86400
         val s=SessionRecord(languageID=language,startedAt=date,themeID=theme)
         s.append(Fragment(id="f-${language}-${day}",speaker=Speaker.user,text="radio",startMS=1000,endMS=2000,receivedAt=date,meaningVisible=supported))
@@ -34,7 +34,7 @@ class CoreTest {
         assertEquals(0,LearningEngine.project(listOf(first,second,third),languageID="es").observationCount)
     }
     @Test fun archiveV1MigrationAndMergePreserveLocalPreferences() {
-        val original=Archive(sessions= mutableListOf(evidence()),preferences=Preferences(hiddenWords=listOf("nb|radio"),meaningLanguage="Spanish"))
+        val original=Archive(sessions= mutableListOf(evidence(language="nb")),preferences=Preferences(hiddenWords=listOf("nb|radio"),meaningLanguage="Spanish"))
         val root=kotlinx.serialization.json.Json.parseToJsonElement(ArchiveCodec.encode(original)).jsonObject.toMutableMap()
         root["schemaVersion"]=kotlinx.serialization.json.JsonPrimitive(1)
         val prefs=root["preferences"]!!.jsonObject.toMutableMap(); prefs.remove("learningLanguageID")
@@ -49,7 +49,10 @@ class CoreTest {
         assertEquals(2,merged.sessions.size)
     }
     @Test fun languageRegistryAndThemesStayStable() {
-        assertEquals(listOf("nb","es","en","fr","de","it","pt","zh"),LanguageRegistry.all.map { it.id })
+        assertEquals(listOf("nb","es","en","fr","de","it","pt","zh"),LanguageRegistry.knownLanguages.map { it.id })
+        assertEquals(listOf("en","zh"), LanguageRegistry.availableLanguages.map { it.id })
+        assertEquals("en", LanguageRegistry.defaultID)
+        assertEquals("nb", LanguageRegistry.legacyDefaultID)
         assertEquals(24,Themes.shared.map { it.id }.toSet().size)
         assertEquals("Salut !",LanguageRegistry.get("fr")!!.greeting)
         for ((id, locale, greeting) in listOf(Triple("de","de-DE","Hallo!"),Triple("it","it-IT","Ciao!"),Triple("pt","pt-BR","Olá!"),Triple("zh","zh-CN","你好！"))) {
