@@ -37,7 +37,7 @@ export interface LiveProvider {
   hangup(sessionID: string): Promise<void>;
 }
 const languages: Record<string, string> = { 'nb-NO': 'Norwegian Bokmål with an Eastern Norwegian pronunciation',
-  'es-ES': 'Spanish from Spain', 'en-US': 'English', 'fr-FR': 'French from France',
+  'es-ES': 'Spanish from Spain', 'en': 'English', 'en-US': 'English', 'fr-FR': 'French from France',
   'de-DE': 'Standard German as spoken in Germany', 'it-IT': 'Italian as spoken in Italy',
   'pt-BR': 'Brazilian Portuguese', 'zh-CN': 'Standard Mandarin with Simplified Chinese writing' };
 export const supportsLanguage = (language: string) => Object.hasOwn(languages, language);
