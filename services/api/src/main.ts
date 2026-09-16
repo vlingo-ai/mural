@@ -18,6 +18,7 @@ import { ModelGatewayLiveProvider } from './model-gateway/live-provider.js';
 import { ModelGatewayResponsesTransport } from './model-gateway/responses-transport.js';
 import { ModelGatewayClient } from './model-gateway/client.js';
 import { AccountModelTasks } from './account-model-tasks.js';
+import { webOrigins } from './web-cors.js';
 
 const databaseURL = process.env.DATABASE_URL;
 if (!databaseURL) { console.error('DATABASE_URL is required.'); process.exit(1); }
@@ -108,14 +109,17 @@ try {
   await pruneAIReports(db);
   const googleAndroidClientIDs = (process.env.GOOGLE_ANDROID_CLIENT_IDS ?? '').split(',').map(id => id.trim()).filter(Boolean);
   const googleAndroidServerClientID = process.env.GOOGLE_ANDROID_SERVER_CLIENT_ID;
+  const googleWebClientID = process.env.GOOGLE_WEB_CLIENT_ID;
   if (Boolean(googleAndroidServerClientID) !== Boolean(googleAndroidClientIDs.length) || googleAndroidClientIDs.length > 10 ||
     [googleAndroidServerClientID, ...googleAndroidClientIDs].filter(Boolean).some(id => !/^[A-Za-z0-9-]+\.apps\.googleusercontent\.com$/.test(id!)))
     throw new Error('Android Google identity configuration is incomplete.');
-  if (accounts && !hasGoogleSignIn({ googleClientID: process.env.GOOGLE_CLIENT_ID, googleAndroidServerClientID, googleAndroidClientIDs }) &&
+  if (googleWebClientID && !/^[A-Za-z0-9-]+\.apps\.googleusercontent\.com$/.test(googleWebClientID))
+    throw new Error('Web Google identity configuration is invalid.');
+  if (accounts && !hasGoogleSignIn({ googleClientID: process.env.GOOGLE_CLIENT_ID, googleWebClientID, googleAndroidServerClientID, googleAndroidClientIDs }) &&
     !(appleClient && appleRevoker)) throw new Error('No account identity provider configured.');
-  const app = createApp({ db, auth: { googleClientID: process.env.GOOGLE_CLIENT_ID, appleClientID: appleClient,
+  const app = createApp({ db, auth: { googleClientID: process.env.GOOGLE_CLIENT_ID, googleWebClientID, appleClientID: appleClient,
     googleAndroidServerClientID, googleAndroidClientIDs }, payments, appleRevoker, hosted, hostedHelpers,
-    accountModelTasks, minuteCommerce, accessRequests, accounts, aiReports,guestMinuteAttestor,
+    accountModelTasks, webOrigins: webOrigins(process.env.MURAL_WEB_ALLOWED_ORIGINS), minuteCommerce, accessRequests, accounts, aiReports,guestMinuteAttestor,
     onStartupDiagnostic: diagnostic => console.warn(JSON.stringify({ event: 'conversation_request_failed', ...diagnostic })) });
   const cleanup = setInterval(() => {
     void pruneAuthenticationRecords(db).catch(() => { console.error('Account retention cleanup failed.'); });

@@ -11,6 +11,7 @@
     "build": "tsc",
     "start": "node --env-file-if-exists=.env dist/src/main.js",
     "migrate": "tsx --env-file=.env src/migrate.ts",
+    "dev:bootstrap": "tsx src/dev-bootstrap.ts",
     "minutes-admin": "tsx --env-file-if-exists=.env src/minutes-admin.ts",
     "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
     "check": "tsc --noEmit",

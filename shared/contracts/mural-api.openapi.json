@@ -103,6 +103,52 @@
         }
       }
     },
+    "/v1/conversations": {
+      "get": {
+        "operationId": "listConversations",
+        "summary": "List the authenticated user's server-authoritative conversation history",
+        "responses": {
+          "200": {
+            "description": "Recent conversations",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationList" } } }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/conversations/{sessionID}": {
+      "get": {
+        "operationId": "getConversation",
+        "summary": "Get transcript fragments and learning results for an owned conversation",
+        "parameters": [{ "$ref": "#/components/parameters/SessionID" }],
+        "responses": {
+          "200": {
+            "description": "Conversation detail",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationDetail" } } }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/conversations/{sessionID}/events": {
+      "post": {
+        "operationId": "appendConversationEvent",
+        "summary": "Idempotently append a bounded frontend-visible transcript fragment",
+        "parameters": [{ "$ref": "#/components/parameters/SessionID" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationEventInput" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Event accepted or previously stored",
+            "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false,
+              "required": ["accepted","duplicate"], "properties": { "accepted": { "const": true }, "duplicate": { "type": "boolean" } } } } }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/v1/model-tasks": {
       "post": {
         "operationId": "createModelTask",
@@ -788,6 +834,64 @@
           "usage": {
             "$ref": "#/components/schemas/TaskUsage"
           }
+        }
+      },
+      "ConversationEventInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["eventID", "speaker", "text", "source"],
+        "properties": {
+          "eventID": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+          "speaker": { "type": "string", "enum": ["user", "assistant"] },
+          "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
+          "source": { "type": "string", "enum": ["live", "typed"] }
+        }
+      },
+      "ConversationSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "language", "state", "createdAt", "deadline", "preview", "eventCount", "resultCount"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "language": { "type": ["string", "null"], "maxLength": 32 },
+          "state": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "deadline": { "type": "string", "format": "date-time" },
+          "preview": { "type": ["string", "null"] },
+          "eventCount": { "type": "integer", "minimum": 0 },
+          "resultCount": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "ConversationList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["conversations"],
+        "properties": { "conversations": { "type": "array", "items": { "$ref": "#/components/schemas/ConversationSummary" } } }
+      },
+      "ConversationDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "language", "state", "createdAt", "deadline", "observedMilliseconds", "chargedMilliseconds", "events", "results"],
+        "properties": {
+            "id": { "type": "string", "format": "uuid" },
+            "language": { "type": ["string", "null"], "maxLength": 32 },
+            "state": { "type": "string" },
+            "createdAt": { "type": "string", "format": "date-time" },
+            "deadline": { "type": "string", "format": "date-time" },
+            "observedMilliseconds": { "type": "integer", "minimum": 0 },
+            "chargedMilliseconds": { "type": ["integer", "null"], "minimum": 0 },
+            "events": { "type": "array", "items": { "type": "object", "additionalProperties": false,
+              "required": ["eventID", "speaker", "text", "source", "createdAt"], "properties": {
+                "eventID": { "type": "string" }, "speaker": { "type": "string", "enum": ["user", "assistant"] },
+                "text": { "type": "string" }, "source": { "type": "string", "enum": ["live", "typed"] },
+                "createdAt": { "type": "string", "format": "date-time" }
+              } } },
+            "results": { "type": "array", "items": { "type": "object", "additionalProperties": false,
+              "required": ["kind", "result", "createdAt"], "properties": {
+                "kind": { "type": "string", "enum": ["translation", "assessment", "teachingReply", "topicSearch"] },
+                "result": { "$ref": "#/components/schemas/ModelTaskResult" },
+                "createdAt": { "type": "string", "format": "date-time" }
+              } } }
         }
       },
       "ModelTaskResult": {
