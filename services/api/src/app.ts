@@ -21,6 +21,7 @@ import type { PlayMinuteProvider } from './play-minute-provider.js';
 import { HOSTED_HELPER_BODY_LIMIT, type HostedHelpers } from './hosted-helpers.js';
 import { startupDiagnostic, type StartupDiagnostic } from './startup-diagnostics.js';
 import { supportsPublicLanguage } from './live-provider.js';
+import { assertWebPreflight } from './web-cors.js';
 import { modelTaskHelperInput, parseModelTask, publicModelTaskResult } from './model-tasks.js';
 import type { AccountModelTasks } from './account-model-tasks.js';
 
@@ -28,6 +29,7 @@ export interface Services { db: Database; auth: AuthConfig; payments?: SandboxPa
   onStartupDiagnostic?: (diagnostic: StartupDiagnostic) => void | Promise<void>;
   hostedHelpers?: HostedHelpers;
   accountModelTasks?: AccountModelTasks;
+  webOrigins?: ReadonlySet<string>;
   minuteCommerce?: { purchases: MinutePurchases; aiPurchases?: AIValuePurchases; fulfillment?: PurchaseFulfillmentRouter;
     stripe?: StripeMinuteProvider; play?: PlayMinuteProvider };
   accounts?: { admission: AuthAdmission; identityVerifier?: typeof verifyIdentity } }
@@ -70,8 +72,21 @@ export function createApp(services: Services) {
   const windows = new Map<string, { until: number; count: number }>();
   app.addHook('onRequest', async (request, reply) => {
     reply.header('Cache-Control', 'no-store').header('X-Content-Type-Options', 'nosniff');
-    // Fastify decodes static route names. Security checks must use the matched route too.
+    // The public waitlist has a deliberately narrower, independently configured CORS policy.
     const path = request.routeOptions.url ?? request.url.split('?')[0]!;
+    const origin = request.headers.origin;
+    if (origin !== undefined && path !== ACCESS_REQUEST_PATH) {
+      if (!services.webOrigins?.has(origin)) throw new ServiceError('cors_origin_denied', 403);
+      reply.header('Access-Control-Allow-Origin', origin).header('Vary', 'Origin')
+        .header('Access-Control-Expose-Headers', 'X-Mural-Error-Reference, Retry-After');
+      if (request.method === 'OPTIONS') {
+        assertWebPreflight(request.headers['access-control-request-method'], request.headers['access-control-request-headers']);
+        return reply.header('Access-Control-Allow-Methods', 'GET, POST, DELETE')
+          .header('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key')
+          .header('Access-Control-Max-Age', '600').code(204).send();
+      }
+    }
+    // Fastify decodes static route names. Security checks must use the matched route too.
     if (path === '/v1/guest/minutes' && services.guestMinuteAttestor?.requiresTrustedAdmission) {
       if (!services.accounts) throw new ServiceError('guest_minutes_unavailable', 503);
       try { await services.accounts.admission.enter('guest', request.headers, request.raw.socket.remoteAddress ?? request.ip); }

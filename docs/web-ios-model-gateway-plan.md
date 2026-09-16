@@ -553,3 +553,20 @@ release-files 与 secret scan 全部通过；重基后的 Phase 4 继续同时�
 门禁、内部 `en-US` 历史 provider 兼容、账户级 model task 和不含敏感内容的启动诊断。
 Phase 4 PR #4 的中断遗留 Gitleaks 命中已确认是测试幂等键误报，修订提交历史后本地
 Gitleaks 8.30.1 与 GitHub secret scan 均通过；未发现或轮换任何真实密钥。
+
+Phase 5 已从重基后的 Phase 4 顶部创建 `codex/phase-5-web-mvp` 隔离分支，并完成首个
+浏览器纵向切片：
+
+- `apps/web/` 使用 React、TypeScript 与 Vite，提供 `en` / `zh` 选择并保留禁用的
+  `yue-Hant-HK` 产品身份；开发 Bearer 只保存在内存，刷新即清除。
+- 浏览器可选择麦克风/扬声器、创建 WebRTC offer、经 Mural API 获取 answer、播放远端
+  音轨、接收 DataChannel 字幕、发送有界文本并停止或重连。
+- Mural API 新增显式 `MURAL_WEB_ALLOWED_ORIGINS`；只允许 HTTPS 或精确 loopback，
+  preflight 仅开放所需 method/header，不启用 wildcard 或 cookie credential，并保留安全
+  错误引用供浏览器报告。
+- Web 4 项单测、TypeScript 与 production build 已通过，实际浏览器布局、禁用粤语和
+  token 刷新清除行为已验收；GitHub Checks 已增加独立 Web job。
+
+Phase 5 尚未完成生产 OAuth/guest 身份 UI、topic search/translation/assessment 界面、会话
+历史权威存储、fake-provider 浏览器 E2E、一键本地编排和真实 Live smoke，因此该分支仍是
+stacked 开发分支，不改变 PR #2/#3/#4 的 Draft 状态。

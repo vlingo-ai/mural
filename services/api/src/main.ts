@@ -18,6 +18,7 @@ import { ModelGatewayLiveProvider } from './model-gateway/live-provider.js';
 import { ModelGatewayResponsesTransport } from './model-gateway/responses-transport.js';
 import { ModelGatewayClient } from './model-gateway/client.js';
 import { AccountModelTasks } from './account-model-tasks.js';
+import { webOrigins } from './web-cors.js';
 
 const databaseURL = process.env.DATABASE_URL;
 if (!databaseURL) { console.error('DATABASE_URL is required.'); process.exit(1); }
@@ -115,7 +116,7 @@ try {
     !(appleClient && appleRevoker)) throw new Error('No account identity provider configured.');
   const app = createApp({ db, auth: { googleClientID: process.env.GOOGLE_CLIENT_ID, appleClientID: appleClient,
     googleAndroidServerClientID, googleAndroidClientIDs }, payments, appleRevoker, hosted, hostedHelpers,
-    accountModelTasks, minuteCommerce, accessRequests, accounts, aiReports,guestMinuteAttestor,
+    accountModelTasks, webOrigins: webOrigins(process.env.MURAL_WEB_ALLOWED_ORIGINS), minuteCommerce, accessRequests, accounts, aiReports,guestMinuteAttestor,
     onStartupDiagnostic: diagnostic => console.warn(JSON.stringify({ event: 'conversation_request_failed', ...diagnostic })) });
   const cleanup = setInterval(() => {
     void pruneAuthenticationRecords(db).catch(() => { console.error('Account retention cleanup failed.'); });
