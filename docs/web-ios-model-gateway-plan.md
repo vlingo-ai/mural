@@ -431,8 +431,12 @@ LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由 Mural �
   lease 并提交累计 usage。SIGKILL 后 Web 自动显示 Failed，Mural 删除 room、按最后可信
   31000ms 结算，600000ms reservation 释放为 0；会话以 `worker_lease_expired` 关闭并设置
   `provider_usage_final=false`，明确要求运营方对账且由运营方承担租约窗口内的未知差额。
-- [ ] 短时网络中断自动重连门禁通过后，将 `docs/adr/0001-livekit-gpt-live-spike.md` 从 Proposed 改为
-  Accepted 或 Rejected；在此之前不得进入 Phase 6 的 LiveKit-only 切换。
+- [x] 短时网络中断自动重连：暂停并恢复同一 LiveKit Server 进程模拟丢包，Web/Agent 经
+  ping timeout 和 resume 流程恢复；恢复后发送文本并收到 GPT-Live 回复，会话保持 Active。
+  主动关闭后最终观察/扣除 71000ms，`provider_usage_final=true`、`reserved_ms=0`。
+- [x] `docs/adr/0001-livekit-gpt-live-spike.md` 已改为 Accepted；Phase 5.5A 本机自托管
+  功能与可靠性门禁完成，可进入 Phase 5.5B Cloud Build 验证。Phase 6 的正式 LiveKit-only
+  切换仍以 5.5B/5.5C 的部署和内测结果为条件。
 
 ### Phase 6：iOS 切换到共享后端
 

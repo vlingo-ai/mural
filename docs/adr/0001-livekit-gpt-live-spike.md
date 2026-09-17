@@ -1,6 +1,6 @@
 # ADR 0001：以 LiveKit 承载 GPT-Live 客户端媒体链路
 
-- 状态：Proposed — 双向语音、打断和 Worker 硬崩溃回收已通过，等待短时网络重连门禁
+- 状态：Accepted — Phase 5.5A 本机功能与可靠性门禁通过
 - 日期：2026-09-17
 - 范围：Phase 5.5，仅 OpenAI `gpt-live-1`
 
@@ -65,16 +65,20 @@ Web / iOS ── WebRTC ── LiveKit Room ── Agent Worker ── gpt-live-
   SIGKILL Agent 子进程的真实回归中，Web 自动变为 Failed；Mural 在 lease 到期后删除 room，
   按最后可信 31000ms 结算，释放全部 reservation，钱包 `reserved_ms=0`。会话记录
   `close_reason=worker_lease_expired`、`provider_usage_final=false`，供运营方对账。
+- 暂停并恢复同一 LiveKit Server 进程模拟短时网络丢包后，Web 与 Agent 经 LiveKit resume
+  流程恢复。恢复后 `lk.chat` 消息得到 GPT-Live 回复，会话保持 Active；主动关闭最终观察/
+  扣除 71000ms，`provider_usage_final=true`、钱包 `reserved_ms=0`。
 
-## 尚未通过的门禁
+## 已接受的故障策略与后续限制
 
 - LiveKit 本机测试仍未在 Agent job 硬崩溃后自动启动替代 job；当前策略是结束故障会话，
   不在缺少可持久恢复上下文时透明创建第二个 OpenAI 会话。
 - lease 异常结算只把最后可信累计 usage 计入用户账单；最后 heartbeat 到供应商实际终止之间
   的未知差额最多约一个 30 秒 lease 窗口，由 Mural 运营方承担并对账，不转嫁给用户。
-- 接受本 ADR 前还需覆盖短时网络中断后的 LiveKit 自动重连，而不只是主动离开和进程崩溃。
+- Phase 5.5A 只证明本机自托管拓扑。LiveKit Cloud Build、跨区域网络、滚动发布、并发容量、
+  告警和产品内测仍按 Phase 5.5B/5.5C 验证；未通过前不删除旧 WebRTC 回滚路径。
 
-在上述门禁完成前，本 ADR 不把 LiveKit 提升为生产默认，也不删除旧 WebRTC 实现。
+本 ADR 接受 Web/iOS 共享 LiveKit 客户端与可信 Worker lease 的方向；它不等于生产发布批准。
 
 ## 部署验证顺序
 
