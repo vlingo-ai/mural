@@ -306,7 +306,7 @@ class HostedAPIClient internal constructor(
         private const val BILLING_BASIS = "connected-conversation-time"
         private val UUID_PATTERN = Regex("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", RegexOption.IGNORE_CASE)
         private val SAFE_ERROR_CODES = setOf("sign_in_required", "hosted_voice_not_ready", "hosted_helpers_not_ready",
-            "sign_in_to_continue", "provider_create_rejected", "rate_limit", "service_unavailable",
+            "sign_in_to_continue", "hosted_paid_not_ready", "provider_reconciliation_required", "minute_balance_reconciliation_required", "minute_purchase_reconciliation_required", "provider_create_rejected", "rate_limit", "service_unavailable",
             "insufficient_minutes", "insufficient_credit", "hosted_funding_cap_reached", "live_request_already_created",
             "live_session_unresolved", "live_session_not_found", "provider_session_unconfirmed", "provider_connection_lost",
             "helper_request_already_attempted", "helper_response_uncertain", "helper_session_limit", "helper_concurrency_limit",

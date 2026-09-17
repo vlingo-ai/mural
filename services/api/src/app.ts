@@ -19,9 +19,10 @@ import type { AIValuePurchases, PurchaseFulfillmentRouter } from './ai-value-pur
 import type { StripeMinuteProvider } from './stripe-minute-provider.js';
 import type { PlayMinuteProvider } from './play-minute-provider.js';
 import { HOSTED_HELPER_BODY_LIMIT, type HostedHelpers } from './hosted-helpers.js';
+import { Diagnostics, errorReference } from './diagnostics.js';
 import { startupDiagnostic, type StartupDiagnostic } from './startup-diagnostics.js';
 
-export interface Services { db: Database; auth: AuthConfig; payments?: SandboxPayments; attestor?: TrialAttestor; minuteAttestor?: MinuteAttestor; guestMinuteAttestor?: GuestMinuteAttestor; appleRevoker?: AppleRevoker; hosted?: HostedVoice; accessRequests?: AccessRequests; aiReports?: AIReports;
+export interface Services { diagnostics?: Diagnostics; db: Database; auth: AuthConfig; payments?: SandboxPayments; attestor?: TrialAttestor; minuteAttestor?: MinuteAttestor; guestMinuteAttestor?: GuestMinuteAttestor; appleRevoker?: AppleRevoker; hosted?: HostedVoice; accessRequests?: AccessRequests; aiReports?: AIReports;
   onStartupDiagnostic?: (diagnostic: StartupDiagnostic) => void | Promise<void>;
   hostedHelpers?: HostedHelpers;
   minuteCommerce?: { purchases: MinutePurchases; aiPurchases?: AIValuePurchases; fulfillment?: PurchaseFulfillmentRouter;
@@ -45,6 +46,9 @@ const uuid = (text: string) => {
 
 export function createApp(services: Services) {
   const { db } = services;
+  const diagnostics = services.diagnostics ?? new Diagnostics();
+  const failed = new WeakSet<FastifyRequest>();
+  const operation = (request: FastifyRequest) => `${request.method} ${request.routeOptions.url ?? "unmatched"}`;
   const orderStatus = async (account: string, id: string) => {
     const commerce = services.minuteCommerce;
     if (!commerce) throw new ServiceError('minute_purchases_unavailable', 503);
@@ -57,6 +61,15 @@ export function createApp(services: Services) {
   };
   const app = Fastify({ logger: false, bodyLimit: 262_144, routerOptions: { maxParamLength: 128 },
     requestTimeout: 15_000, trustProxy: false, genReqId: () => randomUUID() });
+  app.addHook('onRequest', (request, _reply, done) => {
+    diagnostics.run(errorReference(request.id), done);
+  });
+  app.addHook('onResponse', async (request, reply) => {
+    if (!failed.has(request)) diagnostics.record('request_completed', {
+      operation: operation(request), reference: errorReference(request.id), status: reply.statusCode,
+      durationMilliseconds: reply.elapsedTime,
+    });
+  });
   // No request bodies, Authorization headers, tokens, transcripts, or Stripe payloads are logged.
   app.removeContentTypeParser('application/json');
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (request, body, done) => {
@@ -113,6 +126,11 @@ export function createApp(services: Services) {
     const candidate = error && typeof error === 'object' && 'statusCode' in error ? error.statusCode : null;
     const status = purchaseReconciliation ? 409 : error instanceof ServiceError ? error.status : typeof candidate === 'number' && candidate >= 400 && candidate < 500 ? candidate : 500;
     const code = purchaseReconciliation ? 'minute_purchase_reconciliation_required' : error instanceof ServiceError ? error.code : status < 500 ? 'invalid_request' : 'service_unavailable';
+    const reference = errorReference(request.id);
+    reply.header('X-Mural-Error-Reference', reference);
+    failed.add(request);
+    diagnostics.record('request_failed', { operation: operation(request), reference, status,
+      durationMilliseconds: reply.elapsedTime }, error);
     const diagnostic = startupDiagnostic(request.method, request.routeOptions.url, request.id, status, code, error);
     if (diagnostic) {
       reply.header('X-Mural-Error-Reference', diagnostic.reference);
@@ -125,6 +143,7 @@ export function createApp(services: Services) {
     }
     reply.code(status).send({ error: { code } });
   });
+  app.setNotFoundHandler(() => { throw new ServiceError('not_found', 404); });
   const featureState=()=>{
     const hostedVoice=Boolean(services.hosted?.available && (!services.hosted.minuteFunded || services.hostedHelpers));
     const livePayments=['stripe','play'].some(provider=>services.minuteCommerce?.aiPurchases?.products(provider as 'stripe'|'play').some(product=>product.environment==='live'));

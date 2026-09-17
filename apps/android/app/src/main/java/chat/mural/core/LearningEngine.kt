@@ -25,7 +25,7 @@ object LearningEngine {
                 !word.confidence.isFinite() || word.confidence !in 0.8..1.0 || word.lemma.isEmpty() || word.lemma.length>=100 ||
                 word.meaning.isEmpty() || word.meaning.length>=180 || word.form.isEmpty() || word.quote.isEmpty() ||
                 !passage.text.containsCanonical(word.quote) || !word.quote.containsCanonical(word.form)) return@mapNotNull null
-            val refs=passage.fragments.filter { word.sourceIDs.contains(it.id) }.joinToString("") { it.text }
+            val refs=Passage.join(passage.fragments.filter { word.sourceIDs.contains(it.id) }.map { it.text })
             if (!refs.containsCanonical(word.quote)) return@mapNotNull null
             var out=word
             if (out.kind==EvidenceKind.independent) {
@@ -45,8 +45,9 @@ object LearningEngine {
         for (session in sessions.filter { it.languageID==languageID }.sortedBy { it.startedAt }) {
             val seen=mutableSetOf<String>()
             for (raw in session.assessments.sortedBy { it.createdAt }) {
-                if (!seen.add(raw.passageID)) continue
+                if (raw.passageID in seen) continue
                 val a=validate(raw,session) ?: continue
+                seen.add(raw.passageID)
                 count++
                 when(a.outcome) {
                     Outcome.breakdown -> { level=(level-1).coerceAtLeast(0); successes=0 }
