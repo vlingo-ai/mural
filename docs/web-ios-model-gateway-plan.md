@@ -298,7 +298,31 @@ Mural：
 - 不设计以 Gemini WebSocket 为前提的公开 transport union。
 - 不实现会话中供应商切换、自动故障转移或多供应商路由。
 - 不删除现有 OpenAI WebRTC、Gateway sideband 或 Mural 回滚实现。
-- 不在 spike 结论前确定 LiveKit Cloud 或自托管生产部署。
+- 不把本机自托管开发环境直接视为生产部署，也不在 spike 结论前承诺 LiveKit Cloud
+  Scale、Region Pinning 或完全自托管的生产拓扑。
+
+部署演进固定为三个连续步骤，后一步不能阻塞当前本机功能验证：
+
+```text
+Phase 5.5A  本机自托管验证
+Web + Mural API + LiveKit Server + Agent Worker 均在开发机运行
+                         │ 功能门禁通过
+                         ▼
+Phase 5.5B  LiveKit Cloud Build 混合部署验证
+LiveKit Cloud 承载房间/媒体；Mural API、Model Gateway、Agent Worker 自托管
+                         │ 云端链路、观测与安全门禁通过
+                         ▼
+Phase 5.5C  LiveKit Cloud Ship 产品内测
+相同混合拓扑，使用付费额度、容量告警、预算和内测发布控制
+```
+
+其中“混合部署”不改变业务和密钥边界：Mural API 负责身份、短期 room token、额度和
+结算；LiveKit Cloud 只承载实时房间、信令和媒体；自托管 Agent Worker 使用 Mural
+运营方的服务端 `OPENAI_API_KEY` 直连 OpenAI。注册用户每次会话只获得短期 LiveKit
+room token，不输入、不持有也不向 LiveKit 传递 OpenAI API key。LiveKit Cloud 与
+OpenAI API 分别计费，前者不包含后者的模型费用。
+
+#### Phase 5.5A：本机自托管 LiveKit 功能验证（当前）
 
 实施步骤：
 
@@ -316,6 +340,10 @@ Mural：
 6. 先用 fake provider 和确定性事件验证创建、关闭、usage、余额耗尽和失败结算；账户
    具备额度后再执行一次有上限的真实 `gpt-live-1` 语音 smoke。
 
+本步骤只追求以最少外部依赖跑通当前 Mural 的 `gpt-live-1` 功能。LiveKit Server、
+Agent Worker、Mural API、Web 和必要的 Model Gateway 服务均可在本机运行；不得为了
+提前模拟生产而引入 Kubernetes、多区域路由、Region Pinning 或第二供应商。
+
 验收门禁：
 
 - 同一个 Web 客户端只通过 LiveKit WebRTC 完成英语和普通话双向语音、自然打断、字幕、
@@ -327,6 +355,52 @@ Mural：
   没有不可接受的产品回归。
 - 明确产出一份 ADR：若通过，Phase 6 采用 LiveKit-only 客户端媒体链路；若不通过，
   保留当前直连架构并单独处理后续供应商，不以 spike 代码改变生产默认值。
+
+#### Phase 5.5B：LiveKit Cloud Build 混合部署验证（5.5A 通过后）
+
+目标：不改变已经通过的产品协议，把房间和媒体层从本机 LiveKit Server 替换成
+LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由 Mural 自托管，
+优先部署在新加坡或日本测试环境。
+
+- 建立独立的非生产 LiveKit Cloud project；API secret 只保存在 Mural API 的服务端
+  secret store，OpenAI key 只保存在 Agent Worker 的 secret store。
+- Mural API 使用 Cloud URL/API credential 建房、dispatch、签发最小权限短期 room token
+  和删房；Web/iOS 仍只消费 Mural 的公开会话响应。
+- 验证用户与自托管 Worker 跨公网加入同一 room、TLS/WSS、NAT、防火墙、断线恢复、
+  Worker 丢失、强制关闭和 reservation 清理。
+- 验证 LiveKit dashboard/metrics 与 Mural session ID 的非敏感关联，建立 participant
+  minutes、下行流量、错误率和并发告警；禁止把 transcript、OpenAI key 或长期用户凭据
+  写入 room metadata 和日志。
+- 记录 Cloud 相对本机的首音/打断延迟和媒体带宽。Build 免费额度是验证上限，不作为
+  无限制生产容量；达到额度或并发上限时必须 fail closed 并给用户明确错误。
+- 不启用 Region Pinning。默认由 LiveKit 自动选区；只有合同、监管或数据驻留要求必须
+  把 LiveKit 信令和媒体限制在指定区域时，才另行评审 Scale 方案。Pinning 不控制
+  Agent Worker、OpenAI、数据库、录音或日志的数据地域。
+
+验收：英语和普通话的完整功能门禁在 Cloud Build 重跑通过；客户端仍无供应商密钥；
+云端中断或额度耗尽时安全结算；形成一份带真实 participant-minutes、流量、延迟和错误率
+的验证报告。
+
+#### Phase 5.5C：LiveKit Cloud Ship 产品内测（5.5B 通过后）
+
+目标：使用相同混合部署拓扑支持受控真实用户内测，不在此步引入新 transport 或供应商。
+
+- 升级独立 staging/内测 project 到 Ship；将开发与内测 project、credential、room 前缀
+  和监控完全隔离。
+- 为 Mural 账号建立白名单/feature flag、并发上限、每日和每用户分钟预算、总成本熔断、
+  速率限制和可立即关闭的 kill switch。
+- 按“一分钟双人房间约等于两个 WebRTC participant-minutes”建立容量模型，同时监控
+  下行 GB；LiveKit、OpenAI 和自托管基础设施分别记账与告警，禁止把 LiveKit 账单视为
+  已包含 OpenAI 推理费用。
+- Agent Worker 至少验证滚动发布、健康检查、受控并发、崩溃恢复和无遗留 reservation；
+  Mural API 与 Model Gateway 按既有生产安全门禁部署。
+- 运行小规模 Web 内测，再运行 iOS/TestFlight 内测；收集成功率、首音/打断延迟、重连率、
+  每会话成本和用户反馈，达到预算与可靠性门槛后才扩大范围。
+- Ship 阶段仍使用 LiveKit 自动路由。若内测客户提出硬性区域隔离要求，再单独制定
+  Scale + Region Pinning 验证，不把它默认加入当前路线。
+
+验收：受控用户在 Web/iOS 可稳定完成会话；预算、配额、告警、结算、回滚和 kill switch
+均演练通过；形成是否进入正式发布以及是否需要 Scale/Region Pinning 的决策记录。
 
 当前进度（2026-09-16）：
 

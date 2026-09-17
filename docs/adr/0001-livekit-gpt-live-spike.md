@@ -57,7 +57,31 @@ Web / iOS ── WebRTC ── LiveKit Room ── Agent Worker ── gpt-live-
 
 在上述门禁完成前，本 ADR 不把 LiveKit 提升为生产默认，也不删除旧 WebRTC 实现。
 
+## 部署验证顺序
+
+本 ADR 的当前门禁只要求先以最简单的本机自托管方式跑通 LiveKit：LiveKit Server、
+Agent Worker、Mural API、Web 和必要的 Model Gateway 服务均可运行在开发机。它验证的是
+Mural 功能和信任边界，不代表生产部署决定。
+
+本机门禁通过后，按以下顺序推进混合部署：
+
+1. **LiveKit Cloud Build 验证**：LiveKit Cloud 承载房间、信令和媒体；Mural API、
+   Model Gateway 与 Agent Worker 自托管。重跑双向语音、打断、结算、断线恢复与密钥
+   隔离门禁，并记录 participant-minutes、下行流量和延迟。
+2. **LiveKit Cloud Ship 产品内测**：保持相同拓扑，增加真实用户白名单、并发与预算上限、
+   成本告警、kill switch、Worker 高可用和 Web/iOS 分阶段内测。
+
+上述两步均使用 Mural 运营方保存在 Agent Worker 服务端的 OpenAI API key。Mural 注册
+用户只取得短期 LiveKit room token，不需要每次输入自备 key。LiveKit Cloud 账单与
+OpenAI API 账单彼此独立。
+
+Build 和 Ship 默认使用 LiveKit 自动路由，不启用 Region Pinning。只有合同、监管或
+数据驻留要求必须把 LiveKit 信令和媒体限制在指定区域时，才单独评审 Scale 及以上方案；
+Region Pinning 不控制 Worker、OpenAI、数据库、录音或日志的地域，且会牺牲跨区域自动
+故障转移能力。
+
 ## 不在本决定内
 
-Gemini Live、第二供应商、会话中切换、自动故障转移、LiveKit Cloud 与自托管生产选型均
-留待独立阶段；本 spike 不用它们扩大公开协议。
+Gemini Live、第二供应商、会话中切换、供应商自动故障转移、Scale/Region Pinning 与
+完全自托管的生产选型均留待独立阶段；本 spike 不用它们扩大公开协议。Build 和 Ship
+仅验证同一 LiveKit 架构从本机到混合部署的演进，不改变公开协议。
