@@ -420,10 +420,19 @@ LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由 Mural �
   `SOURCE_UNKNOWN` 输入的问题。真实会话完成两轮往返，最终观察 21000ms、扣除
   21000ms、`reserved_ms=0`，主动停止原因是 `user_requested`；同时修复主动断开被 UI
   误报为 `Failed` 的状态竞态。
-- [ ] 普通话双向语音、自然打断与对应字幕验收。
-- [ ] Worker 丢失、断网恢复和无遗留 reservation 验收。
-- [ ] 性能基线完成后，将 `docs/adr/0001-livekit-gpt-live-spike.md` 从 Proposed 改为 Accepted
-  或 Rejected；在此之前不得进入 Phase 6 的 LiveKit-only 切换。
+- [x] 普通话双向语音、自然打断与对应字幕验收：用户听到普通话回复；插话立即停止旧回复，
+  新问题得到回答；会话最终观察/扣除 126000ms，钱包余额 474000ms、`reserved_ms=0`。
+- [x] 浏览器主动离开/断开路径验收：Worker 获得正常 shutdown callback、提交最终累计 usage，
+  Mural 完成关闭和 reservation 结算。
+- [x] 单会话本机资源与媒体基线：LiveKit Server 约 91MB RSS；Worker 主进程约 82MB，活跃
+  Agent 子进程约 346MB；浏览器上行语音约 77kbps。该数据仅为开发机单样本，不作为生产
+  容量承诺。
+- [ ] Worker 硬崩溃恢复和无遗留 reservation 验收：SIGKILL Agent 子进程后，LiveKit 将 job
+  标记为 `JS_FAILED` 且本机未自动拉起替代 Agent；Mural 收不到最终可信 usage，会话仍为
+  active，600000ms 继续安全预留。Web 已增加远端 Agent 离开检测，避免 UI 继续误报 Active；
+  服务端仍需引入可信 heartbeat/lease 与明确的异常结算策略。
+- [ ] 上述硬崩溃门禁通过后，将 `docs/adr/0001-livekit-gpt-live-spike.md` 从 Proposed 改为
+  Accepted 或 Rejected；在此之前不得进入 Phase 6 的 LiveKit-only 切换。
 
 ### Phase 6：iOS 切换到共享后端
 

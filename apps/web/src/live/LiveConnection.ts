@@ -19,6 +19,7 @@ export class LiveConnection {
   private historyWrite: Promise<void> = Promise.resolve();
   private liveKitReady = false;
   private liveKitReadyTimer?: number;
+  private liveKitAgentIdentity?: string;
 
   constructor(
     private readonly api: MuralAPI,
@@ -117,8 +118,9 @@ export class LiveConnection {
     if (result.transport.type !== 'livekit-room') throw new Error('Mural returned an unexpected live transport.');
     const room = new LiveKitRoom({ adaptiveStream: true, dynacast: true });
     this.room = room;
-    room.on(RoomEvent.TrackSubscribed, track => {
+    room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
       if (track.kind !== Track.Kind.Audio) return;
+      this.liveKitAgentIdentity = participant.identity;
       this.markLiveKitActive();
       this.remote.addTrack(track.mediaStreamTrack);
       this.onRemoteStream(this.remote);
@@ -127,8 +129,14 @@ export class LiveConnection {
       if (track.kind === Track.Kind.Audio) this.remote.removeTrack(track.mediaStreamTrack);
     });
     room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
-      if (participant?.isLocal === false) this.markLiveKitActive();
+      if (participant?.isLocal === false) {
+        this.liveKitAgentIdentity = participant.identity;
+        this.markLiveKitActive();
+      }
       this.receiveTranscriptions(segments, participant?.isLocal === true);
+    });
+    room.on(RoomEvent.ParticipantDisconnected, participant => {
+      if (!this.closed && participant.identity === this.liveKitAgentIdentity) this.failLiveKitAgent();
     });
     room.on(RoomEvent.Reconnecting, () => { if (!this.closed) this.onState('connecting'); });
     room.on(RoomEvent.Reconnected, () => { if (!this.closed) this.onState(this.liveKitReady ? 'active' : 'connecting'); });
@@ -158,6 +166,16 @@ export class LiveConnection {
     if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
     this.liveKitReadyTimer = undefined;
     this.onState('active');
+  }
+
+  private failLiveKitAgent(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.onEvent({ type: 'mural.live.agent_lost' });
+    this.onState('failed');
+    if (this.sessionID) void this.api.closeLiveSession(this.sessionID).catch(() => {});
+    if (this.room) void this.room.disconnect();
+    this.local?.getTracks().forEach(track => track.stop());
   }
 
   private receiveTranscriptions(segments: TranscriptionSegment[], local: boolean): void {
@@ -231,6 +249,7 @@ export class LiveConnection {
     this.context = [];
     this.transcriptionText.clear();
     this.liveKitReady = false;
+    this.liveKitAgentIdentity = undefined;
     if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
     this.liveKitReadyTimer = undefined;
     this.remote.getTracks().forEach(track => this.remote.removeTrack(track));

@@ -1,7 +1,7 @@
 # ADR 0001：以 LiveKit 承载 GPT-Live 客户端媒体链路
 
-- 状态：Proposed — 付费建连与结算已通过，等待真实发声与打断验收
-- 日期：2026-09-16
+- 状态：Proposed — 双向语音与打断已通过，Worker 硬崩溃恢复门禁未通过
+- 日期：2026-09-17
 - 范围：Phase 5.5，仅 OpenAI `gpt-live-1`
 
 ## 背景
@@ -55,16 +55,24 @@ Web / iOS ── WebRTC ── LiveKit Room ── Agent Worker ── gpt-live-
   15000ms 结算，`minute_reservations.state=settled` 且钱包 `reserved_ms=0`。并发关闭
   路径遇到 LiveKit 精确 `not_found/404` 时按幂等成功处理，不再误标
   `sideband_lost`。
+- 英语真实麦克风完成两轮双向语音、字幕与远端播放，观察/扣除 21000ms；普通话会话中，
+  用户听到回复、插话终止旧回复并得到新问题答案，最终观察/扣除 126000ms，两个会话均
+  正常释放 reservation。
+- 浏览器主动离开会触发 Worker 正常 shutdown callback，最终累计 usage 可被可信上报并结算。
+- 本机单会话抽样：LiveKit Server 约 91MB RSS、Worker 主进程约 82MB、活跃 Agent 子进程
+  约 346MB，浏览器上行语音约 77kbps。它只用于发现数量级，不代表生产容量或 Cloud 成本。
 
 ## 尚未通过的门禁
 
-- 自动化浏览器没有真实人声 turn：文本消息已到达 Agent，LiveKit 也已向 OpenAI 发出
-  `session.thinking.append` 和 `session.commentary.append`，但 OpenAI 未在 10 秒内开始发声，该
-  无语音输入情形不能代替真实双向语音验收。
-- 尚需由真实麦克风输入完成英语和普通话双向语音、自然打断、字幕与非零
-  provider usage 验收；已验证的主动停止与最低分钟结算不代表这些门禁已通过。
-- 需要在可用额度下记录首音延迟、打断延迟、断线恢复、CPU/内存和额外媒体带宽。
-- Worker 丢失和会话中网络中断仍需确认不会遗留 reservation。
+- Agent 子进程被 SIGKILL 后，LiveKit 将 job 标为 `JS_FAILED`，本机测试未观察到替代 job
+  自动启动。由于进程无法执行 shutdown callback，Mural 收不到最终可信 provider usage；
+  故障会话仍为 active，600000ms 全额保持预留。保持预留比相信客户端报数或低估供应商
+  成本安全，但不满足“无遗留 reservation”的发布门禁。
+- Web 已监听已识别远端 Agent 的永久离开事件，停止本地麦克风、显示 Failed 并请求 Mural
+  关闭，避免页面在 Agent 已消失时继续显示 Active。HTTP close 仍不能伪造最终 usage，因而
+  不能单独解决服务端结算。
+- 接受本 ADR 前需实现并验证可信 Worker heartbeat/lease、过期会话回收，以及明确的异常
+  usage/费用结算与对账策略；还需覆盖短时网络中断后的自动重连，而不只是主动离开。
 
 在上述门禁完成前，本 ADR 不把 LiveKit 提升为生产默认，也不删除旧 WebRTC 实现。
 
