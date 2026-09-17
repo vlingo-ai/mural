@@ -137,7 +137,9 @@ export class LiveConnection {
     if (this.closed) { await room.disconnect(); return; }
     const track = this.local?.getAudioTracks()[0];
     if (!track) throw new Error('No local microphone track.');
-    await room.localParticipant.publishTrack(new LocalAudioTrack(track));
+    await room.localParticipant.publishTrack(new LocalAudioTrack(track), {
+      source: Track.Source.Microphone,
+    });
     this.sessionID = result.sessionID;
     this.onSession(result.sessionID);
     this.liveKitReadyTimer = globalThis.setTimeout(() => {
@@ -205,6 +207,9 @@ export class LiveConnection {
   close(): void {
     this.onState('closing');
     if (this.channel?.readyState === 'open') this.channel.send(JSON.stringify({ type: 'session.close', event_id: crypto.randomUUID() }));
+    // A user-requested disconnect is expected; suppress transport failure handlers while
+    // the API close and local cleanup finish.
+    this.closed = true;
     if (this.room) void this.room.disconnect();
     if (this.sessionID) void this.api.closeLiveSession(this.sessionID).catch(() => {});
     globalThis.setTimeout(() => this.disconnect(), 1_000);

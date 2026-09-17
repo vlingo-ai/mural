@@ -415,9 +415,12 @@ LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由 Mural �
 - [x] 有余额账户完成 OpenAI `session.started`、LiveKit 双端音频轨、Web Active、
   主动停止与结算回归：600000ms 预留结算为 15000ms，reservation 为 settled，
   钱包 `reserved_ms=0`；重复删房的精确 404 不再导致 `sideband_lost`。
-- [ ] 真实麦克风输入下的英语与普通话双向语音、自然打断、字幕和非零 provider
-  usage。无人声的自动化浏览器中，`lk.chat` 已到 Agent 并转成 GPT-Live append 事件，
-  但模型未开始发声；不将该文本路径误当作语音门禁通过。
+- [x] 真实麦克风英语双向语音、字幕、远端音频播放和非零 provider usage：修复 Web
+  包装原生 `MediaStreamTrack` 时未声明 `Track.Source.Microphone`、导致 Agent 忽略
+  `SOURCE_UNKNOWN` 输入的问题。真实会话完成两轮往返，最终观察 21000ms、扣除
+  21000ms、`reserved_ms=0`，主动停止原因是 `user_requested`；同时修复主动断开被 UI
+  误报为 `Failed` 的状态竞态。
+- [ ] 普通话双向语音、自然打断与对应字幕验收。
 - [ ] Worker 丢失、断网恢复和无遗留 reservation 验收。
 - [ ] 性能基线完成后，将 `docs/adr/0001-livekit-gpt-live-spike.md` 从 Proposed 改为 Accepted
   或 Rejected；在此之前不得进入 Phase 6 的 LiveKit-only 切换。
