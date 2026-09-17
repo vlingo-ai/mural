@@ -409,6 +409,68 @@ LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由产品方
   把 LiveKit 信令和媒体限制在指定区域时，才另行评审 Scale 方案。Pinning 不控制
   Agent Worker、OpenAI、数据库、录音或日志的数据地域。
 
+##### Model Gateway 可移植部署工作包
+
+目标是保持一套 Model Gateway 代码和公开契约，通过配置选择 macOS MLX、本地禁用、
+公网 ASR provider 或远程 Forced Aligner；不得复制一套 Linux 专用网关。ASR 与
+Forced Alignment 是两个独立能力和故障域，必须分别装配、发布 capability、限流和鉴权。
+
+配置模型冻结为：
+
+```text
+GATEWAY_ASR_BACKEND=disabled|mlx|provider
+GATEWAY_ASR_DEFAULT_ROUTE=<logical-route>
+
+GATEWAY_ALIGNMENT_BACKEND=disabled|mlx|remote
+GATEWAY_ALIGNMENT_DEFAULT_ROUTE=<logical-route>
+
+GATEWAY_READING_DIAGNOSTICS_ALIGNMENT_ROUTE=<logical-route>
+```
+
+其中 `provider` 表示经 provider-neutral router 调用公网或自托管 ASR adapter；`remote`
+表示调用受信任的独立 Forced Alignment 推理节点。供应商密钥和 remote token 只存在于
+Model Gateway 服务端 secret store，不进入 Mural API、Web 或 iOS。
+
+实施顺序：
+
+1. **冻结装配边界**：保留 `ASRBackend` 与 `AlignmentBackend` 独立协议；新增 backend
+   factory/router，不再由默认 `Qwen3ASRBackend` 隐式决定两个能力是否同时可用。
+2. **拆分运行依赖**：建立 core、macOS MLX 和 cloud/provider 依赖 profile。Linux
+   Responses-only 镜像不得安装或 import `mlx-audio`；macOS 当前 MLX 默认行为保持兼容。
+3. **实现独立开关**：ASR 与 Alignment 各自支持 `disabled`；禁用的 endpoint fail closed，
+   返回稳定的 `503/backend_disabled`，不得因缺少 MLX/CUDA 包而在请求时崩溃。
+4. **发布真实 capability**：`/v1/audio/capabilities` 按 operation 声明 availability、reason、
+   route/model 和时间戳来源。旧客户端调用禁用操作时仍获得稳定错误；协议升级保持
+   `deeptutor.audio 1.1` 历史响应可解码，必要的新字段必须是向后兼容的可选扩展。
+5. **接入 provider-neutral ASR**：以逻辑 route 选择 adapter，标准化文本、语言、word timing、
+   usage、provider request ID 和错误；新供应商首次接入仍需 adapter/capability 映射，不能
+   假定所有“OpenAI 兼容”端点具有相同音频语义。
+6. **预留独立 Aligner 节点**：remote adapter 接收音频、确认文本和语言，返回词/字级时间戳；
+   它可以与 ASR 使用不同供应商、区域和凭据。后续允许先启用 Aligner、继续禁用 ASR。
+7. **明确组合策略**：普通 transcription 可选择 provider timestamps、独立 Aligner 或无
+   timestamps；reading diagnostics 必须使用配置的可信对齐 route，不得把供应商时间戳
+   静默冒充 Qwen ForcedAligner 证据。ASR 禁用时 reading diagnostics 同步标记不可用。
+8. **完成测试矩阵**：覆盖 `mlx+mlx`、`disabled+disabled`、`disabled+remote alignment`、
+   `provider ASR+remote alignment`，以及缺失密钥、超时、429、5xx、错误响应、临时音频清理
+   和 capability/503 契约；真实 provider smoke 必须有费用上限且不记录原始音频。
+
+Phase 5.5B 首次云部署固定使用：
+
+```text
+GATEWAY_ASR_BACKEND=disabled
+GATEWAY_ALIGNMENT_BACKEND=disabled
+```
+
+此时只启用 Model Gateway core/Responses 能力，先完成 LiveKit Cloud 混合部署门禁。后续按
+“remote Forced Aligner → 公网 ASR provider”的顺序增量启用，不把 GPU 节点作为 5.5B
+首轮验收前置条件。
+
+Model Gateway 另有项目并行开发。任何实现开始前必须在最新 `main` 基线上新建专用
+worktree/分支，向该项目协调者报告基线 commit、预计文件范围和运行服务影响；不得直接在
+共享 `main` 或当前运行服务目录修改、切换、重启，也不得复用 Phase 5.5 旧分支中已经合并
+或漂移的提交。涉及 `app.py`、`config.py`、capabilities/schema、依赖文件或 audio backend
+的重叠变更，先约定合并顺序和契约所有权，再开始编码。
+
 验收：英语和普通话的完整功能门禁在 Cloud Build 重跑通过；客户端仍无供应商密钥；
 云端中断或额度耗尽时安全结算；形成一份带真实 participant-minutes、流量、延迟和错误率
 的验证报告。
