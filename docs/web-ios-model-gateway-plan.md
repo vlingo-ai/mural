@@ -1,9 +1,11 @@
-# Mural Web、iOS、Android 与 Model Gateway 实施计划
+# vLingo Speaking Live（Mural 下游）Web、iOS、Android 与 Model Gateway 实施计划
 
 ## 1. 目标与边界
 
-Mural 最终提供 Web UI 和 iOS 两种主要发布形式，同时保留 upstream 已有 Android
-客户端的兼容性。三端只依赖 Mural API 的公开契约，不直接持有生产环境的 OpenAI
+本仓库基于 MIT 许可的 Mural 上游持续开发，对外产品名固定为 **vLingo Speaking Live**，
+基础设施 slug 固定为 `vlingo-speaking-live`，域名命名空间为 `vlingo.ai`。产品最终提供
+Web UI 和 iOS 两种主要发布形式，同时保留 upstream 已有 Android 客户端的兼容性。
+三端只依赖 Mural API 的公开契约，不直接持有生产环境的 OpenAI
 或第三方模型密钥。
 
 Model Gateway 是独立仓库，负责所有模型供应商接入和路由；Mural API 负责产品业务、
@@ -25,12 +27,37 @@ Model Gateway 是独立仓库，负责所有模型供应商接入和路由；Mur
 
 两个仓库在逻辑、版本和部署上同级，不要求位于同一个本机父目录。
 
+### 1.1 品牌、上游与内部兼容标识
+
+从 Phase 5.5B 起，所有新建且不便更名的外部资源直接使用正式产品命名：
+
+```text
+产品显示名              vLingo Speaking Live
+基础设施 slug           vlingo-speaking-live
+LiveKit projects        vlingo-speaking-live-dev / staging / prod
+staging Web             speaking-live-staging.vlingo.ai
+staging API             api-speaking-live-staging.vlingo.ai
+production Web          speaking-live.vlingo.ai（是否使用根域名另行评审）
+production API          api-speaking-live.vlingo.ai
+日志/监控标签            product=vlingo-speaking-live, environment=<env>
+```
+
+命名变更采用分层演进，不做全仓机械替换：
+
+- 用户可见界面、OAuth consent、域名、LiveKit project、部署资源、日志标签和发布物使用
+  `vLingo Speaking Live` 或 `vlingo-speaking-live`。
+- Git 仓库、`upstream` remote、既有 Swift/Python/TypeScript module、数据库迁移、协议字段
+  和历史 archive 中的 `mural` 暂时保留，除非有独立迁移和兼容测试。
+- 对外文档应说明 Mural 上游来源和 MIT 许可；品牌切换不得删除版权、许可或 attribution。
+- 新代码不得仅为改名复制公开契约或重写历史数据。未来如调整 package、bundle identifier
+  或数据库标识，必须单独评审迁移和 upstream 合并成本。
+
 ## 2. 目标架构
 
 ```text
                          Mural public API
 ┌──────────────┐       HTTPS / WebSocket       ┌──────────────────────┐
-│  Mural Web   │ ────────────────────────────▶ │      Mural API       │
+│ vLingo Web   │ ────────────────────────────▶ │      Mural API       │
 └──────┬───────┘                               │                      │
        │ WebRTC media                          │ auth / users         │
        │                                       │ prompts / learning   │
@@ -41,7 +68,7 @@ Model Gateway 是独立仓库，负责所有模型供应商接入和路由；Mur
        ▲                                       ┌──────────────────────┐
        │ WebRTC media                          │    Model Gateway     │
 ┌──────┴───────┐       HTTPS / WebSocket       │                      │
-│  Mural iOS   │ ────────────────────────────▶ │ provider routing     │
+│ vLingo iOS   │ ────────────────────────────▶ │ provider routing     │
 └──────────────┘       Mural public API         │ Live / Responses     │
                                                 │ ASR / TTS / usage    │
                                                 └──────────┬───────────┘
@@ -309,10 +336,10 @@ Web + Mural API + LiveKit Server + Agent Worker 均在开发机运行
                          │ 功能门禁通过
                          ▼
 Phase 5.5B  LiveKit Cloud Build 混合部署验证
-LiveKit Cloud 承载房间/媒体；Mural API、Model Gateway、Agent Worker 自托管
+LiveKit Cloud 承载房间/媒体；Mural API、Model Gateway、Agent Worker 由产品方自托管
                          │ 云端链路、观测与安全门禁通过
                          ▼
-Phase 5.5C  LiveKit Cloud Ship 产品内测
+Phase 5.5C  LiveKit Cloud Ship：vLingo Speaking Live 产品内测
 相同混合拓扑，使用付费额度、容量告警、预算和内测发布控制
 ```
 
@@ -359,11 +386,16 @@ Agent Worker、Mural API、Web 和必要的 Model Gateway 服务均可在本机�
 #### Phase 5.5B：LiveKit Cloud Build 混合部署验证（5.5A 通过后）
 
 目标：不改变已经通过的产品协议，把房间和媒体层从本机 LiveKit Server 替换成
-LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由 Mural 自托管，
+LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由产品方自托管，
 优先部署在新加坡或日本测试环境。
 
-- 建立独立的非生产 LiveKit Cloud project；API secret 只保存在 Mural API 的服务端
+- 建立独立的非生产 LiveKit Cloud project `vlingo-speaking-live-staging`；若尚未投入使用的
+  `mural-staging` 已因平台限制无法更名，则重新创建正式命名项目并停用旧项目。API secret
+  只保存在 Mural API 的服务端
   secret store，OpenAI key 只保存在 Agent Worker 的 secret store。
+- staging 默认使用 `speaking-live-staging.vlingo.ai` 和
+  `api-speaking-live-staging.vlingo.ai`；DNS、TLS、容器、监控和预算标签均使用正式 slug，
+  不再新建 `mural-*` 外部资源。
 - Mural API 使用 Cloud URL/API credential 建房、dispatch、签发最小权限短期 room token
   和删房；Web/iOS 仍只消费 Mural 的公开会话响应。
 - 验证用户与自托管 Worker 跨公网加入同一 room、TLS/WSS、NAT、防火墙、断线恢复、
@@ -383,11 +415,12 @@ LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由 Mural �
 
 #### Phase 5.5C：LiveKit Cloud Ship 产品内测（5.5B 通过后）
 
-目标：使用相同混合部署拓扑支持受控真实用户内测，不在此步引入新 transport 或供应商。
+目标：以 `vLingo Speaking Live` 正式品牌，使用相同混合部署拓扑支持受控真实用户内测，
+不在此步引入新 transport 或供应商。
 
 - 升级独立 staging/内测 project 到 Ship；将开发与内测 project、credential、room 前缀
   和监控完全隔离。
-- 为 Mural 账号建立白名单/feature flag、并发上限、每日和每用户分钟预算、总成本熔断、
+- 为 vLingo Speaking Live 账号建立白名单/feature flag、并发上限、每日和每用户分钟预算、总成本熔断、
   速率限制和可立即关闭的 kill switch。
 - 按“一分钟双人房间约等于两个 WebRTC participant-minutes”建立容量模型，同时监控
   下行 GB；LiveKit、OpenAI 和自托管基础设施分别记账与告警，禁止把 LiveKit 账单视为

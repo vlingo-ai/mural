@@ -4,6 +4,17 @@
 - 日期：2026-09-17
 - 范围：Phase 5.5，仅 OpenAI `gpt-live-1`
 
+## 产品命名约束
+
+本仓库继续保留 Mural 上游身份、Git 历史和既有内部兼容标识；对外产品名为
+**vLingo Speaking Live**，基础设施 slug 为 `vlingo-speaking-live`，域名命名空间为
+`vlingo.ai`。从 Phase 5.5B 起，新建 LiveKit project、域名、部署资源和监控标签直接使用
+正式产品命名，避免在 Phase 5.5C 内测前迁移不可更名资源。
+
+本决定不授权机械替换代码、数据库迁移、协议字段或历史 archive 中的 `mural`。这些标识
+只有在具备独立迁移、兼容测试和可控 upstream 合并成本时才更名；Mural 的 MIT 许可、版权
+和 attribution 始终保留。
+
 ## 背景
 
 Mural 现有 Web 路径由浏览器通过 WebRTC 直连 OpenAI，Mural API 负责鉴权、分钟预留、
@@ -88,7 +99,8 @@ Mural 功能和信任边界，不代表生产部署决定。
 
 本机门禁通过后，按以下顺序推进混合部署：
 
-1. **LiveKit Cloud Build 验证**：LiveKit Cloud 承载房间、信令和媒体；Mural API、
+1. **LiveKit Cloud Build 验证**：使用独立项目 `vlingo-speaking-live-staging`；LiveKit Cloud
+   承载房间、信令和媒体；Mural API、
    Model Gateway 与 Agent Worker 自托管。重跑双向语音、打断、结算、断线恢复与密钥
    隔离门禁，并记录 participant-minutes、下行流量和延迟。
 2. **LiveKit Cloud Ship 产品内测**：保持相同拓扑，增加真实用户白名单、并发与预算上限、
