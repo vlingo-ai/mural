@@ -174,7 +174,9 @@ export class HostedVoice {
       created = await this.provider.create(sdp, language, teachingContext, id);
       if (minutes || paid) deadline = new Date(this.now() + reservedMilliseconds);
       startupStage = 'persist_provider_session';
-      const persisted = await this.db.query("UPDATE hosted_sessions SET provider_session_id=$2,state='active',deadline=$3 WHERE id=$1 AND state<>'closed'", [id, created.sessionID, deadline]);
+      const lease = this.provider.controlLeaseMilliseconds
+        ? new Date(this.now() + this.provider.controlLeaseMilliseconds) : null;
+      const persisted = await this.db.query("UPDATE hosted_sessions SET provider_session_id=$2,state='active',deadline=$3,provider_lease_expires_at=$4 WHERE id=$1 AND state<>'closed'", [id, created.sessionID, deadline, lease]);
       if (persisted.rowCount !== 1) throw new ServiceError('provider_session_no_longer_active', 502);
       startupStage = 'provider_attach';
       await this.attach(id, created.sessionID);
@@ -349,7 +351,7 @@ export class HostedVoice {
       if (!this.slots.has(id)) slot.connection.disconnect();
     } catch { this.slots.delete(id); throw new ServiceError('provider_attach_failed', 502); }
   }
-  private async recordUsage(id: string, providerID: string, event: VoiceUsage) {
+  private async recordUsage(id: string, providerID: string, event: VoiceUsage, providerUsageFinal = true) {
     const state = await transaction(this.db, async sql => {
       // Match admission/helper lock order so final voice cost and reduced helper liability
       // become visible atomically to a new funded conversation.
@@ -364,8 +366,10 @@ export class HostedVoice {
       meter.milliseconds = Number(row.observed_ms); meter.finalized = row.state === 'closed';
       meter.receive(providerID, event);
       if (row.state === 'closed') return { finalized: true, close: false };
-      await sql.query('UPDATE hosted_sessions SET observed_ms=$2,funding_exposure_nano=GREATEST(funding_exposure_nano,$3) WHERE id=$1',
-        [id, meter.milliseconds, voiceCost(meter.milliseconds).toString()]);
+      const lease = this.provider.controlLeaseMilliseconds
+        ? new Date(this.now() + this.provider.controlLeaseMilliseconds) : null;
+      await sql.query('UPDATE hosted_sessions SET observed_ms=$2,funding_exposure_nano=GREATEST(funding_exposure_nano,$3),provider_lease_expires_at=$4 WHERE id=$1',
+        [id, meter.milliseconds, voiceCost(meter.milliseconds).toString(), lease]);
       if (meter.finalized) {
         // WebRTC creation has a 15-second minimum; it is credited against active duration.
         const providerCost = voiceCost(Math.max(15_000, meter.milliseconds));
@@ -378,8 +382,10 @@ export class HostedVoice {
           await appendMinuteEntry(sql, row.account_id, `minute-finish:${hold.id}`, 'settle', -charged, -maximum,row.public_minutes ? 'funded' : 'mixed');
           await sql.query("UPDATE minute_reservations SET state='settled',used_ms=$2 WHERE id=$1", [hold.id, charged]);
           await recoverMinutePurchaseShortfalls(sql, row.account_id);
-          await sql.query(`UPDATE hosted_sessions SET state='closed',provider_cost_nano=$2,charged_ms=$3,funding_exposure_nano=$2 WHERE id=$1`,
-            [id, providerCost.toString(), charged]);
+          await sql.query(`UPDATE hosted_sessions SET state='closed',provider_cost_nano=$2,charged_ms=$3,funding_exposure_nano=$2,
+            provider_usage_final=$4,provider_lease_expires_at=NULL,
+            close_reason=CASE WHEN $4 THEN close_reason ELSE 'worker_lease_expired' END WHERE id=$1`,
+            [id, providerCost.toString(), charged, providerUsageFinal]);
         } else if (row.funding_mode==='ai-value') {
           const hold=(await sql.query('SELECT * FROM reservations WHERE id=$1 FOR UPDATE',[row.reservation_id])).rows[0];
           if (providerCost>BigInt(hold.reserved_nano)) {
@@ -390,7 +396,10 @@ export class HostedVoice {
             return {finalized:false,close:true};
           }
           await settlePaidInTransaction(sql,row.account_id,row.reservation_id,providerCost);
-          await sql.query("UPDATE hosted_sessions SET state='closed',provider_cost_nano=$2,charged_nano=$2,funding_exposure_nano=$2 WHERE id=$1",[id,providerCost.toString()]);
+          await sql.query(`UPDATE hosted_sessions SET state='closed',provider_cost_nano=$2,charged_nano=$2,funding_exposure_nano=$2,
+            provider_usage_final=$3,provider_lease_expires_at=NULL,
+            close_reason=CASE WHEN $3 THEN close_reason ELSE 'worker_lease_expired' END WHERE id=$1`,
+            [id,providerCost.toString(),providerUsageFinal]);
           await this.config.helpers!.closeCashBudget!(sql,row.account_id,id);
         } else {
           const hold = (await sql.query('SELECT * FROM reservations WHERE id=$1 FOR UPDATE', [row.reservation_id])).rows[0];
@@ -398,8 +407,10 @@ export class HostedVoice {
           const maximum = BigInt(hold.reserved_nano), charged = providerCost > maximum ? maximum : providerCost;
           await appendEntry(sql, row.account_id, `settlement:${hold.id}`, 'settle', -charged, -maximum, row.rate_version);
           await sql.query("UPDATE reservations SET state='settled',actual_nano=$2 WHERE id=$1", [hold.id, charged.toString()]);
-          await sql.query(`UPDATE hosted_sessions SET state='closed',provider_cost_nano=$2,charged_nano=$3,funding_exposure_nano=$2 WHERE id=$1`,
-            [id, providerCost.toString(), charged.toString()]);
+          await sql.query(`UPDATE hosted_sessions SET state='closed',provider_cost_nano=$2,charged_nano=$3,funding_exposure_nano=$2,
+            provider_usage_final=$4,provider_lease_expires_at=NULL,
+            close_reason=CASE WHEN $4 THEN close_reason ELSE 'worker_lease_expired' END WHERE id=$1`,
+            [id, providerCost.toString(), charged.toString(), providerUsageFinal]);
         }
       }
       return { finalized: meter.finalized, close: meter.closeRequested };
@@ -467,6 +478,12 @@ export class HostedVoice {
         }
         if (row.state === 'incomplete' && !this.slots.has(row.id)) {
           try { await this.attach(row.id, row.provider_session_id); } catch { /* Keep the hold and retry closure. */ }
+        }
+        if (row.provider_lease_expires_at && this.now() >= new Date(row.provider_lease_expires_at).getTime()) {
+          await this.provider.hangup(row.provider_session_id).catch(() => {});
+          await this.recordUsage(row.id, row.provider_session_id,
+            { type: 'session.closed', usage: { seconds: Number(row.observed_ms) / 1000 } }, false);
+          continue;
         }
         if (row.close_requested_at) await this.requestClose(row.id, row.close_reason === 'sign_out' ? 'sign_out' : 'user_requested');
         else if (row.minute_reservation_id ? row.minute_refund_due : BigInt(row.balance_nano)-(row.funding_mode==='ai-value' ? BigInt(row.sandbox_balance_nano) : 0n) < BigInt(row.reserved_nano)) await this.requestClose(row.id, 'funding_reversed');

@@ -19,6 +19,10 @@ test('LiveKit trusted control accepts cumulative usage only after attach', async
     { type: 'session.usage.updated', seconds: 12.5 }),
   { type: 'session.usage.updated', usage: { seconds: 12.5 } });
   assert.deepEqual(usage, [{ type: 'session.usage.updated', usage: { seconds: 12.5 } }]);
+  assert.deepEqual(livekit.acceptTrustedEvent(sessionID, authorization(),
+    { type: 'session.heartbeat', seconds: 13 }),
+  { type: 'session.usage.updated', usage: { seconds: 13 } });
+  assert.deepEqual(usage.at(-1), { type: 'session.usage.updated', usage: { seconds: 13 } });
   sideband.disconnect();
   assert.throws(() => livekit.acceptTrustedEvent(sessionID, authorization(),
     { type: 'session.closed', seconds: 12.5 }), /livekit_session_not_attached/);

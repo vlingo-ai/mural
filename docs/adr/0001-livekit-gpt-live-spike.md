@@ -1,6 +1,6 @@
 # ADR 0001：以 LiveKit 承载 GPT-Live 客户端媒体链路
 
-- 状态：Proposed — 双向语音与打断已通过，Worker 硬崩溃恢复门禁未通过
+- 状态：Proposed — 双向语音、打断和 Worker 硬崩溃回收已通过，等待短时网络重连门禁
 - 日期：2026-09-17
 - 范围：Phase 5.5，仅 OpenAI `gpt-live-1`
 
@@ -61,18 +61,18 @@ Web / iOS ── WebRTC ── LiveKit Room ── Agent Worker ── gpt-live-
 - 浏览器主动离开会触发 Worker 正常 shutdown callback，最终累计 usage 可被可信上报并结算。
 - 本机单会话抽样：LiveKit Server 约 91MB RSS、Worker 主进程约 82MB、活跃 Agent 子进程
   约 346MB，浏览器上行语音约 77kbps。它只用于发现数量级，不代表生产容量或 Cloud 成本。
+- Agent 每 5 秒通过会话 HMAC 控制通道提交最新累计 usage 并续期 30 秒 Worker lease。
+  SIGKILL Agent 子进程的真实回归中，Web 自动变为 Failed；Mural 在 lease 到期后删除 room，
+  按最后可信 31000ms 结算，释放全部 reservation，钱包 `reserved_ms=0`。会话记录
+  `close_reason=worker_lease_expired`、`provider_usage_final=false`，供运营方对账。
 
 ## 尚未通过的门禁
 
-- Agent 子进程被 SIGKILL 后，LiveKit 将 job 标为 `JS_FAILED`，本机测试未观察到替代 job
-  自动启动。由于进程无法执行 shutdown callback，Mural 收不到最终可信 provider usage；
-  故障会话仍为 active，600000ms 全额保持预留。保持预留比相信客户端报数或低估供应商
-  成本安全，但不满足“无遗留 reservation”的发布门禁。
-- Web 已监听已识别远端 Agent 的永久离开事件，停止本地麦克风、显示 Failed 并请求 Mural
-  关闭，避免页面在 Agent 已消失时继续显示 Active。HTTP close 仍不能伪造最终 usage，因而
-  不能单独解决服务端结算。
-- 接受本 ADR 前需实现并验证可信 Worker heartbeat/lease、过期会话回收，以及明确的异常
-  usage/费用结算与对账策略；还需覆盖短时网络中断后的自动重连，而不只是主动离开。
+- LiveKit 本机测试仍未在 Agent job 硬崩溃后自动启动替代 job；当前策略是结束故障会话，
+  不在缺少可持久恢复上下文时透明创建第二个 OpenAI 会话。
+- lease 异常结算只把最后可信累计 usage 计入用户账单；最后 heartbeat 到供应商实际终止之间
+  的未知差额最多约一个 30 秒 lease 窗口，由 Mural 运营方承担并对账，不转嫁给用户。
+- 接受本 ADR 前还需覆盖短时网络中断后的 LiveKit 自动重连，而不只是主动离开和进程崩溃。
 
 在上述门禁完成前，本 ADR 不把 LiveKit 提升为生产默认，也不删除旧 WebRTC 实现。
 

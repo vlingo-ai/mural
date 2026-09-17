@@ -26,6 +26,7 @@ export const isLiveKitRoomAbsent = (error: unknown): boolean => object(error) &&
 
 export class LiveKitLiveProvider implements LiveProvider {
   readonly clientTransport = 'livekit-room' as const;
+  readonly controlLeaseMilliseconds = 30_000;
   readonly #url: URL;
   readonly #rooms: RoomServiceClient;
   readonly #dispatches: AgentDispatchClient;
@@ -109,11 +110,12 @@ export class LiveKitLiveProvider implements LiveProvider {
         !timingSafeEqual(Buffer.from(authorization), Buffer.from(expected)))
       throw new ServiceError('invalid_livekit_control_token', 401);
     if (!object(body) || typeof body.type !== 'string') throw new ServiceError('invalid_livekit_control_event');
-    if (body.type === 'session.usage.updated' || body.type === 'session.closed') {
+    if (body.type === 'session.usage.updated' || body.type === 'session.closed' || body.type === 'session.heartbeat') {
       if (!exactKeys(body, ['type', 'seconds']) || typeof body.seconds !== 'number' ||
           !Number.isFinite(body.seconds) || body.seconds < 0 || body.seconds > Number.MAX_SAFE_INTEGER / 1000)
         throw new ServiceError('invalid_livekit_control_event');
-      const event: VoiceUsage = { type: body.type, usage: { seconds: body.seconds } };
+      const event: VoiceUsage = { type: body.type === 'session.heartbeat' ? 'session.usage.updated' : body.type,
+        usage: { seconds: body.seconds } };
       const listener = this.#listeners.get(sessionID);
       if (!listener) throw new ServiceError('livekit_session_not_attached', 409);
       listener.onUsage(event);

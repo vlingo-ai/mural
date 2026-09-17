@@ -427,11 +427,11 @@ LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由 Mural �
 - [x] 单会话本机资源与媒体基线：LiveKit Server 约 91MB RSS；Worker 主进程约 82MB，活跃
   Agent 子进程约 346MB；浏览器上行语音约 77kbps。该数据仅为开发机单样本，不作为生产
   容量承诺。
-- [ ] Worker 硬崩溃恢复和无遗留 reservation 验收：SIGKILL Agent 子进程后，LiveKit 将 job
-  标记为 `JS_FAILED` 且本机未自动拉起替代 Agent；Mural 收不到最终可信 usage，会话仍为
-  active，600000ms 继续安全预留。Web 已增加远端 Agent 离开检测，避免 UI 继续误报 Active；
-  服务端仍需引入可信 heartbeat/lease 与明确的异常结算策略。
-- [ ] 上述硬崩溃门禁通过后，将 `docs/adr/0001-livekit-gpt-live-spike.md` 从 Proposed 改为
+- [x] Worker 硬崩溃和无遗留 reservation 验收：Agent 每 5 秒经 HMAC 控制通道续期 30 秒
+  lease 并提交累计 usage。SIGKILL 后 Web 自动显示 Failed，Mural 删除 room、按最后可信
+  31000ms 结算，600000ms reservation 释放为 0；会话以 `worker_lease_expired` 关闭并设置
+  `provider_usage_final=false`，明确要求运营方对账且由运营方承担租约窗口内的未知差额。
+- [ ] 短时网络中断自动重连门禁通过后，将 `docs/adr/0001-livekit-gpt-live-spike.md` 从 Proposed 改为
   Accepted 或 Rejected；在此之前不得进入 Phase 6 的 LiveKit-only 切换。
 
 ### Phase 6：iOS 切换到共享后端

@@ -39,6 +39,8 @@ export function parseLiveContext(value: unknown): LiveContext {
 }
 export interface LiveProvider {
   readonly clientTransport?: LiveClientTransport['type'];
+  /** Trusted worker lease; omitted for providers whose sideband is directly owned by Mural. */
+  readonly controlLeaseMilliseconds?: number;
   create(sdp: string, language: string, context?: LiveContext, muralSessionID?: string):
     Promise<LiveCreateResult | { sessionID: string; sdp: string }>;
   attach(sessionID: string, onUsage: (event: VoiceUsage) => void, onLoss: () => void): Promise<Sideband>;
