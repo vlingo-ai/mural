@@ -1,6 +1,6 @@
 # ADR 0001：以 LiveKit 承载 GPT-Live 客户端媒体链路
 
-- 状态：Proposed — 等待真实 `gpt-live-1` 语音验收
+- 状态：Proposed — 付费建连与结算已通过，等待真实发声与打断验收
 - 日期：2026-09-16
 - 范围：Phase 5.5，仅 OpenAI `gpt-live-1`
 
@@ -48,10 +48,21 @@ Web / iOS ── WebRTC ── LiveKit Room ── Agent Worker ── gpt-live-
   Mural 以 0ms/0 成本关闭会话、释放全部 600000ms 预留，数据库无遗留 reservation。
 - LiveKit Agents 1.8.2 尚未把上述错误视为致命拒绝，因此 Worker 以最小 adapter 仅转换
   明确的建连前认证/额度错误；依赖升级时必须重跑该回归。
+- 有余额的真实 smoke 已收到 OpenAI `session.started`，Web 与 Agent 均加入同一本地
+  LiveKit room，音频轨发布/订阅成功且连接质量为 Excellent。Web 现在以远端音频轨
+  订阅作为 Active 信号，不再错误依赖可选的转写事件并在 20 秒后超时。
+- 用户主动停止后，会话以 `closed/user_requested` 结束，600000ms 预留按最低
+  15000ms 结算，`minute_reservations.state=settled` 且钱包 `reserved_ms=0`。并发关闭
+  路径遇到 LiveKit 精确 `not_found/404` 时按幂等成功处理，不再误标
+  `sideband_lost`。
 
 ## 尚未通过的门禁
 
-- 账户余额仍为 0，因此尚未完成真实双向语音、自然打断、最终 provider usage 和结算。
+- 自动化浏览器没有真实人声 turn：文本消息已到达 Agent，LiveKit 也已向 OpenAI 发出
+  `session.thinking.append` 和 `session.commentary.append`，但 OpenAI 未在 10 秒内开始发声，该
+  无语音输入情形不能代替真实双向语音验收。
+- 尚需由真实麦克风输入完成英语和普通话双向语音、自然打断、字幕与非零
+  provider usage 验收；已验证的主动停止与最低分钟结算不代表这些门禁已通过。
 - 需要在可用额度下记录首音延迟、打断延迟、断线恢复、CPU/内存和额外媒体带宽。
 - Worker 丢失和会话中网络中断仍需确认不会遗留 reservation。
 

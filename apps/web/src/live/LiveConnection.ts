@@ -119,6 +119,7 @@ export class LiveConnection {
     this.room = room;
     room.on(RoomEvent.TrackSubscribed, track => {
       if (track.kind !== Track.Kind.Audio) return;
+      this.markLiveKitActive();
       this.remote.addTrack(track.mediaStreamTrack);
       this.onRemoteStream(this.remote);
     });

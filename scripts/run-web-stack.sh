@@ -111,7 +111,7 @@ print ''
 print 'Mural Web stack is ready at http://127.0.0.1:5173'
 print "Development access token (not written to disk, expires within 12 hours): ${dev_access_token}"
 if [[ "$livekit_spike" == true ]]; then
-  print 'LiveKit Phase 5.5 mode is enabled; OpenAI rejection is expected while the API account has no balance.'
+  print 'LiveKit Phase 5.5 mode is enabled; real OpenAI provider calls can incur usage charges.'
 fi
 print 'Press Ctrl-C to stop Web, Mural API and the dedicated local processes.'
 wait

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import test from 'node:test';
-import { LiveKitLiveProvider } from '../src/livekit/live-provider.js';
+import { isLiveKitRoomAbsent, LiveKitLiveProvider } from '../src/livekit/live-provider.js';
 
 const secret = 'control-secret-with-at-least-thirty-two-bytes';
 const sessionID = 'c0a8012a-1a2b-4c3d-8e5f-123456789abc';
@@ -49,4 +49,11 @@ test('LiveKit trusted control authenticates and bounds delegations', () => {
 test('LiveKit configuration requires TLS away from exact loopback hosts', () => {
   assert.throws(() => new LiveKitLiveProvider({ url: 'ws://livekit.example.test', apiKey: 'key',
     apiSecret: 'secret', controlSecret: secret }), /livekit_configuration_invalid/);
+});
+
+test('LiveKit treats only its exact missing-room response as an idempotent close', () => {
+  assert.equal(isLiveKitRoomAbsent({ code: 'not_found', status: 404 }), true);
+  assert.equal(isLiveKitRoomAbsent({ code: 'not_found', status: 500 }), false);
+  assert.equal(isLiveKitRoomAbsent({ code: 'permission_denied', status: 404 }), false);
+  assert.equal(isLiveKitRoomAbsent(new Error('requested room does not exist')), false);
 });

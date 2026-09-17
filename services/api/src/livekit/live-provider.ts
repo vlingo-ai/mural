@@ -21,6 +21,8 @@ const exactKeys = (value: Record<string, unknown>, keys: readonly string[]) =>
 const cleanText = (value: unknown, bytes: number): value is string => typeof value === 'string' &&
   Boolean(value.trim()) && Buffer.byteLength(value) <= bytes && !/[\uD800-\uDFFF]/u.test(value) &&
   !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value);
+export const isLiveKitRoomAbsent = (error: unknown): boolean => object(error) &&
+  error.code === 'not_found' && error.status === 404;
 
 export class LiveKitLiveProvider implements LiveProvider {
   readonly clientTransport = 'livekit-room' as const;
@@ -93,7 +95,11 @@ export class LiveKitLiveProvider implements LiveProvider {
 
   async hangup(sessionID: string): Promise<void> {
     try { await this.#rooms.deleteRoom(sessionID); }
-    catch { throw new ServiceError('provider_hangup_unconfirmed', 502); }
+    catch (error) {
+      // Room deletion is the close acknowledgement. Concurrent user, watchdog, and worker close
+      // paths may observe the same already-deleted room; LiveKit's exact 404 is idempotent success.
+      if (!isLiveKitRoomAbsent(error)) throw new ServiceError('provider_hangup_unconfirmed', 502);
+    }
   }
 
   acceptTrustedEvent(sessionID: string, authorization: string | undefined, body: unknown):

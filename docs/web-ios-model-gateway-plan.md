@@ -402,7 +402,7 @@ LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由 Mural �
 验收：受控用户在 Web/iOS 可稳定完成会话；预算、配额、告警、结算、回滚和 kill switch
 均演练通过；形成是否进入正式发布以及是否需要 Scale/Region Pinning 的决策记录。
 
-当前进度（2026-09-16）：
+当前进度（2026-09-17）：
 
 - [x] 隔离 Model Gateway worktree 与独立 LiveKit Worker 依赖环境。
 - [x] 本地 LiveKit Server 启动、Worker 注册，以及 Mural 建房/dispatch/token/删房冒烟。
@@ -412,7 +412,12 @@ LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由 Mural �
 - [x] fake/确定性验证与现有 WebRTC 回归测试。
 - [x] 真实零余额拒绝：请求到达 OpenAI；`credit_balance_exhausted` 不重试，Mural 以
   0ms/0 成本关闭并完整释放 600000ms 预留，Web 不误报 Active。
-- [ ] 有余额账户的真实英语与普通话双向语音、打断、usage 和最终结算。
+- [x] 有余额账户完成 OpenAI `session.started`、LiveKit 双端音频轨、Web Active、
+  主动停止与结算回归：600000ms 预留结算为 15000ms，reservation 为 settled，
+  钱包 `reserved_ms=0`；重复删房的精确 404 不再导致 `sideband_lost`。
+- [ ] 真实麦克风输入下的英语与普通话双向语音、自然打断、字幕和非零 provider
+  usage。无人声的自动化浏览器中，`lk.chat` 已到 Agent 并转成 GPT-Live append 事件，
+  但模型未开始发声；不将该文本路径误当作语音门禁通过。
 - [ ] Worker 丢失、断网恢复和无遗留 reservation 验收。
 - [ ] 性能基线完成后，将 `docs/adr/0001-livekit-gpt-live-spike.md` 从 Proposed 改为 Accepted
   或 Rejected；在此之前不得进入 Phase 6 的 LiveKit-only 切换。
