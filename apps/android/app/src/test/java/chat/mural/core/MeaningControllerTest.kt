@@ -22,6 +22,11 @@ class MeaningControllerTest {
     private class Translator {
         val requests = mutableListOf<MeaningRequest>()
         val pending = ArrayDeque<CompletableDeferred<MeaningResult>>()
+        val partials = mutableListOf<(String) -> Unit>()
+        suspend fun stream(request: MeaningRequest, onText: (String) -> Unit): MeaningResult {
+            partials += onText
+            return translate(request)
+        }
         suspend fun translate(request: MeaningRequest): MeaningResult {
             requests += request
             val response = CompletableDeferred<MeaningResult>().also { pending.addLast(it) }
@@ -39,6 +44,60 @@ class MeaningControllerTest {
 
     private fun TestScope.controller(translator: Translator, delayMillis: Long = 0) =
         MeaningController(backgroundScope, minimumSpacingMillis = 0, now = { testScheduler.currentTime }, delayMillis = delayMillis, incompleteDelayMillis = delayMillis, translate = translator::translate)
+
+    @Test fun partialMeaningIsVisibleBeforeCompletionAndSavedOnlyOnce() = runTest {
+        val translator = Translator()
+        val controller = MeaningController(backgroundScope, minimumSpacingMillis = 0, delayMillis = 0, incompleteDelayMillis = 0,
+            now = { testScheduler.currentTime }, stream = translator::stream, translate = translator::translate)
+        var saved = 0; controller.onResult = { _, _ -> saved++ }
+        controller.update(request("Hei, verden.")); runCurrent()
+        translator.partials[0]("Hello")
+        assertEquals("Hello", controller.text); assertTrue(controller.isLoading); assertEquals(0, saved)
+        translator.succeed("Hello, world."); runCurrent()
+        translator.partials[0]("Late text")
+        assertEquals("Hello, world.", controller.text); assertFalse(controller.isLoading); assertEquals(1, saved)
+    }
+    @Test fun growingMeaningDoesNotFlashBackToItsFirstWord() = runTest {
+        val translator = Translator()
+        val controller = MeaningController(backgroundScope, minimumSpacingMillis = 0, delayMillis = 0, incompleteDelayMillis = 0,
+            now = { testScheduler.currentTime }, stream = translator::stream, translate = translator::translate)
+        controller.update(request("Hei, jeg liker")); runCurrent()
+        translator.succeed("Hello, I like"); runCurrent()
+        controller.update(request("Hei, jeg liker fisk.", revision = 1)); runCurrent()
+        translator.partials[1]("Hello")
+        assertEquals("Hello, I like", controller.text)
+        translator.partials[1]("Hello, I like fish")
+        assertEquals("Hello, I like fish", controller.text)
+        translator.succeed("Hi, I like fish."); runCurrent()
+        assertEquals("Hi, I like fish.", controller.text)
+    }
+    @Test fun correctedCaptionAndCachedResultRejectOldStreamCallbacks() = runTest {
+        val translator = Translator()
+        val controller = MeaningController(backgroundScope, minimumSpacingMillis = 0, delayMillis = 0, incompleteDelayMillis = 0,
+            now = { testScheduler.currentTime }, stream = translator::stream, translate = translator::translate)
+        controller.update(request("Jeg liker kaffe.")); runCurrent()
+        translator.partials[0]("I like coffee")
+        val corrected = request("Jeg liker te.", revision = 1)
+        controller.update(corrected); translator.partials[0]("Late coffee")
+        assertEquals("", controller.text)
+        translator.succeed("I like coffee."); runCurrent()
+        translator.partials[1]("I like tea")
+        controller.update(corrected, cached = "Cached tea")
+        translator.partials[1]("Late tea"); translator.fail(); runCurrent()
+        assertEquals("Cached tea", controller.text); assertNull(controller.error)
+    }
+    @Test fun failedOrHiddenStreamsDoNotCacheOrResurrectPartialText() = runTest {
+        val translator = Translator()
+        val controller = MeaningController(backgroundScope, minimumSpacingMillis = 0, delayMillis = 0, incompleteDelayMillis = 0,
+            now = { testScheduler.currentTime }, stream = translator::stream, translate = translator::translate)
+        var saved = 0; controller.onResult = { _, _ -> saved++ }
+        controller.update(request("Hei")); runCurrent(); translator.partials[0]("Hi")
+        translator.fail(); runCurrent(); translator.partials[0]("Late")
+        assertEquals("", controller.text); assertNotNull(controller.error); assertEquals(0, saved)
+        controller.retry(); runCurrent(); translator.partials[1]("Hi")
+        controller.reset(); translator.partials[1]("Late"); translator.succeed("Hi"); runCurrent()
+        assertEquals("", controller.text); assertEquals(0, saved); assertFalse(controller.isLoading)
+    }
 
     @Test fun growingSpeechCoalescesWithoutCancellingTheRunningTranslation() = runTest {
         val translator = Translator(); val controller = controller(translator)
@@ -337,6 +396,31 @@ class MeaningControllerTest {
             assertFalse(controller.isLoading); assertNull(controller.error)
             assertEquals(1, translator.requests.size)
         }
+    }
+
+    @Test fun translationInputKeepsTheStartOfLongPassages() {
+        val text = "UNIQUE_START " + "y".repeat(2300) + " END"
+        val prepared = MeaningRequest.translationInput(text)
+        assertTrue(prepared.startsWith("UNIQUE_START"))
+        assertTrue(prepared.endsWith(" END"))
+        assertEquals(text, prepared)
+    }
+
+    @Test fun longCaptionFailureDoesNotCachePartialMeaningAndRetryKeepsFullInput() = runTest {
+        val caption = "UNIQUE_START " + "我喜欢咖啡。 ".repeat(600) + " UNIQUE_END"
+        val translator = Translator(); val controller = controller(translator)
+        var saved = 0
+        controller.onResult = { _, _ -> saved++ }
+        controller.update(request(caption)); runCurrent()
+        assertEquals(caption, translator.requests.single().translationInput)
+        translator.fail(); runCurrent()
+        assertNotNull(controller.error)
+        assertEquals(0, saved)
+        controller.retry(); runCurrent()
+        assertEquals(caption, translator.requests.last().translationInput)
+        translator.succeed("The complete translation."); runCurrent()
+        assertEquals(1, saved)
+        assertEquals("The complete translation.", controller.text)
     }
 
 }

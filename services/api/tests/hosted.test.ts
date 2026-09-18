@@ -8,6 +8,7 @@ import { connectDatabase, transaction } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
 import { appendEntry } from '../src/ledger.js';
 import { LiveCreateFailure, LiveCreateRejectedError, OpenAILiveProvider } from '../src/live-provider.js';
+import { Diagnostics, type DiagnosticRecord } from '../src/diagnostics.js';
 import { HostedVoice } from '../src/hosted-voice.js';
 import { applyStripeEvent } from '../src/payments.js';
 import { appendMinuteEntry } from '../src/minutes.js';
@@ -40,6 +41,8 @@ async function fixture(cap = 2_000_000_000n, minuteAllowance?: number, helperBud
   let creates = 0, hangups = 0, closes = 0, respondToClose = false, rejectCreate = false, cancelBeforeProvider = false, seconds = 0, now = Date.now(), setupDelay = 0;
   let rejectionStatus = 502, malformedSuccess = false, dropCreate = false;
   const diagnostics: unknown[] = [];
+  const lifecycle: DiagnosticRecord[] = [];
+  const logger = new Diagnostics(record => { lifecycle.push(record); });
   const payloads: unknown[] = [];
   const server = createServer(async (request, response) => {
     assert.equal(request.headers.authorization, 'Bearer test-no-real-provider-key');
@@ -69,7 +72,7 @@ async function fixture(cap = 2_000_000_000n, minuteAllowance?: number, helperBud
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address() as { port: number };
-  const provider = new OpenAILiveProvider('test-no-real-provider-key', { testOrigin: `http://127.0.0.1:${address.port}`, timeoutMilliseconds: 300 });
+  const provider = new OpenAILiveProvider('test-no-real-provider-key', { testOrigin: `http://127.0.0.1:${address.port}`, timeoutMilliseconds: 300, diagnostics: logger });
   const helpers = helperBudget === undefined ? undefined : new HostedHelpers(db,
     { send: async () => { throw new Error('No helper network call expected.'); } }, {
       accountAllowlist: new Set([account]), aggregateFundingCapNano: cap, helperBudgetNanoPerMinute: helperBudget,
@@ -83,11 +86,11 @@ async function fixture(cap = 2_000_000_000n, minuteAllowance?: number, helperBud
     if (cancelBeforeProvider) await sql.query("UPDATE hosted_sessions SET state='closing',close_requested_at=now() WHERE id=$1", [id]);
   } };
   let controller = new HostedVoice(db, provider, { accountAllowlist: new Set([account]), lifetimeFundingCapNano: cap,
-    publicMinuteAccess: paid, publicPaidAccess: paid, onStartupFailure: diagnostic => diagnostics.push(diagnostic),
+    publicMinuteAccess: paid, publicPaidAccess: paid, diagnostics: logger, onStartupFailure: diagnostic => diagnostics.push(diagnostic),
     billingUnit: minuteAllowance === undefined ? 'nanoUSD' : 'milliseconds',
     helpers: helperAdmission, now: () => now, closeGraceMilliseconds: 20 });
   await controller.start();
-  return { db, account, payloads, diagnostics, provider, get controller() { return controller; },
+  return { db, account, payloads, diagnostics, lifecycle, provider, get controller() { return controller; },
     get creates() { return creates; }, get hangups() { return hangups; }, get closes() { return closes; },
     set closeReplies(value: boolean) { respondToClose = value; }, set seconds(value: number) { seconds = value; },
     set rejectCreate(value: boolean) { rejectCreate = value; },
@@ -101,7 +104,7 @@ async function fixture(cap = 2_000_000_000n, minuteAllowance?: number, helperBud
     disconnect(id: string) { sockets.get(id)!.terminate(); },
     async restart() { await controller.stop(); controller = new HostedVoice(db, provider,
       { accountAllowlist: new Set([account]), lifetimeFundingCapNano: cap,
-        publicMinuteAccess: paid, publicPaidAccess: paid, onStartupFailure: diagnostic => diagnostics.push(diagnostic),
+        publicMinuteAccess: paid, publicPaidAccess: paid, diagnostics: logger, onStartupFailure: diagnostic => diagnostics.push(diagnostic),
     billingUnit: minuteAllowance === undefined ? 'nanoUSD' : 'milliseconds', helpers: helperAdmission, now: () => now, closeGraceMilliseconds: 20 }); await controller.start(); },
     async wallet() { return (await db.query('SELECT balance_nano,reserved_nano FROM wallets WHERE account_id=$1', [account])).rows[0]; },
     async minutes() { return (await db.query('SELECT balance_ms,reserved_ms FROM minute_wallets WHERE account_id=$1', [account])).rows[0]; },
@@ -231,6 +234,20 @@ integration('a refund during speech triggers closure and reconciles usage withou
     await until(async () => (await f.controller.status(f.account, live.sessionID)).state === 'closed');
     assert.deepEqual(await f.wallet(), { balance_nano: '-16666667', reserved_nano: '0' });
     assert.equal((await f.db.query("SELECT close_reason FROM hosted_sessions WHERE id=$1", [live.sessionID])).rows[0].close_reason, 'funding_reversed');
+  } finally { await f.cleanup(); }
+});
+integration('a cancelled context injection during close still drains trusted final usage', async () => {
+  const f = await fixture(2_000_000_000n, 600_000);
+  try {
+    const live = await f.controller.create(f.account, 'closing-context-cancelled', 'v=0', 'fr-FR', undefined, 60_000);
+    await f.controller.close(f.account, live.sessionID);
+    f.send(live.providerSessionID, { type: 'error', error: { type: 'server_error', code: 'context_injection_incomplete' } });
+    await new Promise(resolve => setTimeout(resolve, 25));
+    assert.equal((await f.controller.status(f.account, live.sessionID)).state, 'closing');
+    assert.equal((await f.minutes()).reserved_ms, '60000');
+    f.send(live.providerSessionID, { type: 'session.closed', usage: { seconds: 42 } });
+    await until(async () => (await f.controller.status(f.account, live.sessionID)).state === 'closed');
+    assert.deepEqual(await f.minutes(), { balance_ms: '558000', reserved_ms: '0' });
   } finally { await f.cleanup(); }
 });
 integration('sideband loss never accepts client usage or releases the reservation on an HTTP hangup alone', async () => {
@@ -612,5 +629,60 @@ integration('signed-in International English uses free minutes and settles the c
     await until(async () => (await f.controller.status(f.account, live.sessionID)).state === 'closed');
     assert.deepEqual(await f.minutes(), { balance_ms: '576000', reserved_ms: '0' });
     assert.deepEqual(await f.wallet(), cashBefore);
+  } finally { await f.cleanup(); }
+});
+
+integration('voice lifecycle logging distinguishes requested closure from confirmed settlement', async () => {
+  const f = await fixture();
+  try {
+    const live = await f.controller.create(f.account, 'logged-session', 'v=0', 'es-ES');
+    await Promise.all(Array.from({ length: 4 }, () => f.controller.close(f.account, live.sessionID)));
+    assert.ok(f.lifecycle.some(record => record.event === 'voice_active'));
+    assert.equal(f.lifecycle.filter(record => record.event === 'voice_close_requested').length, 1);
+    assert.equal(f.lifecycle.filter(record => record.event === 'voice_closed').length, 0);
+    f.send(live.providerSessionID, { type: 'session.closed', usage: { seconds: 12 } });
+    await until(async () => (await f.controller.status(f.account, live.sessionID)).state === 'closed');
+    await until(() => f.lifecycle.some(record => record.event === 'voice_closed'));
+    const records = f.lifecycle.filter(record => record.event.startsWith('voice_'));
+    assert.ok(records.every(record => record.sessionReference === live.sessionID.replaceAll('-', '').slice(0, 12)));
+    assert.doesNotMatch(JSON.stringify(records), new RegExp(`${f.account}|${live.providerSessionID}|${live.sessionID}|v=0`));
+    assert.equal((await f.wallet()).reserved_nano, '0');
+  } finally { await f.cleanup(); }
+});
+
+integration('close logging survives attach failure and concurrent requests without releasing the hold', async () => {
+  const f = await fixture(2_000_000_000n, 600_000);
+  try {
+    f.provider.attach = async () => { throw new Error('connection unavailable'); };
+    await assert.rejects(f.controller.create(f.account, 'logged-attach-failure', 'v=0', 'es-ES'), { code: 'provider_session_unconfirmed' });
+    const row = (await f.db.query('SELECT * FROM hosted_sessions')).rows[0];
+    assert.equal(row.close_requested_at, null);
+    await Promise.all(Array.from({ length: 4 }, () => f.controller.requestClose(row.id, 'worker_recovery')));
+    await f.controller.requestClose(row.id, 'worker_recovery');
+    const records = f.lifecycle.filter(record => record.event === 'voice_close_requested');
+    assert.equal(records.length, 1);
+    const record = records[0]; assert.ok(record);
+    assert.equal(record.operation, 'voice.close.worker_recovery');
+    assert.equal(record.sessionReference, row.id.replaceAll('-', '').slice(0, 12));
+    const after = (await f.db.query('SELECT * FROM hosted_sessions WHERE id=$1', [row.id])).rows[0];
+    assert.equal(after.state, 'incomplete');
+    assert.equal(after.close_reason, 'create_or_attach_uncertain');
+    assert.ok(after.close_requested_at);
+    assert.equal((await f.minutes()).reserved_ms, '600000');
+    assert.equal(f.lifecycle.filter(record => record.event === 'voice_closed').length, 0);
+  } finally { await f.cleanup(); }
+});
+
+integration('missing and already closed sessions do not emit close-request diagnostics', async () => {
+  const f = await fixture();
+  try {
+    await f.controller.requestClose(randomUUID(), 'worker_recovery');
+    f.rejectCreate = true; f.rejectionStatus = 403;
+    await assert.rejects(f.controller.create(f.account, 'logged-rejected-session', 'v=0', 'es-ES'));
+    const row = (await f.db.query('SELECT * FROM hosted_sessions')).rows[0];
+    assert.equal(row.state, 'closed');
+    await f.controller.requestClose(row.id, 'worker_recovery');
+    assert.equal(f.lifecycle.filter(record => record.event === 'voice_close_requested').length, 0);
+    assert.equal((await f.wallet()).reserved_nano, '0');
   } finally { await f.cleanup(); }
 });
