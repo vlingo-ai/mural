@@ -191,7 +191,12 @@ integration('new and existing subjects can sign in after ten thousand active acc
     assert.notEqual((await session()).accountID, existing.accountID);
     assert.equal((await session(subject)).accountID, existing.accountID);
     assert.equal(Number((await db!.query('SELECT count(*) AS count FROM accounts WHERE deleted_at IS NULL')).rows[0].count), 10_001);
-  } finally { await db!.query('DELETE FROM accounts WHERE id=ANY($1::uuid[])', [inserted.rows.map(row => row.id)]); }
+  } finally {
+    const ids = inserted.rows.map(row => row.id);
+    for (let offset = 0; offset < ids.length; offset += 500) {
+      await db!.query('DELETE FROM accounts WHERE id=ANY($1::uuid[])', [ids.slice(offset, offset + 500)]);
+    }
+  }
 });
 integration('revoked sessions cannot authorize a later delete, and a failed Apple revoke leaves the account intact', async () => {
   const value = await session(), authorization = `Bearer ${value.accessToken}`;
