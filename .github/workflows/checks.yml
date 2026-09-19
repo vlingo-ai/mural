@@ -73,3 +73,43 @@ jobs:
       - run: npm run check
       - run: npm run build
       - run: npm test
+
+  phase-5-5b-deployment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      WEB_DOMAIN: speaking-live-staging.example.test
+      API_DOMAIN: api-speaking-live-staging.example.test
+      MURAL_API_IMAGE: vlingo-speaking-live-api:ci
+      MODEL_GATEWAY_IMAGE: registry.example.test/model-gateway@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      LIVEKIT_WORKER_IMAGE: registry.example.test/livekit-worker@sha256:1111111111111111111111111111111111111111111111111111111111111111
+      LIVEKIT_URL: wss://ci.livekit.cloud
+      LIVEKIT_API_KEY: ci-livekit-key
+      LIVEKIT_API_SECRET: ci-livekit-secret
+      LIVEKIT_CONTROL_SECRET: ci-livekit-control-secret-000000000
+      WORKER_OPENAI_API_KEY: ci-worker-provider-key
+      GATEWAY_OPENAI_API_KEY: ci-gateway-provider-key
+      GATEWAY_API_KEY: ci-gateway-internal-key-0000000000
+      GATEWAY_OPENAI_MODEL_TRANSLATION_FAST: ci-translation
+      GATEWAY_OPENAI_MODEL_ASSESSMENT_DEFAULT: ci-assessment
+      GATEWAY_OPENAI_MODEL_REASONING_DEFAULT: ci-reasoning
+      GATEWAY_OPENAI_MODEL_SEARCH_DEFAULT: ci-search
+      POSTGRES_PASSWORD: ci_database_password_000000000000
+      HOSTED_VOICE_ACCOUNT_ALLOWLIST: 00000000-0000-4000-8000-000000000000
+      HOSTED_VOICE_LIFETIME_CAP_NANO: 500000000
+      HOSTED_HELPER_BUDGET_PER_MINUTE_NANO: 1
+      ACCOUNTS_HMAC_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      ACCOUNTS_PROXY_TOKEN: ci-account-proxy-token-00000000000
+      GOOGLE_CLIENT_ID: ci-native.apps.googleusercontent.com
+      GOOGLE_WEB_CLIENT_ID: ci-web.apps.googleusercontent.com
+      VITE_GOOGLE_CLIENT_ID: ci-web.apps.googleusercontent.com
+      AGE_RECIPIENT: age1ci0000000000000000000000000000000000000000000000000000000
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: sh -n deploy/phase-5-5b/preflight.sh deploy/phase-5-5b/verify.sh deploy/phase-5-5b/active-sessions.sh
+      - run: bash -n deploy/phase-5-5b/backup.sh
+      - run: docker compose --env-file deploy/phase-5-5b/.env.example -f deploy/phase-5-5b/compose.yaml config --quiet
+      - run: docker build --file services/api/Dockerfile --tag vlingo-speaking-live-api:ci services/api
+      - run: docker build --file deploy/phase-5-5b/web.Dockerfile --tag vlingo-speaking-live-web:ci .

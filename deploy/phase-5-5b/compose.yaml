@@ -1,0 +1,189 @@
+name: ${COMPOSE_PROJECT_NAME:-vlingo-speaking-live-staging}
+
+x-labels: &product-labels
+  product: vlingo-speaking-live
+  environment: staging
+  phase: 5.5b
+
+x-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+services:
+  database:
+    image: postgres:17-alpine
+    network_mode: host
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1", "-c", "port=5432"]
+    environment:
+      POSTGRES_DB: mural
+      POSTGRES_USER: mural
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the private .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U mural -d mural"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    labels: *product-labels
+    logging: *bounded-logging
+    restart: unless-stopped
+
+  migrate:
+    image: ${MURAL_API_IMAGE:-vlingo-speaking-live-api:phase-5-5b}
+    build:
+      context: ../../services/api
+    network_mode: host
+    environment:
+      DATABASE_URL: postgresql://mural:${POSTGRES_PASSWORD}@127.0.0.1:5432/mural
+    command: ["node", "dist/src/migrate.js"]
+    depends_on:
+      database:
+        condition: service_healthy
+    labels: *product-labels
+    logging: *bounded-logging
+    restart: "no"
+
+  model-gateway:
+    image: ${MODEL_GATEWAY_IMAGE:?Set an immutable Responses-only Model Gateway image digest}
+    network_mode: host
+    environment:
+      GATEWAY_HOST: 127.0.0.1
+      GATEWAY_PORT: "8000"
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY:?Set GATEWAY_API_KEY}
+      GATEWAY_MODEL_PROVIDER: openai
+      OPENAI_API_KEY: ${GATEWAY_OPENAI_API_KEY:?Set GATEWAY_OPENAI_API_KEY}
+      GATEWAY_OPENAI_MODEL_TRANSLATION_FAST: ${GATEWAY_OPENAI_MODEL_TRANSLATION_FAST:?Set translation route target}
+      GATEWAY_OPENAI_MODEL_ASSESSMENT_DEFAULT: ${GATEWAY_OPENAI_MODEL_ASSESSMENT_DEFAULT:?Set assessment route target}
+      GATEWAY_OPENAI_MODEL_REASONING_DEFAULT: ${GATEWAY_OPENAI_MODEL_REASONING_DEFAULT:?Set reasoning route target}
+      GATEWAY_OPENAI_MODEL_SEARCH_DEFAULT: ${GATEWAY_OPENAI_MODEL_SEARCH_DEFAULT:?Set search route target}
+      GATEWAY_ASR_BACKEND: disabled
+      GATEWAY_ALIGNMENT_BACKEND: disabled
+      HF_HOME: /tmp/huggingface
+      TMPDIR: /tmp/model-gateway
+      PYTHONDONTWRITEBYTECODE: "1"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    read_only: true
+    tmpfs:
+      - "/tmp:size=256m,mode=1777"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    labels: *product-labels
+    logging: *bounded-logging
+    restart: unless-stopped
+
+  api:
+    image: ${MURAL_API_IMAGE:-vlingo-speaking-live-api:phase-5-5b}
+    build:
+      context: ../../services/api
+    network_mode: host
+    environment:
+      MURAL_BIND_HOST: 127.0.0.1
+      PORT: "8080"
+      DATABASE_URL: postgresql://mural:${POSTGRES_PASSWORD}@127.0.0.1:5432/mural
+      PUBLIC_ORIGIN: https://${API_DOMAIN:?Set API_DOMAIN}
+      MURAL_WEB_ALLOWED_ORIGINS: https://${WEB_DOMAIN:?Set WEB_DOMAIN}
+      ACCOUNTS_ENABLED: "true"
+      ACCOUNTS_HMAC_KEY: ${ACCOUNTS_HMAC_KEY:?Set ACCOUNTS_HMAC_KEY}
+      ACCOUNTS_PROXY_TOKEN: ${ACCOUNTS_PROXY_TOKEN:?Set ACCOUNTS_PROXY_TOKEN}
+      ACCOUNTS_ALLOW_LOCAL_LOOPBACK: "false"
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID}
+      GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID:?Set GOOGLE_WEB_CLIENT_ID}
+      GOOGLE_ANDROID_SERVER_CLIENT_ID: ${GOOGLE_ANDROID_SERVER_CLIENT_ID:-}
+      GOOGLE_ANDROID_CLIENT_IDS: ${GOOGLE_ANDROID_CLIENT_IDS:-}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      HOSTED_VOICE_EXPERIMENTAL: "true"
+      HOSTED_VOICE_ACCESS: restricted-test
+      HOSTED_VOICE_ACCOUNT_ALLOWLIST: ${HOSTED_VOICE_ACCOUNT_ALLOWLIST:?Set restricted staging accounts}
+      HOSTED_VOICE_LIFETIME_CAP_NANO: ${HOSTED_VOICE_LIFETIME_CAP_NANO:?Set bounded staging exposure}
+      HOSTED_VOICE_BILLING_UNIT: milliseconds
+      HOSTED_HELPERS_EXPERIMENTAL: "true"
+      HOSTED_HELPER_BUDGET_PER_MINUTE_NANO: ${HOSTED_HELPER_BUDGET_PER_MINUTE_NANO:?Set reviewed helper budget}
+      HOSTED_HELPER_REQUESTS_PER_MINUTE: "24"
+      HOSTED_HELPER_SEARCHES_PER_SESSION: "1"
+      ACCOUNT_MODEL_TASKS_EXPERIMENTAL: "false"
+      MODEL_GATEWAY_URL: http://127.0.0.1:8000
+      MODEL_GATEWAY_API_KEY: ${GATEWAY_API_KEY:?Set GATEWAY_API_KEY}
+      LIVEKIT_URL: ${LIVEKIT_URL:?Set the LiveKit Cloud wss URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
+      LIVEKIT_CONTROL_SECRET: ${LIVEKIT_CONTROL_SECRET:?Set LIVEKIT_CONTROL_SECRET}
+      LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-vlingo-speaking-live-gpt-live}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      model-gateway:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    labels: *product-labels
+    logging: *bounded-logging
+    restart: unless-stopped
+
+  agent-worker:
+    image: ${LIVEKIT_WORKER_IMAGE:?Set an immutable LiveKit Agent Worker image digest}
+    network_mode: host
+    command: ["python", "-m", "mural_livekit.worker", "start"]
+    environment:
+      LIVEKIT_URL: ${LIVEKIT_URL:?Set the LiveKit Cloud wss URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
+      OPENAI_API_KEY: ${WORKER_OPENAI_API_KEY:?Set WORKER_OPENAI_API_KEY}
+      MURAL_CONTROL_URL: http://127.0.0.1:8080
+      MURAL_LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-vlingo-speaking-live-gpt-live}
+      PYTHONDONTWRITEBYTECODE: "1"
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - "/tmp:size=256m,mode=1777"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    labels: *product-labels
+    logging: *bounded-logging
+    restart: unless-stopped
+
+  edge:
+    build:
+      context: ../..
+      dockerfile: deploy/phase-5-5b/web.Dockerfile
+      args:
+        VITE_MURAL_API_ORIGIN: https://${API_DOMAIN:?Set API_DOMAIN}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:?Set VITE_GOOGLE_CLIENT_ID}
+    network_mode: host
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN:?Set WEB_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    labels: *product-labels
+    logging: *bounded-logging
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
