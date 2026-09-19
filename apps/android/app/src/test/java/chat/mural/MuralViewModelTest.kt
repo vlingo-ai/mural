@@ -100,4 +100,16 @@ class MuralViewModelTest {
         }
     }
 
+    @Test fun recoveryAdviceDistinguishesQuotaBusyLimitsAndUnconfirmedBilling() {
+        assertEquals(R.string.error_provider_quota, errorMessageRes(APIClient.APIException.Http(429, "insufficient_quota")))
+        assertEquals(R.string.error_http_429, errorMessageRes(APIClient.APIException.Http(429, "rate_limit_exceeded")))
+        assertEquals(R.string.error_request_timeout, errorMessageRes(java.net.SocketTimeoutException()))
+        assertEquals(R.string.error_request_connection, errorMessageRes(java.net.UnknownHostException()))
+        assertEquals(R.string.hosted_help_busy, errorMessageRes(HostedFailure.Http(429, "helper_session_limit", retryable = true)))
+        assertEquals(R.string.hosted_extra_help_limit, errorMessageRes(HostedFailure.Http(429, "helper_session_limit", retryable = false)))
+        assertEquals(R.string.hosted_balance_checking, errorMessageRes(HostedFailure.Http(503, "provider_reconciliation_required")))
+        assertEquals(R.string.hosted_help_funding, errorMessageRes(HostedFailure.Http(503, "helper_session_funding_unavailable")))
+        assertEquals(R.string.error_request_refused, errorMessageRes(HostedFailure.Http(502, "helper_output_refused")))
+    }
+
 }

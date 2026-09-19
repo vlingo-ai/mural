@@ -19,9 +19,10 @@ import type { AIValuePurchases, PurchaseFulfillmentRouter } from './ai-value-pur
 import type { StripeMinuteProvider } from './stripe-minute-provider.js';
 import type { PlayMinuteProvider } from './play-minute-provider.js';
 import { HOSTED_HELPER_BODY_LIMIT, type HostedHelpers } from './hosted-helpers.js';
+import { Diagnostics, errorReference } from './diagnostics.js';
 import { startupDiagnostic, type StartupDiagnostic } from './startup-diagnostics.js';
 
-export interface Services { db: Database; auth: AuthConfig; payments?: SandboxPayments; attestor?: TrialAttestor; minuteAttestor?: MinuteAttestor; guestMinuteAttestor?: GuestMinuteAttestor; appleRevoker?: AppleRevoker; hosted?: HostedVoice; accessRequests?: AccessRequests; aiReports?: AIReports;
+export interface Services { diagnostics?: Diagnostics; db: Database; auth: AuthConfig; payments?: SandboxPayments; attestor?: TrialAttestor; minuteAttestor?: MinuteAttestor; guestMinuteAttestor?: GuestMinuteAttestor; appleRevoker?: AppleRevoker; hosted?: HostedVoice; accessRequests?: AccessRequests; aiReports?: AIReports;
   onStartupDiagnostic?: (diagnostic: StartupDiagnostic) => void | Promise<void>;
   hostedHelpers?: HostedHelpers;
   minuteCommerce?: { purchases: MinutePurchases; aiPurchases?: AIValuePurchases; fulfillment?: PurchaseFulfillmentRouter;
@@ -45,6 +46,9 @@ const uuid = (text: string) => {
 
 export function createApp(services: Services) {
   const { db } = services;
+  const diagnostics = services.diagnostics ?? new Diagnostics();
+  const failed = new WeakSet<FastifyRequest>();
+  const operation = (request: FastifyRequest) => `${request.method} ${request.routeOptions.url ?? "unmatched"}`;
   const orderStatus = async (account: string, id: string) => {
     const commerce = services.minuteCommerce;
     if (!commerce) throw new ServiceError('minute_purchases_unavailable', 503);
@@ -57,6 +61,15 @@ export function createApp(services: Services) {
   };
   const app = Fastify({ logger: false, bodyLimit: 262_144, routerOptions: { maxParamLength: 128 },
     requestTimeout: 15_000, trustProxy: false, genReqId: () => randomUUID() });
+  app.addHook('onRequest', (request, _reply, done) => {
+    diagnostics.run(errorReference(request.id), done);
+  });
+  app.addHook('onResponse', async (request, reply) => {
+    if (!failed.has(request)) diagnostics.record('request_completed', {
+      operation: operation(request), reference: errorReference(request.id), status: reply.statusCode,
+      durationMilliseconds: reply.elapsedTime,
+    });
+  });
   // No request bodies, Authorization headers, tokens, transcripts, or Stripe payloads are logged.
   app.removeContentTypeParser('application/json');
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (request, body, done) => {
@@ -113,6 +126,11 @@ export function createApp(services: Services) {
     const candidate = error && typeof error === 'object' && 'statusCode' in error ? error.statusCode : null;
     const status = purchaseReconciliation ? 409 : error instanceof ServiceError ? error.status : typeof candidate === 'number' && candidate >= 400 && candidate < 500 ? candidate : 500;
     const code = purchaseReconciliation ? 'minute_purchase_reconciliation_required' : error instanceof ServiceError ? error.code : status < 500 ? 'invalid_request' : 'service_unavailable';
+    const reference = errorReference(request.id);
+    reply.header('X-Mural-Error-Reference', reference);
+    failed.add(request);
+    diagnostics.record('request_failed', { operation: operation(request), reference, status,
+      durationMilliseconds: reply.elapsedTime }, error);
     const diagnostic = startupDiagnostic(request.method, request.routeOptions.url, request.id, status, code, error);
     if (diagnostic) {
       reply.header('X-Mural-Error-Reference', diagnostic.reference);
@@ -125,6 +143,7 @@ export function createApp(services: Services) {
     }
     reply.code(status).send({ error: { code } });
   });
+  app.setNotFoundHandler(() => { throw new ServiceError('not_found', 404); });
   const featureState=()=>{
     const hostedVoice=Boolean(services.hosted?.available && (!services.hosted.minuteFunded || services.hostedHelpers));
     const livePayments=['stripe','play'].some(provider=>services.minuteCommerce?.aiPurchases?.products(provider as 'stripe'|'play').some(product=>product.environment==='live'));
@@ -371,10 +390,50 @@ export function createApp(services: Services) {
     if (Object.keys(objectBody(request)).length) throw new ServiceError('invalid_request');
     return services.hosted.close(account, uuid((request.params as { id: string }).id));
   });
-  app.post('/v1/live/sessions/:id/helpers', { bodyLimit: HOSTED_HELPER_BODY_LIMIT }, async request => {
+  app.post('/v1/live/sessions/:id/helpers', { bodyLimit: HOSTED_HELPER_BODY_LIMIT }, async (request, reply) => {
     if (!services.hosted?.minuteFunded || !services.hostedHelpers) throw new ServiceError('hosted_helpers_not_ready', 503);
     const account = await authenticate(db, request.headers.authorization, true);
-    return services.hostedHelpers.request(account, uuid((request.params as { id: string }).id), request.body);
+    const sessionID = uuid((request.params as { id: string }).id);
+    // Streaming is explicit opt-in; wildcard clients keep the existing JSON contract.
+    const wantsStream = request.headers.accept?.split(',').some(value => {
+      const [type, ...parameters] = value.split(';').map(part => part.trim());
+      if (type?.toLowerCase() !== 'text/event-stream') return false;
+      const weights = parameters.filter(part => /^q\s*=/i.test(part));
+      if (!weights.length) return true;
+      const quality = weights[0]!.slice(weights[0]!.indexOf('=') + 1).trim();
+      return weights.length === 1 && /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/.test(quality) && Number(quality) > 0;
+    });
+    if (!wantsStream) return services.hostedHelpers.request(account, sessionID, request.body);
+    let started = false, previous = '';
+    const emit = (event: object) => {
+      if (reply.raw.destroyed || reply.raw.writableEnded) return;
+      if (!started) {
+        started = true; reply.hijack();
+        reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff', 'X-Accel-Buffering': 'no' });
+      }
+      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+    try {
+      // Admission errors remain normal HTTP errors. Once admitted, client disconnects must
+      // not restart the funded request or prevent final usage settlement.
+      const result = await services.hostedHelpers.request(account, sessionID, request.body, text => {
+        const delta = text.slice(previous.length); previous = text;
+        emit({ type: 'mural.meaning.delta', delta });
+      });
+      emit({ type: 'mural.meaning.completed', result });
+      if (!reply.raw.destroyed) reply.raw.end();
+      return reply;
+    } catch (error) {
+      if (!started) throw error;
+      const reference = errorReference(request.id);
+      failed.add(request);
+      diagnostics.record('request_failed', { operation: operation(request), reference,
+        status: error instanceof ServiceError ? error.status : 502, durationMilliseconds: reply.elapsedTime }, error);
+      emit({ type: 'mural.meaning.error', code: error instanceof ServiceError ? error.code : 'helper_response_uncertain', reference });
+      if (!reply.raw.destroyed) reply.raw.end();
+      return reply;
+    }
   });
   app.get('/payment-return', async (_request, reply) => reply.type('text/html').send('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Mural sandbox</title><body><h1>Return to Mural</h1><p>This is a sandbox payment test. The app checks payment confirmation independently.</p></body></html>'));
   return app;

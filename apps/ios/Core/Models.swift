@@ -25,7 +25,43 @@ public struct Passage: Identifiable, Sendable {
     public var id: String
     public var speaker: Speaker
     public var fragments: [Fragment]
-    public var text: String { fragments.map(\.text).joined() }
+    public var text: String { Self.join(fragments.map(\.text)) }
+    /// Deltas can end inside a word. Preserve them, repairing only a clear sentence break.
+    public static func join(_ parts: [String]) -> String {
+        parts.reduce(into: "") { result, part in
+            guard let first = part.first, let last = result.last else { result += part; return }
+            if !last.isWhitespace, !first.isWhitespace, first.isUppercase {
+                let tail = result.drop(while: { $0.isWhitespace })
+                let ending = tail.last
+                let word = tail.dropLast().reversed().prefix(while: { $0.isLetter })
+                if ending == "!" || ending == "?" || ending == "…" || (ending == "." && word.count > 1) {
+                    result += " "
+                }
+            }
+            result += part
+        }
+    }
+    // Existing assessments may quote the old presentation; never use it for new captions.
+    static func legacyJoin(_ parts: [String]) -> String {
+        parts.reduce(into: "") { result, part in
+            if result.isEmpty { result = part; return }
+            guard let last = result.last, let first = part.first else {
+                result.append(part); return
+            }
+            let needsSpace = !last.isWhitespace && !first.isWhitespace && !first.isPunctuation && !Self.isUnspacedBoundary(last, first)
+            if needsSpace { result.append(" ") }
+            result.append(part)
+        }
+    }
+    private static func isUnspacedBoundary(_ last: Character, _ first: Character) -> Bool {
+        func han(_ c: Character) -> Bool {
+            c.unicodeScalars.contains { (0x3400...0x4DBF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value) ||
+                (0xF900...0xFAFF).contains($0.value) || (0x20000...0x323AF).contains($0.value) }
+        }
+        let opening = last.unicodeScalars.first.map { $0.properties.generalCategory == .openPunctuation || $0.properties.generalCategory == .initialPunctuation } ?? false
+        let cjkPunctuation = last.unicodeScalars.first.map { (0x3000...0x303F).contains($0.value) || (0xFF00...0xFFEF).contains($0.value) } ?? false
+        return opening || (han(first) && (han(last) || cjkPunctuation))
+    }
     public var revisionKey: String { fragments.map { "\($0.id):\($0.revision)" }.joined(separator: ",") }
     public var startMS: Int { fragments.first?.startMS ?? 0 }
     public var endMS: Int { fragments.map(\.endMS).max() ?? 0 }
@@ -78,10 +114,11 @@ public struct Assessment: Codable, Identifiable, Sendable {
     public var words: [WordProposal]
     public var createdAt: Date
     public var context: String
+    public var textAssemblyVersion: Int?
     public init(passageID: String, revisionKey: String, outcome: Outcome, suggestedLevel: Int, nextGoal: String, capability: String, words: [WordProposal], createdAt: Date = .now, context: String = "free") {
         self.passageID = passageID; self.revisionKey = revisionKey; self.outcome = outcome
         self.suggestedLevel = suggestedLevel; self.nextGoal = nextGoal; self.capability = capability
-        self.words = words; self.createdAt = createdAt; self.context = context
+        self.words = words; self.createdAt = createdAt; self.context = context; self.textAssemblyVersion = 2
     }
 }
 
@@ -130,6 +167,9 @@ public struct SessionRecord: Codable, Identifiable, Sendable {
         self.title = title ?? LanguageRegistry.module(for: languageID)?.defaultTitle ?? "A conversation"
     }
     public var passages: [Passage] { Transcript.passages(fragments) }
+    // Voice fragments use the provider timeline, which starts after the local connection attempt.
+    // Place typed turns after received speech instead of mixing in the local wall clock.
+    public var nextTypedVoiceOffsetMS: Int { min(fragments.map(\.endMS).max() ?? 0, Int.max - 2) + 1 }
     public mutating func append(_ fragment: Fragment) {
         guard !fragments.contains(where: { $0.id == fragment.id }) else { return }
         fragments.append(fragment)
@@ -143,7 +183,14 @@ public struct SessionRecord: Codable, Identifiable, Sendable {
         guard let index = fragments.firstIndex(where: { $0.id == id }) else { return }
         fragments[index].previousTexts.append(fragments[index].text)
         fragments[index].text = text; fragments[index].revision += 1
-        translations.removeAll(); invalidateChangedAssessments()
+        translations = translations.filter { !Self.translationKey($0.key, includesFragment: id) }
+        invalidateChangedAssessments()
+    }
+    private static func translationKey(_ key: String, includesFragment id: String) -> Bool {
+        guard let revision = key.split(separator: "::", maxSplits: 1).last else { return false }
+        return revision.split(separator: ",").contains {
+            $0.split(separator: ":", maxSplits: 1).first.map(String.init) == id
+        }
     }
 }
 

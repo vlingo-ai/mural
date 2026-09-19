@@ -25,6 +25,7 @@ test('all native locales reach the provider with the intended regional speech ta
       assert.equal(supportsLanguage(locale!), true, locale);
       await provider.create('v=0', locale!);
       assert.ok(requests.at(-1).session.instructions.includes(`Speak only ${target}`));
+      assert.equal(requests.at(-1).session.audio.output.voice, 'marin');
       assert.equal(requests.at(-1).session.store, false);
     }
     for (const unsupported of ['pt-PT', 'de', 'zh', 'zh-TW', '__proto__', 'constructor', '']) {

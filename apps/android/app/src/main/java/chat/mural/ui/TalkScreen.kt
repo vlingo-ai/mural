@@ -1,6 +1,10 @@
 package chat.mural.ui
 
 import android.os.Build
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -39,6 +43,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.focusRequester
@@ -133,9 +138,18 @@ fun TalkScreen(
             active = vm.state != "closing",
             modifier = Modifier.size(orbSize),
         )
-        Box(Modifier.fillMaxWidth().padding(top = if (compact) 8.dp else 12.dp), contentAlignment = Alignment.Center) {
-            Text(statusText(vm.state, vm.isMuted, vm.isVoiceSession), style = MaterialTheme.typography.bodySmall,
-                color = MuralColors.Secondary, modifier = Modifier.testTag("conversation-status"))
+        Box(Modifier.fillMaxWidth().padding(top = if (compact) 8.dp else 12.dp).heightIn(min = 40.dp), contentAlignment = Alignment.Center) {
+            val status = statusText(vm.state, vm.isMuted, vm.isVoiceSession, vm.inactivitySeconds)
+            val statusCaption = buildAnnotatedString {
+                if (vm.inactivitySeconds != null) {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum")) { append(status.substringBefore('\n')) }
+                    append("\n"); append(status.substringAfter('\n'))
+                } else append(status)
+            }
+            Text(statusCaption, style = MaterialTheme.typography.bodySmall,
+                color = MuralColors.Secondary, textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = if (vm.inactivitySeconds != null && assistantPassage != null) 40.dp else 0.dp)
+                    .testTag("conversation-status"))
             if (assistantPassage != null && passage?.isNotBlank() == true) {
                 Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
                     ReportUtteranceAction(onClick = {
@@ -189,8 +203,8 @@ fun TalkScreen(
                 modifier = Modifier.testTag("meaning-caption"),
             )
             if (vm.meaningFailed) {
-                Text(stringResource(R.string.talk_meaning_failed), color = MuralColors.Secondary, style = MaterialTheme.typography.bodySmall)
-                MuralTextButton(onClick = vm::retryMeaning) { Text(stringResource(R.string.talk_retry_meaning_button)) }
+                Text(stringResource(if (vm.meaningLimitReached) R.string.talk_meaning_too_long else R.string.talk_meaning_failed), color = MuralColors.Secondary, style = MaterialTheme.typography.bodySmall)
+                if (!vm.meaningLimitReached) MuralTextButton(onClick = vm::retryMeaning) { Text(stringResource(R.string.talk_retry_meaning_button)) }
             }
             }
         }
@@ -270,7 +284,8 @@ fun TalkScreen(
     }
     }
 
-    if (typing) TypedReplySheet(vm.language.name, vm.working, onSendTyped, onDismiss = { typing = false })
+    if (typing) TypedReplySheet(vm.language.name, vm.working, onSendTyped, onDismiss = { typing = false },
+        error = vm.typedReplyError, completedSends = vm.typedRepliesSent, onOpen = { vm.clearTypedReplyError(); vm.noteTypingActivity() }, onTyping = vm::noteTypingActivity)
     if (lookup) WordLookupSheet(lookupWord, lookupSentence, vm.language.id, vm.lookupResult, vm.lookupError, vm.lookupLoading,
         onDismiss = { vm.clearLookup(); lookup = false; lookupWord = "" })
     transcript?.let { TranscriptDialog(vm, it, onDismiss = { transcript = null }) }
@@ -304,27 +319,35 @@ private fun RoundAction(symbol: MuralSymbol, label: String, selected: Boolean = 
     }
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-internal fun TypedReplySheet(languageName: String, working: Boolean, onSend: (String) -> Unit, onDismiss: () -> Unit) {
+internal fun TypedReplySheet(languageName: String, working: Boolean, onSend: (String) -> Unit, onDismiss: () -> Unit,
+    error: String? = null, completedSends: Int = 0, onOpen: () -> Unit = {}, onTyping: () -> Unit = {}) {
+    val initialSends = rememberSaveable { completedSends }
+    val sendIntoView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    androidx.compose.runtime.LaunchedEffect(error) { if (error != null) sendIntoView.bringIntoView() }
+    androidx.compose.runtime.LaunchedEffect(Unit) { onOpen() }
+    androidx.compose.runtime.LaunchedEffect(completedSends) { if (completedSends > initialSends) onDismiss() }
     var text by rememberSaveable { mutableStateOf("") }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     var requestedFocus by remember { mutableStateOf(false) }
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MuralColors.Cream,
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxWidth().imePadding().padding(horizontal = 26.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 26.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.talk_typed_reply_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
                 SoftRoundButton(MuralSymbol.Close, stringResource(R.string.common_close), onDismiss, diameter = 40.dp)
             }
             Text(stringResource(R.string.talk_typed_reply_subtitle, languageName), color = MuralColors.Secondary,
                 style = MaterialTheme.typography.bodyMedium)
-            MuralTextField(text, { text = it.take(2_000) }, modifier = Modifier.fillMaxWidth().testTag("typed-reply-input").focusRequester(focus).onGloballyPositioned {
+            MuralTextField(text, { text = it.take(2_000); onTyping() }, modifier = Modifier.fillMaxWidth().testTag("typed-reply-input").focusRequester(focus).onGloballyPositioned {
                     if (!requestedFocus) { requestedFocus = true; focus.requestFocus() }
                 },
                 minLines = 3, maxLines = 6, label = { Text(stringResource(R.string.talk_typed_reply_field_label)) })
-            Button(onClick = { onSend(text.trim()); onDismiss() }, enabled = text.isNotBlank() && !working,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("typed-reply-send"), shape = CircleShape) {
+            if (error != null) Text(error, color = MuralColors.Secondary, style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.testTag("typed-reply-error"))
+            Button(onClick = { onSend(text.trim()) }, enabled = text.isNotBlank() && !working,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).bringIntoViewRequester(sendIntoView).testTag("typed-reply-send"), shape = CircleShape) {
                 Text(stringResource(R.string.talk_typed_reply_send_button)); Spacer(Modifier.width(8.dp))
                 MuralIcon(MuralSymbol.ArrowUp, Modifier.size(18.dp))
             }
@@ -334,9 +357,9 @@ internal fun TypedReplySheet(languageName: String, working: Boolean, onSend: (St
 
 
 @Composable
-private fun statusText(state: String, muted: Boolean, voice: Boolean) = when (state) {
+private fun statusText(state: String, muted: Boolean, voice: Boolean, inactivitySeconds: Int? = null) = when (state) {
     "connecting" -> stringResource(R.string.talk_status_connecting)
-    "active" -> if (!voice) stringResource(R.string.talk_status_written) else if (muted) stringResource(R.string.talk_status_muted) else stringResource(R.string.talk_status_listening)
+    "active" -> if (inactivitySeconds != null && voice) stringResource(R.string.talk_inactivity_warning, inactivitySeconds) else if (!voice) stringResource(R.string.talk_status_written) else if (muted) stringResource(R.string.talk_status_muted) else stringResource(R.string.talk_status_listening)
     "closing" -> stringResource(R.string.talk_status_closing)
     "ended" -> stringResource(R.string.talk_status_ended)
     "failed" -> stringResource(R.string.talk_status_failed)
