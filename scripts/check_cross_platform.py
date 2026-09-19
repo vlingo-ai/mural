@@ -295,8 +295,8 @@ CONSTANTS = [
      ('apps/ios/Core/LearningEngine.swift', r'value\.count >= (\d[\d_]*)'),
      ('apps/android/app/src/main/java/chat/mural/core/LearningEngine.kt', r'\.size>=(\d[\d_]*) \}')),
     ('idle_voice_s', 'scalar',
-     ('apps/ios/App/ConversationCoordinator.swift', r'lastActivity\) > (\d[\d_]*)'),
-     ('apps/android/app/src/main/java/chat/mural/core/SessionLimits.kt', r'idleSeconds > (\d[\d_]*)')),
+     ('apps/ios/Core/SessionLimits.swift', r'idleVoiceSeconds: Double = (\d[\d_]*(?:\.\d[\d_]*)?)'),
+     ('apps/android/app/src/main/java/chat/mural/core/SessionLimits.kt', r'IDLE_VOICE_SECONDS = (\d[\d_]*(?:\.\d[\d_]*)?)')),
 ]
 
 

@@ -161,3 +161,19 @@ A retry can use the original guest bearer, including after its expiry once the b
 After provider accounting settles, a retry or the background worker completes the transfer once. Successful opted-in results contain `pending: false` and the existing `transferred` or `member_trial_already_claimed` outcome. The latter transfers zero additional trial time. Clients retain the original guest identity until that guest's terminal result; another device's result cannot clear it. Sign-out does not remove the binding. If the member deletes its account first, finalization forfeits remaining guest promotional time only after settlement and records `member_deleted`; it never recreates the member or transfers a late grant.
 
 The worker starts with the API and checks up to 25 eligible bindings every 60 seconds. A held balance or unresolved hosted session stays pending; no timeout, hangup acknowledgment or last observed duration substitutes for final provider usage. Migration 023 adds immutable `minute_guest_link_intents` and `minute_guest_link_completions`; `operations/minute-runtime-grants.sql` grants runtime only `SELECT, INSERT` on them. The existing final transfer journal remains unchanged.
+
+## Diagnose requests and voice closure
+
+The API process writes one JSON record per completed or failed request, plus provider attempts, voice lifecycle transitions and background failures. A failed HTTP response includes `X-Mural-Error-Reference`; match that 12-character reference to the `reference` field in the log. Related provider requests inherit the same reference, even when requests overlap. Voice lifecycle records also carry a shortened opaque `sessionReference`.
+
+Records include UTC time, level, event, the matched route template or fixed operation, status, duration and safe failure categories. Provider records may include a sanitized request ID and HTTP status. Database failures use categories such as `database_permission`, `database_constraint` or `database_unavailable`; a source filename and line may help locate an unexpected application failure. Bodies, transcripts, authorization headers, tokens, query strings, raw error messages, SQL and full stack traces are excluded. New application error categories must be added to `src/diagnostic-error-codes.ts`; unknown categories appear as `internal`.
+
+For container deployments:
+
+```sh
+docker compose logs --since 30m api
+```
+
+Filter the JSON records by the learner’s reference. `voice_close_requested` means a close was requested; `voice_closed` is emitted after confirmed usage settlement. A lost connection or failed hangup must not be treated as billing confirmation. Do not retry a billed provider create merely because its result is uncertain.
+
+Compose rotates API, proxy and database logs at 10 MB with five files retained per container. This is a local size limit, not an off-server archive or a time-based retention guarantee. Restrict operational-log access and configure any longer retention separately. Logging failures cannot change request, settlement or authentication results.
