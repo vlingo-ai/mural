@@ -48,7 +48,7 @@ class DesignReviewTest {
         compose.onNodeWithTag("onboarding-language-picker").assertIsDisplayed()
         capture("01-onboarding")
         compose.onNodeWithTag("onboarding-language-picker").performClick()
-        compose.onNodeWithTag("onboarding-language-es").performClick()
+        compose.onNodeWithTag("onboarding-language-zh").performClick()
         compose.onNodeWithTag("onboarding-continue").performClick()
         compose.onNodeWithTag("onboarding-meaning-picker").assertIsDisplayed()
         capture("02-meaning")

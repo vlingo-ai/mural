@@ -19,7 +19,7 @@ class HostedAPIClientTest {
     private val sessionID = "e3c1d862-2d0f-4bf0-a44f-404e9c559581"
     private val account = AccountSession("a3c1d862-2d0f-4bf0-a44f-404e9c559581", "a".repeat(43), now + 86_400_000)
     private var stored: AccountSession? = account
-    private val create = LiveSessionRequest("v=0\r\n", "Teaching policy", language = "es-ES")
+    private val create = LiveSessionRequest("v=0\r\n", "Teaching policy", language = "en")
     private fun created() = """{"sessionID":"$sessionID","providerSessionID":"provider-opaque","sdp":"v=0\r\n","deadline":"2023-11-14T22:23:20Z","reservedMilliseconds":600000,"billingBasis":"connected-conversation-time","experimental":true}"""
     private fun status(state: String = "closing") = """{"sessionID":"$sessionID","state":"$state","deadline":"2023-11-14T22:23:20Z","observedMilliseconds":1000,"reservedMilliseconds":600000,"chargedMilliseconds":null,"billingBasis":"connected-conversation-time","providerCostNanoUSD":null}"""
     @Before fun setup() { server = MockWebServer(); server.start(); api = HostedAPIClient(server.url("/"), { stored }, OkHttpClient(), { now }) }
@@ -102,11 +102,11 @@ class HostedAPIClientTest {
         try { api.available(); fail("unchecked readiness") } catch (_: HostedFailure.InvalidResponse) {}
     }
 
-    @Test fun createMapsAllEightLocalesAndOnlyFixedFieldsWithoutCrossProviderHeaders() = runBlocking {
+    @Test fun createMapsAvailableLocalesAndOnlyFixedFieldsWithoutCrossProviderHeaders() = runBlocking {
         api = HostedAPIClient(server.url("/"), { stored }, OkHttpClient.Builder().addInterceptor {
             it.proceed(it.request().newBuilder().header("OpenAI-Organization", "private").header("Authorization", "Bearer sk-private").build())
         }.build(), { now })
-        for (language in LanguageRegistry.all) {
+        for (language in LanguageRegistry.availableLanguages) {
             server.enqueue(MockResponse().setBody(created()))
             val result = api.createLiveSession(create.copy(language = language.locale))
             val request = server.takeRequest(); assertEquals("/v1/live/sessions", request.path)

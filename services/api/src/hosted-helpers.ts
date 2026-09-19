@@ -40,8 +40,12 @@ export interface HostedResponsesRequest {
   text?: { format: { type: 'json_schema'; name: 'mural_result'; strict: true; schema: JSONObject } };
   tools?: [{ type: 'web_search'; search_context_size: 'low' }]; tool_choice: 'auto' | 'none'; max_tool_calls: 1;
 }
+export interface HostedResponsesContext { requestID: string; purpose: HostedHelperPurpose }
 /** One network attempt only. The implementation must honor the signal, bound the body and never retry. */
-export interface HostedResponsesTransport { send(body: HostedResponsesRequest, signal: AbortSignal, onText?: (text: string) => void): Promise<unknown> }
+export interface HostedResponsesTransport {
+  send(body: HostedResponsesRequest, signal: AbortSignal, context: HostedResponsesContext,
+    onText?: (text: string) => void): Promise<unknown>
+}
 export interface HostedHelperUsage { inputTokens: number; cachedInputTokens: number; cacheWriteTokens: number; outputTokens: number; searchCalls: number }
 export interface HostedHelperResult {
   requestID: string; text: string; sources: Array<{ title: string; url: string }>;
@@ -167,7 +171,8 @@ export class HostedHelpers {
     let timeout: NodeJS.Timeout | undefined;
     try {
       if (Date.now() >= reservation.active_until.getTime()) throw new Error('Reserved request deadline passed.');
-      raw = await Promise.race([this.transport.send(providerBody, controller.signal, onText), new Promise<never>((_, reject) => {
+      raw = await Promise.race([this.transport.send(providerBody, controller.signal,
+        { requestID: input.requestID, purpose: input.purpose }, onText), new Promise<never>((_, reject) => {
         timeout = setTimeout(() => { controller.abort(); reject(new Error('Provider deadline exceeded.')); },
           Math.min(reservation.timeout_ms, reservation.active_until.getTime() - Date.now()));
       })]);
@@ -175,8 +180,8 @@ export class HostedHelpers {
       await this.uncertain(input.requestID);
       throw new ServiceError('helper_response_uncertain', 502);
     } finally { if (timeout) clearTimeout(timeout); }
-    let observed: ObservedResponse;
-    try { observed = observedResponse(raw); }
+    let observed: ObservedHostedResponse;
+    try { observed = observedHostedResponse(raw); }
     catch { await this.uncertain(input.requestID); throw new ServiceError('helper_response_uncertain', 502); }
     const breached = observed.usage.inputTokens > reservation.input_token_ceiling || observed.usage.outputTokens > providerBody.max_output_tokens ||
       observed.usage.searchCalls > (input.search ? 1 : 0);
@@ -184,7 +189,7 @@ export class HostedHelpers {
     try { await this.settle(input.requestID, sessionID, observed, charge, breached); }
     catch { await this.uncertain(input.requestID); throw new ServiceError('helper_response_uncertain', 502); }
     if (breached) throw new ServiceError('helper_provider_limit_exceeded', 503);
-    const output = outputText(raw);
+    const output = hostedOutput(raw);
     return { requestID: input.requestID, ...output, usage: observed.usage, costNanoUSD: charge.toString(), rateVersion: HOSTED_HELPER_RATE_VERSION };
   }
   private async reserve(account: string, sessionID: string, input: HostedHelperInput, providerBody: HostedResponsesRequest) {
@@ -286,7 +291,7 @@ export class HostedHelpers {
     // A failed write leaves 'pending'. Both states retain funding; concurrency expires at active_until.
     await this.db.query("UPDATE hosted_helper_requests SET state='uncertain',finished_at=now() WHERE request_id=$1 AND state='pending'", [requestID]).catch(() => {});
   }
-  private async settle(requestID: string, sessionID: string, observed: ObservedResponse, charge: bigint, breached: boolean) {
+  private async settle(requestID: string, sessionID: string, observed: ObservedHostedResponse, charge: bigint, breached: boolean) {
     const overrun = await transaction(this.db, async sql => {
       await sql.query("SELECT pg_advisory_xact_lock(hashtext('mural-hosted-funding-cap'))");
       const session=(await sql.query('SELECT account_id,funding_mode FROM hosted_sessions WHERE id=$1',[sessionID])).rows[0];
@@ -382,8 +387,8 @@ function earnedRequestRetryDelay(session: any, budget: any, attempts: number, ac
   if (nextObserved > maximum || delay > 60_000 || delay >= remaining) return;
   return delay;
 }
-interface ObservedResponse { id: string; usage: HostedHelperUsage }
-function observedResponse(raw: unknown): ObservedResponse {
+export interface ObservedHostedResponse { id: string; usage: HostedHelperUsage }
+export function observedHostedResponse(raw: unknown): ObservedHostedResponse {
   if (!object(raw) || typeof raw.id !== 'string' || !/^resp_[A-Za-z0-9_-]{1,200}$/.test(raw.id) || raw.model !== HOSTED_HELPER_MODEL ||
     (raw.service_tier !== undefined && raw.service_tier !== 'default') || !['completed', 'incomplete', 'failed'].includes(String(raw.status)) ||
     !object(raw.usage) || !object(raw.usage.input_tokens_details) || !Array.isArray(raw.output) || raw.output.length > 100 ||
@@ -396,7 +401,7 @@ function observedResponse(raw: unknown): ObservedResponse {
   hostedHelperCost(usage);
   return { id: raw.id, usage };
 }
-function outputText(raw: unknown): Pick<HostedHelperResult, 'text' | 'sources'> {
+export function hostedOutput(raw: unknown): Pick<HostedHelperResult, 'text' | 'sources'> {
   if (!object(raw) || raw.status !== 'completed' || !Array.isArray(raw.output)) throw new ServiceError('helper_output_incomplete', 502);
   let text = '';
   const sources = new Map<string, { title: string; url: string }>();

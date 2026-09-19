@@ -26,9 +26,16 @@ public struct LanguageModule: Identifiable, Sendable {
 }
 
 public enum LanguageRegistry {
-    public static let defaultID = "nb"
-    public static let all: [LanguageModule] = [.norwegian, .spanish, .english, .french, .german, .italian, .portuguese, .mandarin]
-    public static func module(for id: String) -> LanguageModule? { all.first { $0.id == id } }
+    /// Default for new installations. Never use this to reinterpret legacy archives.
+    public static let defaultID = "en"
+    /// Schema-v1 archives were Norwegian-only and permanently retain that provenance.
+    public static let legacyDefaultID = "nb"
+    /// Modules retained for archive decoding, history, export and learning projection.
+    public static let knownLanguages: [LanguageModule] = [.norwegian, .spanish, .english, .french, .german, .italian, .portuguese, .mandarin]
+    /// Languages offered for new preferences and conversations in this release.
+    public static let availableLanguages: [LanguageModule] = [.english, .mandarin]
+    public static func module(for id: String) -> LanguageModule? { knownLanguages.first { $0.id == id } }
+    public static func isAvailable(_ id: String) -> Bool { availableLanguages.contains { $0.id == id } }
 }
 
 public enum MeaningLanguages {

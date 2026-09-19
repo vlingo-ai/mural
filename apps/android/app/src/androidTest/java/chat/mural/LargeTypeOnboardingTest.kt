@@ -21,13 +21,13 @@ class LargeTypeOnboardingTest {
         compose.setContent {
             val density = LocalDensity.current.density
             CompositionLocalProvider(LocalDensity provides Density(density, 2f)) {
-                MuralTheme { OnboardingScreen("es", "English") { language, meaning -> selected = language to meaning } }
+                MuralTheme { OnboardingScreen("zh", "English") { language, meaning -> selected = language to meaning } }
             }
         }
         compose.onNodeWithTag("onboarding-language-picker").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("onboarding-continue").assertIsDisplayed().performClick()
         compose.onNodeWithTag("onboarding-meaning-picker").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("onboarding-continue").assertIsDisplayed().performClick()
-        compose.runOnIdle { assertEquals("es" to "English", selected) }
+        compose.runOnIdle { assertEquals("zh" to "English", selected) }
     }
 }

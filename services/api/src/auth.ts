@@ -8,9 +8,9 @@ import { appendMinuteEntry, captureWelcomeOffer } from './minutes.js';
 
 export type Provider = 'google' | 'apple';
 export type Identity = { provider: Provider; subject: string; email: string | null };
-export type AuthConfig = { googleClientID?: string; appleClientID?: string;
+export type AuthConfig = { googleClientID?: string; googleWebClientID?: string; appleClientID?: string;
   googleAndroidServerClientID?: string; googleAndroidClientIDs?: string[] };
-export const hasGoogleSignIn = (config: AuthConfig) => Boolean(config.googleClientID ||
+export const hasGoogleSignIn = (config: AuthConfig) => Boolean(config.googleClientID || config.googleWebClientID ||
   (config.googleAndroidServerClientID && config.googleAndroidClientIDs?.length));
 const googleKeys = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 const appleKeys = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
@@ -19,7 +19,7 @@ export const digest = (text: string) => createHash('sha256').update(text).digest
 export async function verifyIdentity(provider: Provider, token: string, nonceHash: string,
   config: AuthConfig, getKey?: JWTVerifyGetKey): Promise<Identity> {
   const audiences = provider === 'google'
-    ? [config.googleClientID, ...(config.googleAndroidClientIDs?.length ? [config.googleAndroidServerClientID] : [])].filter((id): id is string => Boolean(id))
+    ? [config.googleClientID, config.googleWebClientID, ...(config.googleAndroidClientIDs?.length ? [config.googleAndroidServerClientID] : [])].filter((id): id is string => Boolean(id))
     : [config.appleClientID].filter((id): id is string => Boolean(id));
   if (!audiences.length) throw new ServiceError('identity_provider_not_configured', 503);
   try {
@@ -34,11 +34,11 @@ export async function verifyIdentity(provider: Provider, token: string, nonceHas
     if (provider === 'google') {
       const tokenAudiences = typeof payload.aud === 'string' ? [payload.aud] : payload.aud ?? [];
       const android = config.googleAndroidServerClientID !== undefined && tokenAudiences.includes(config.googleAndroidServerClientID);
-      const parties = android ? config.googleAndroidClientIDs ?? [] : [config.googleClientID];
+      const parties = android ? config.googleAndroidClientIDs ?? [] : [config.googleClientID, config.googleWebClientID].filter((id): id is string => Boolean(id));
       // Native Android tokens must identify an explicitly registered Android client.
       // The web client ID is an audience, not permission for arbitrary Android apps.
       if ((android && (typeof payload.azp !== 'string' || !parties.includes(payload.azp))) ||
-          (!android && payload.azp !== undefined && payload.azp !== config.googleClientID) ||
+          (!android && payload.azp !== undefined && (typeof payload.azp !== 'string' || !parties.includes(payload.azp))) ||
           (tokenAudiences.length > 1 && typeof payload.azp !== 'string')) throw new Error();
     }
     const verified = payload.email_verified === true || payload.email_verified === 'true';
@@ -149,6 +149,9 @@ export async function deleteAccount(db: Database, account: string, appleRevoker?
       if (!appleRevoker || !authorizationCode) throw new ServiceError('apple_revocation_not_configured', 503);
       await appleRevoker.revoke(account, authorizationCode, apple.subject);
     }
+    // Conversation content has no financial-retention purpose and is erased even when opaque billing rows remain.
+    await sql.query('DELETE FROM conversation_learning_results WHERE session_id IN (SELECT id FROM hosted_sessions WHERE account_id=$1)', [account]);
+    await sql.query('DELETE FROM conversation_events WHERE session_id IN (SELECT id FROM hosted_sessions WHERE account_id=$1)', [account]);
     await sql.query('DELETE FROM identities WHERE account_id=$1', [account]);
     await sql.query('DELETE FROM auth_sessions WHERE account_id=$1', [account]);
     // Unused promotional time is forfeited on deletion; it must not trap a free account.

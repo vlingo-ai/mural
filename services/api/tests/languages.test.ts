@@ -2,7 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
-import { OpenAILiveProvider, supportsLanguage } from '../src/live-provider.js';
+import { OpenAILiveProvider, supportsLanguage, supportsPublicLanguage } from '../src/live-provider.js';
+
+test('new public sessions expose only English and Mandarin provider locales', () => {
+  for (const locale of ['en', 'zh-CN']) assert.equal(supportsPublicLanguage(locale), true, locale);
+  for (const locale of ['nb-NO', 'es-ES', 'fr-FR', 'de-DE', 'it-IT', 'pt-BR', 'zh', 'yue-Hant-HK', ''])
+    assert.equal(supportsPublicLanguage(locale), false, locale);
+});
 
 test('all native locales reach the provider with the intended regional speech target', async () => {
   const requests: any[] = [];

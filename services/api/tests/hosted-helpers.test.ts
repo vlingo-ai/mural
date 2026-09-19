@@ -25,7 +25,9 @@ class FakeResponses implements HostedResponsesTransport {
   calls: HostedResponsesRequest[] = [];
   signals: AbortSignal[] = [];
   handler: (body: HostedResponsesRequest, signal: AbortSignal, onText?: (text: string) => void) => Promise<unknown> = async () => response();
-  send(body: HostedResponsesRequest, signal: AbortSignal, onText?: (text: string) => void) { this.calls.push(body); this.signals.push(signal); return this.handler(body, signal, onText); }
+  send(body: HostedResponsesRequest, signal: AbortSignal, _context: unknown, onText?: (text: string) => void) {
+    this.calls.push(body); this.signals.push(signal); return this.handler(body, signal, onText);
+  }
 }
 const unused = {} as Database;
 

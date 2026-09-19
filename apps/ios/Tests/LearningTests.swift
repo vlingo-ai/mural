@@ -2,13 +2,13 @@ import XCTest
 @testable import MuralCore
 
 final class LearningTests: XCTestCase {
-    func fixture(day: Double = 0, theme: String = "walk", supported: Bool = false, kind: EvidenceKind = .independent) -> SessionRecord {
+    func fixture(day: Double = 0, theme: String = "walk", supported: Bool = false, kind: EvidenceKind = .independent, language: String = LanguageRegistry.defaultID) -> SessionRecord {
         let date = Date(timeIntervalSince1970: 1_780_000_000 + day * 86400)
-        var s = SessionRecord(themeID: theme)
+        var s = SessionRecord(languageID: language, themeID: theme)
         s.startedAt = date
         s.append(Fragment(id: UUID().uuidString, speaker: .user, text: "Jeg gikk i skogen.", startMS: 1000, endMS: 2000, receivedAt: date, meaningVisible: supported))
         let p = s.passages[0]
-        s.assessments = [Assessment(passageID: p.id, revisionKey: p.revisionKey, outcome: .success, suggestedLevel: 2, nextGoal: "Fortell mer.", capability: "Describes a past outing", words: [WordProposal(lemma: "å gå", meaning: "to go", form: "gikk", kind: kind, confidence: 0.95, sourceIDs: p.fragments.map(\.id), quote: "Jeg gikk i skogen.")], createdAt: date, context: theme)]
+        s.assessments = [Assessment(passageID: p.id, revisionKey: p.revisionKey, outcome: .success, suggestedLevel: 2, nextGoal: "Fortell mer.", capability: "Describes a past outing", words: [WordProposal(lemma: "å gå", meaning: "to go", form: "gikk", kind: kind, confidence: 0.95, sourceIDs: p.fragments.map(\.id), quote: "Jeg gikk i skogen.", language: language)], createdAt: date, context: theme)]
         return s
     }
     func testDuplicateProviderEventsDoNotChangeTranscript() {
@@ -63,7 +63,7 @@ final class LearningTests: XCTestCase {
         XCTAssertEqual(LearningEngine.validate(s.assessments[0], session: s)?.words[0].kind, .assisted)
     }
     func testEnglishCannotAwardNorwegianProduction() {
-        var s = fixture(); s.assessments[0].words[0].language = "en"
+        var s = fixture(language: "nb"); s.assessments[0].words[0].language = "en"
         XCTAssertEqual(LearningEngine.validate(s.assessments[0], session: s)?.words.count, 0)
     }
     func testTypingCannotAwardIndependentSpokenRecall() {

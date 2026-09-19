@@ -2,7 +2,7 @@
 """Generate Android's language content from the existing Swift modules.
 
 Only declarative string content is translated; Kotlin owns the runtime policy and models.
-Modules are discovered from `LanguageRegistry.all` in `apps/ios/Core/Languages/LanguageModule.swift`,
+Modules are discovered from `LanguageRegistry.knownLanguages` in `apps/ios/Core/Languages/LanguageModule.swift`,
 so adding a Swift module and registering it is enough to export it. Run --check in CI to
 detect drift between platforms.
 """
@@ -38,13 +38,17 @@ def struct_fields(language_module_swift_text):
     return re.findall(r'\bpublic let (\w+):', language_module_swift_text)
 
 
-def language_files(core):
-    """`apps/ios/Core/Languages/*.swift` files, ordered as declared in `LanguageRegistry.all`."""
-    text = (core / 'Languages/LanguageModule.swift').read_text()
-    match = re.search(r'public static let all:\s*\[LanguageModule\]\s*=\s*\[([^\]]*)\]', text)
+def registry_names(text, property_name):
+    match = re.search(rf'public static let {property_name}:\s*\[LanguageModule\]\s*=\s*\[([^\]]*)\]', text)
     if not match:
-        raise SystemExit('LanguageRegistry.all not found in apps/ios/Core/Languages/LanguageModule.swift.')
-    names = re.findall(r'\.(\w+)', match.group(1))
+        raise SystemExit(f'LanguageRegistry.{property_name} not found in apps/ios/Core/Languages/LanguageModule.swift.')
+    return re.findall(r'\.(\w+)', match.group(1))
+
+
+def language_files(core):
+    """Swift module files ordered as declared in `LanguageRegistry.knownLanguages`."""
+    text = (core / 'Languages/LanguageModule.swift').read_text()
+    names = registry_names(text, 'knownLanguages')
     return [core / 'Languages' / f'{name[0].upper()}{name[1:]}.swift' for name in names]
 
 
@@ -80,9 +84,12 @@ def generate(core):
     registry_text = (core / 'Languages/LanguageModule.swift').read_text()
     known_fields = struct_fields(registry_text)
     default_match = re.search(r'static let defaultID\s*=\s*"([^"]+)"', registry_text)
-    if not default_match:
-        raise SystemExit('LanguageRegistry.defaultID not found in Core/Languages/LanguageModule.swift.')
+    legacy_match = re.search(r'static let legacyDefaultID\s*=\s*"([^"]+)"', registry_text)
+    if not default_match or not legacy_match:
+        raise SystemExit('LanguageRegistry defaults not found in Core/Languages/LanguageModule.swift.')
     default_id = default_match.group(1)
+    legacy_default_id = legacy_match.group(1)
+    available_names = registry_names(registry_text, 'availableLanguages')
     simple_fields = [f for f in known_fields if f not in STRUCTURED_FIELDS]
 
     shared = (core / 'Themes.swift').read_text()
@@ -102,7 +109,8 @@ def generate(core):
     val defaultTitle get() = "A little $name"
     val talkTitle get() = "A little everyday $name"
     val settingsTitle get() = "$name · $variety"
-}''', '', 'object LanguageRegistry {', f'    const val defaultID = {quoted(default_id)}']
+}''', '', 'object LanguageRegistry {', f'    const val defaultID = {quoted(default_id)}',
+             f'    const val legacyDefaultID = {quoted(legacy_default_id)}']
     module_names = []
     for path in language_files(core):
         text = path.read_text()
@@ -131,8 +139,13 @@ def generate(core):
                 overrides.append(quoted(m.group(1)) + ' to ' + theme(m.group(2).removesuffix(',')))
         args.append('        themeOverrides = mapOf(' + ',\n            '.join(overrides) + ')')
         lines += [f'    private val {module_name} = LanguageModule(', ',\n'.join(args), '    )']
-    lines += [f'    val all = listOf({", ".join(module_names)})',
-              '    fun get(id: String) = all.firstOrNull { it.id == id }', '}', '',
+    unknown_available = set(available_names) - set(module_names)
+    if unknown_available:
+        raise SystemExit(f'Available language(s) are not known: {", ".join(sorted(unknown_available))}.')
+    lines += [f'    val knownLanguages = listOf({", ".join(module_names)})',
+              f'    val availableLanguages = listOf({", ".join(available_names)})',
+              '    fun get(id: String) = knownLanguages.firstOrNull { it.id == id }',
+              '    fun isAvailable(id: String) = availableLanguages.any { it.id == id }', '}', '',
               'object MeaningLanguages {']
     lines += meaning_languages(registry_text)
     lines += ['}', '']
