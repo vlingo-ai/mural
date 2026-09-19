@@ -427,8 +427,7 @@ Web/iOS         只读取 Mural 的产品 capability，不查询 Model Gateway �
 
 实时会话中的 client delegation 仍按
 `Agent Worker → Mural API → Model Gateway Responses Router` 执行；这只依赖 Responses
-capability，不使 Model Gateway 成为 Live capability 的所有者。既有 Gateway hosted-live
-实现暂时保留为 legacy/显式回滚路径，不参与 LiveKit 产品可用性判断，也不为它新增部署参数。
+capability，不使 Model Gateway 成为 Live capability 的所有者。
 
 配置模型冻结为：
 
