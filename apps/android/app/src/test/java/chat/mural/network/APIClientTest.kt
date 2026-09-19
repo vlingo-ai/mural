@@ -16,6 +16,18 @@ import org.junit.Before
 import org.junit.Test
 
 class APIClientTest {
+    @Test fun providerErrorCategoriesAreBoundedAndNeverShowRawMessagesOrRetry() = runBlocking {
+        for (body in listOf("""{"error":{"code":"insufficient_quota","message":"private billing data"}}""", "x".repeat(16_385), "not json")) {
+            server.enqueue(MockResponse().setResponseCode(429).setHeader("x-request-id", "req_support").setBody(body))
+            try { api.post("responses", buildJsonObject {}); fail("accepted error") }
+            catch (error: APIClient.APIException.Http) {
+                assertEquals("req_support", error.reference)
+                assertFalse(error.message.orEmpty().contains("private"))
+                assertEquals(if (body.startsWith('{')) "insufficient_quota" else null, error.code)
+            }
+        }
+        assertEquals(3, server.requestCount)
+    }
     private lateinit var server: MockWebServer
     private lateinit var api: APIClient
     @Before fun setup() {
@@ -24,6 +36,43 @@ class APIClientTest {
     }
     @After fun teardown() { server.shutdown() }
     private fun response(text: String = "Hola") = """{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"$text"}]}],"usage":{"input_tokens":12,"output_tokens":7}}"""
+    @Test fun streamsUnicodeBeforeCompletionAndKeepsFinalUsage() = runBlocking {
+        val body = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"你好\"}\r\n\r\n" +
+            "data: {\"type\":\"response.output_text.delta\",\n" + "data: \"delta\":\" café\"}\n\n" +
+            "data: {\"type\":\"response.completed\",\"response\":${response("你好 café")}}\n\n"
+        server.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(body).setChunkedBody(body, 1))
+        val seen = mutableListOf<String>()
+        val result = api.streamMeaning("policy", "Hei") { seen += it }
+        assertEquals(listOf("你好", "你好 café"), seen)
+        assertEquals("你好 café", result.text); assertEquals(APIUsage(12, 7), result.usage)
+        val sent = server.takeRequest()
+        assertEquals("text/event-stream", sent.getHeader("Accept"))
+        assertEquals(JsonPrimitive(true), Json.parseToJsonElement(sent.body.readUtf8()).jsonObject["stream"])
+        assertEquals(1, server.requestCount)
+    }
+    @Test fun streamErrorsAndMissingCompletionNeverBecomeSuccessfulRepliesOrRetry() = runBlocking {
+        val events = listOf("response.failed", "response.incomplete", "error", "response.refusal.delta")
+        val bodies = events.map { "data: {\"type\":\"$it\"}\n\n" } + listOf(
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n", "data: [DONE]\n\n", "data: " + "x".repeat(65_537))
+        for (body in bodies) {
+            server.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(body))
+            try { api.streamMeaning("policy", "Hei") {}; fail("Accepted incomplete stream") }
+            catch (_: Exception) { }
+        }
+        assertEquals(bodies.size, server.requestCount)
+    }
+    @Test fun cancellationClosesAStalledStreamPromptly() = runBlocking {
+        // Choose throttling after reading the request; enqueueing it would throttle the upload too.
+        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest) = MockResponse()
+                .setHeader("Content-Type", "text/event-stream")
+                .setBody("data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hello\"}\n\n").throttleBody(1, 1, TimeUnit.SECONDS)
+        }
+        val job = launch { api.streamMeaning("policy", "Hei") {} }
+        withTimeout(5000) { while (server.requestCount == 0) delay(10) }
+        withTimeout(1500) { job.cancelAndJoin() }
+        assertTrue(job.isCancelled); assertEquals(1, server.requestCount)
+    }
     @Test fun usesExpectedEndpointModelConsentIndependentStoreFalseAndParsesUsage() = runBlocking {
         server.enqueue(MockResponse().setBody(response()))
         val result = api.respond("policy", "hello")

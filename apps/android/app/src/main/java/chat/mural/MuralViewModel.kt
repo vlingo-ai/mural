@@ -29,12 +29,17 @@ internal fun errorMessageRes(e: Throwable): Int = when (e) {
     is APIClient.APIException.MissingKey -> R.string.error_missing_key
     is APIClient.APIException.Refused -> R.string.error_request_refused
     is APIClient.APIException.InvalidResponse, is APIClient.APIException.Incomplete -> R.string.error_incomplete_response
-    is APIClient.APIException.Http -> when (e.status) {
-        401 -> R.string.error_http_401
-        403, 404 -> R.string.error_http_403_404
-        429 -> R.string.error_http_429
-        else -> R.string.error_http_generic
+    is APIClient.APIException.Http -> when (e.kind) {
+        ProviderFailureKind.authentication -> R.string.error_http_401
+        ProviderFailureKind.modelAccess -> R.string.error_http_403_404
+        ProviderFailureKind.quota -> R.string.error_provider_quota
+        ProviderFailureKind.rateLimit -> R.string.error_http_429
+        ProviderFailureKind.unavailable -> R.string.error_provider_unavailable
+        ProviderFailureKind.invalidRequest -> R.string.error_provider_request
+        ProviderFailureKind.unknown -> R.string.error_http_generic
     }
+    is java.net.SocketTimeoutException -> R.string.error_request_timeout
+    is java.net.UnknownHostException, is java.net.ConnectException -> R.string.error_request_connection
     is CredentialStore.CredentialException.Invalid -> R.string.error_key_invalid
     is CredentialStore.CredentialException.Save -> R.string.error_key_save
     is CredentialStore.CredentialException.Remove -> R.string.error_key_remove
@@ -49,13 +54,20 @@ internal fun hostedErrorMessageRes(failure: HostedFailure): Int = when (failure)
     is HostedFailure.Http -> when {
         needsAccountRecovery(failure) -> R.string.hosted_sign_in_again
         failure.code in setOf("insufficient_minutes", "insufficient_credit") -> R.string.hosted_no_minutes
+        failure.code == "helper_session_limit" && failure.retryable == true -> R.string.hosted_help_busy
+        failure.code == "helper_concurrency_limit" -> R.string.hosted_help_busy
         failure.code in setOf("helper_budget_exhausted", "helper_session_limit") -> R.string.hosted_extra_help_limit
+        failure.code == "helper_output_refused" -> R.string.error_request_refused
+        failure.code == "helper_output_incomplete" -> R.string.error_incomplete_response
+        failure.code == "provider_connection_lost" -> R.string.error_transport_network_lost
+        failure.code == "helper_session_funding_unavailable" -> R.string.hosted_help_funding
+        failure.code in setOf("provider_reconciliation_required", "minute_balance_reconciliation_required", "minute_purchase_reconciliation_required", "helper_provider_reconciliation_required") -> R.string.hosted_balance_checking
         failure.code == "helper_session_window_closed" -> R.string.hosted_window_closed
         failure.code in setOf("helper_request_already_attempted", "helper_response_uncertain", "live_request_already_created", "provider_session_unconfirmed") -> R.string.hosted_unconfirmed
         failure.code == "live_session_unresolved" -> R.string.hosted_checking_previous
         failure.code == "provider_create_rejected" -> R.string.hosted_start_rejected
         failure.status == 429 -> R.string.hosted_rate_limit
-        failure.code in setOf("hosted_voice_not_ready", "hosted_helpers_not_ready") -> R.string.hosted_unavailable
+        failure.code in setOf("hosted_voice_not_ready", "hosted_helpers_not_ready", "hosted_paid_not_ready", "hosted_funding_cap_reached") -> R.string.hosted_unavailable
         else -> R.string.hosted_request_failed
     }
     else -> R.string.hosted_request_failed
@@ -94,10 +106,14 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
     var error by mutableStateOf<String?>(null); private set
     var errorNeedsKeySetup by mutableStateOf(false); private set
     var errorNeedsAccountSignIn by mutableStateOf(false); private set
+    var typedReplyError by mutableStateOf<String?>(null); private set
+    var typedRepliesSent by mutableStateOf(0); private set
+    fun clearTypedReplyError() { typedReplyError = null }
     var notice by mutableStateOf<String?>(null); private set
     var meaning by mutableStateOf(""); private set
     var translating by mutableStateOf(false); private set
     var meaningFailed by mutableStateOf(false); private set
+    var meaningLimitReached by mutableStateOf(false); private set
     var working by mutableStateOf(false); private set
     var isMuted by mutableStateOf(false); private set
     var inputLevel by mutableStateOf(0.0); private set
@@ -184,12 +200,14 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
     private var assessmentJob: Job? = null
     private var actionJob: Job? = null
     private val meanings = MeaningController(viewModelScope, canRetryFailure = HostedHelperRetry::canRetryAtBoundary,
-        retryDelay = HostedHelperRetry::automaticDelay) { request ->
+        retryDelay = HostedHelperRetry::automaticDelay, stream = { request, onText -> translateMeaning(request, onText) }) { request -> translateMeaning(request) }
+    private suspend fun translateMeaning(request: MeaningRequest, onText: ((String) -> Unit)? = null): MeaningResult {
         if (archive.preferences.aiConsentVersion != 1) throw IllegalStateException("AI processing consent is required.")
         val module = LanguageRegistry.get(request.learningLanguageID) ?: throw IllegalStateException("Unsupported language.")
+        if (request.sessionID in hostedSessionIDs && request.translationInput.toByteArray(Charsets.UTF_8).size > 24_576) throw MeaningInputLimitException()
         val result = teaching(request.sessionID, HelperPurpose.MEANING, request.cacheKey,
-            TeachingPolicy.translation(module, request.meaningLanguage), request.text.takeLast(2200))
-        MeaningResult(result.text, result.usage.input, result.usage.output)
+            TeachingPolicy.translation(module, request.meaningLanguage), request.translationInput, onText = onText)
+        return MeaningResult(result.text, result.usage.input, result.usage.output)
     }
     private val finalAssessments = FinalAssessmentQueue(viewModelScope) { snapshot, passage -> requestAssessment(snapshot, passage) }
     private val languageDetector = LanguageDetector(application)
@@ -197,7 +215,11 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
     private var lastLanguageRedirect: String? = null
     private val delegations = mutableMapOf<String, Job>()
     private var voiceSession = false
-    private var lastActivity = nowSeconds()
+    private var activity = ConversationActivity(activityNow())
+    private var conversationPace = ConversationPace()
+    var inactivitySeconds by mutableStateOf<Int?>(null); private set
+    private fun activityNow() = System.nanoTime() / 1_000_000_000.0
+    fun noteTypingActivity() { if (state == "active" && voiceSession) { activity.typing(activityNow()); inactivitySeconds = null } }
     private var generation = 0
 
     init {
@@ -254,9 +276,12 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
         transport.onFailure = { fail(it) }
         transport.onLevels = { input, output ->
             inputLevel = input; outputLevel = output
-            if (input > 0.03 || output > 0.03) lastActivity = nowSeconds()
+            if (state == "active" && voiceSession) {
+                if (input > 0.03) activity.inputActive(activityNow())
+                if (output > 0.03) activity.assistantActive(activityNow())
+            }
         }
-        meanings.onChange = { meaning = meanings.text; translating = meanings.isLoading; meaningFailed = meanings.error != null }
+        meanings.onChange = { meaning = meanings.text; translating = meanings.isLoading; meaningFailed = meanings.error != null; meaningLimitReached = meanings.error is MeaningInputLimitException }
         meanings.onResult = { request, result ->
             if (session?.id == request.sessionID) updateSession {
                 it.translations[request.cacheKey] = result.text
@@ -332,6 +357,8 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
             e is LiveTransport.TransportException -> e.message ?: app.getString(fallback)
             else -> app.getString(fallback)
         }
+        if (e is APIClient.APIException.Http && e.reference != null)
+            return message + "\n\n" + app.getString(R.string.error_provider_reference, e.reference)
         return requestErrorReference(e)?.let { message + "\n\n" + app.getString(R.string.hosted_error_reference, it) } ?: message
     }
     private fun presentError(message: String, needsKeySetup: Boolean = false) {
@@ -468,13 +495,14 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
 
     /** The creating session, rather than the currently selected settings option, chooses every helper. */
     private suspend fun teaching(localID: String?, purpose: HelperPurpose, logicalID: String,
-        instructions: String, input: String, schema: JsonObject? = null, search: Boolean = false): APIResult {
+        instructions: String, input: String, schema: JsonObject? = null, search: Boolean = false, onText: ((String) -> Unit)? = null): APIResult {
         if (archive.preferences.aiConsentVersion != 1) throw HostedFailure.Unavailable
         if (localID != null && localID in hostedSessionIDs) {
-            return hostedBindings.respond(localID, purpose, logicalID, instructions, input, schema, search)
+            return hostedBindings.respond(localID, purpose, logicalID, instructions, input, schema, search, onText)
         }
         if (localID == null && conversationProvider == ConversationProvider.HOSTED_MINUTES) throw HostedFailure.Unavailable
-        return api.respond(instructions, input, schema, search, purpose)
+        return if (onText != null && purpose == HelperPurpose.MEANING) api.streamMeaning(instructions, input, onText)
+        else api.respond(instructions, input, schema, search, purpose)
     }
     private fun helperContext(snapshot: SessionRecord, passage: Passage? = null): String =
         if (snapshot.id in hostedSessionIDs) ConversationHistory.helperContext(snapshot, passage)
@@ -621,7 +649,7 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleMute() { if (state == "active" && voiceSession) { isMuted = !isMuted; transport.mute(isMuted) } }
     fun help() {
         if (state != "active") return
-        if (voiceSession) { command("instructions", TeachingPolicy.help(language)); notice = getApplication<Application>().getString(R.string.notice_help_simpler) }
+        if (voiceSession) { activity.learnerEngaged(activityNow()); inactivitySeconds = null; conversationPace.askForHelp(session?.passages?.lastOrNull { it.speaker == Speaker.user }); command("instructions", conversationPace.instruction); command("instructions", TeachingPolicy.help(language)); notice = getApplication<Application>().getString(R.string.notice_help_simpler) }
         else {
             if (working || !cloudReady()) return
             val snapshot = session ?: return
@@ -636,7 +664,7 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
                         it.append(Fragment(speaker = Speaker.assistant, text = result.text, startMS = offset, endMS = offset + 1))
                         addUsage(it, result.usage)
                     }
-                    lastActivity = nowSeconds(); scheduleTranslation()
+                    scheduleTranslation()
                 } catch (_: CancellationException) { }
                 catch (e: Exception) { if (token == generation) presentError(e, R.string.error_help_failed) }
                 finally { if (token == generation) working = false }
@@ -647,7 +675,7 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
     private fun newSession(voice: Boolean, id: String = UUID.randomUUID().toString()) {
         generation++; resetJob?.cancel(); assessmentJob?.cancel(); actionJob?.cancel(); clearLookup(); working = false; meanings.reset()
         dismissError(); notice = null; isMuted = false
-        voiceSession = voice; lastActivity = nowSeconds()
+        voiceSession = voice
         val record = SessionRecord(id = id, languageID = language.id, themeID = selectedTheme?.id, title = selectedTheme?.title ?: language.defaultTitle)
         topicResult?.takeIf { it.languageID == language.id && selectedTheme?.id == "current" }?.let { record.topics += it }
         session = record; save(record)
@@ -731,6 +759,11 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
         transport.disconnect(); inputLevel = 0.0; outputLevel = 0.0; working = false; isMuted = false
         updateSession { it.endedAt = nowSeconds(); it.usageFinal = final }
         state = "ended"
+        notice = when (session?.endReason) {
+            "Inactivity" -> getApplication<Application>().getString(R.string.notice_ended_inactivity)
+            "Time limit" -> getApplication<Application>().getString(R.string.notice_time_limit_reached)
+            else -> null
+        }
         session?.let {
             if (it.id in hostedSessionIDs) {
                 hostedBindings.ended(it.id); reconcileHostedSessions(); finishHostedAssessment(clone(it))
@@ -762,7 +795,7 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
         when (event["type"]?.jsonPrimitive?.content) {
             "mural.session.created" -> updateSession { it.providerID = (event["session"] as? JsonObject)?.get("id")?.jsonPrimitive?.content; it.voiceSeconds = 15.0 }
             "session.started" -> if (state == "connecting") {
-                state = "active"; lastActivity = nowSeconds()
+                state = "active"; activity = ConversationActivity(activityNow()); conversationPace = ConversationPace(); inactivitySeconds = null
                 updateSession { it.providerID = (event["session"] as? JsonObject)?.get("id")?.jsonPrimitive?.content ?: it.providerID }
                 command("instructions", TeachingPolicy.greeting(language)); startDurationChecks()
             }
@@ -773,7 +806,10 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
                 if (start < 0 || end < start || text.length > 50000) return
                 val speaker = if (event["type"]?.jsonPrimitive?.content == "session.input_transcript.delta") Speaker.user else Speaker.assistant
                 updateSession { it.append(Fragment(id = event["event_id"]?.jsonPrimitive?.content ?: UUID.randomUUID().toString(), speaker = speaker, text = text, startMS = start, endMS = end, meaningVisible = archive.preferences.meaningVisible)) }
-                lastActivity = nowSeconds()
+                if (text.isNotBlank()) {
+                    if (speaker == Speaker.user) { activity.learnerEngaged(activityNow()); inactivitySeconds = null }
+                    else activity.assistantActive(activityNow())
+                }
                 if (speaker == Speaker.assistant) { scheduleTranslation(); if (state == "active") checkLanguage() } else scheduleAssessment()
             }
             "session.delegation.created" -> {
@@ -792,7 +828,7 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
         durationJob?.cancel()
         durationJob = viewModelScope.launch {
             while (state == "active") {
-                delay(5000)
+                delay(1000)
                 val current = session ?: break
                 if (current.id in hostedSessionIDs && hostedBindings.reachedDeadline(current.id)) {
                     updateSession { it.endReason = "Reserved conversation time ended" }; finish(false); break
@@ -800,7 +836,13 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
                 if (nowSeconds() - current.startedAt > archive.preferences.sessionMinutes * 60) {
                     notice = getApplication<Application>().getString(R.string.notice_time_limit_reached); end("Time limit"); break
                 }
-                if (SessionLimits.endsForInactivity(voiceSession, nowSeconds() - lastActivity)) { notice = getApplication<Application>().getString(R.string.notice_ended_inactivity); end("Inactivity"); break }
+                inactivitySeconds = null
+                if (voiceSession) when (val next = activity.tick(activityNow(), isMuted, working || delegations.isNotEmpty())) {
+                    ConversationActivity.Action.CheckIn -> command("instructions", TeachingPolicy.checkIn(language))
+                    is ConversationActivity.Action.Warning -> inactivitySeconds = next.seconds
+                    ConversationActivity.Action.End -> { notice = getApplication<Application>().getString(R.string.notice_ended_inactivity); end("Inactivity"); break }
+                    ConversationActivity.Action.Wait -> Unit
+                }
             }
         }
     }
@@ -859,7 +901,7 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
         val result = teaching(snapshot.id, HelperPurpose.ASSESSMENT, passage.revisionKey,
             TeachingPolicy.assessment(module), helperContext(snapshot, passage), assessmentSchema(module.id))
         val decoded = json.decodeFromString<AssessmentResponse>(result.text)
-        val proposal = Assessment(passage.id, passage.revisionKey, decoded.outcome, decoded.suggestedLevel, decoded.nextGoal, decoded.capability, decoded.words, context = snapshot.themeID ?: "free")
+        val proposal = Assessment(passage.id, passage.revisionKey, decoded.outcome, decoded.suggestedLevel, decoded.nextGoal, decoded.capability, decoded.words, context = snapshot.themeID ?: "free", textAssemblyVersion = 2)
         return FinalAssessmentResult(snapshot.id, snapshot.languageID, proposal, result.usage.input, result.usage.output, result.usage.searches)
     }
     /** Hosted finalization awaits the original helper for its remaining lease window, without entering BYOK recovery. */
@@ -900,11 +942,12 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
                 updated.assessments.removeAll { it.passageID == valid.passageID }; updated.assessments += valid
                 addUsage(updated, APIUsage(result.inputTokens, result.outputTokens, result.searchCalls)); save(updated)
                 if (session?.id == updated.id) session = clone(updated)
-                if (state == "active" && session?.id == snapshot.id) {
-                    val progress = learner
-                    val targetLanguage = LanguageRegistry.get(snapshot.languageID)?.name ?: language.name
-                    val revisit = progress.words.filter { it.dueAt < nowSeconds() }.take(3).joinToString(", ") { it.lemma }
-                    command("thinking", "Teaching context, not spoken text: challenge ${progress.challenge}/5 in $targetLanguage. Next goal: ${progress.nextGoal}. Revisit naturally: $revisit.")
+                if (state == "active" && session?.id == snapshot.id &&
+                    session?.passages?.lastOrNull { it.speaker == Speaker.user }?.revisionKey == passage.revisionKey) {
+                    // Keep assessment notes in learning records; injecting them during speech can make the voice read them aloud.
+                    if (voiceSession && conversationPace.observe(valid, passage, snapshot.languageID)) {
+                        command("instructions", conversationPace.instruction)
+                    }
                 }
             } catch (_: CancellationException) { } catch (_: Exception) { /* No unverified progress. */ }
         }
@@ -927,6 +970,7 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun sendTyped(text: String) {
+        typedReplyError = null
         val clean = text.trim().take(2000)
         if (clean.isEmpty() || working || state in listOf("connecting", "closing") || !cloudReady()) return
         if (state != "active") {
@@ -936,24 +980,38 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
             newSession(false); state = "active"; startDurationChecks()
         }
         val id = session!!.id; val token = generation
-        val offset = ((nowSeconds() - session!!.startedAt) * 1000).toInt().coerceAtLeast(0)
-        updateSession { it.append(Fragment(speaker = Speaker.user, text = clean, startMS = offset, endMS = offset + 1, meaningVisible = archive.preferences.meaningVisible, typed = true)) }
-        lastActivity = nowSeconds(); working = true
+        val offset = if (voiceSession) session!!.nextTypedVoiceOffsetMS
+            else ((nowSeconds() - session!!.startedAt) * 1000).toInt().coerceAtLeast(0)
+        val fragment = Fragment(speaker = Speaker.user, text = clean, startMS = offset, endMS = offset + 1, meaningVisible = archive.preferences.meaningVisible, typed = true)
+        val draft = clone(session!!).also { it.append(fragment) }
+        if (voiceSession) { activity.learnerEngaged(activityNow()); inactivitySeconds = null }; working = true
         actionJob = viewModelScope.launch {
             try {
                 val instructions = if (voiceSession) TeachingPolicy.typedReply(language) else TeachingPolicy.voice(language, learner, selectedTheme, archive.preferences.interests, archive.preferences.meaningLanguage) + "\n" + TeachingPolicy.typedReply(language)
-                val result = teaching(id, HelperPurpose.TYPED_REPLY, UUID.randomUUID().toString(), instructions, helperContext(session!!))
+                val result = teaching(id, HelperPurpose.TYPED_REPLY, UUID.randomUUID().toString(), instructions, helperContext(draft))
                 if (token != generation || session?.id != id || state != "active") return@launch
                 updateSession { addUsage(it, result.usage) }
-                if (voiceSession) { command("thinking", "The learner typed (data): ${clean.take(650)}"); command("commentary", result.text) }
-                else {
+                if (voiceSession) {
+                    if (!command("thinking", "The learner typed (data): ${clean.take(650)}") || !command("commentary", result.text)) {
+                        typedReplyError = getApplication<Application>().getString(R.string.error_send_message_failed)
+                        return@launch
+                    }
+                    updateSession { it.append(fragment) }
+                } else {
+                    updateSession { it.append(fragment) }
                     val end = ((nowSeconds() - session!!.startedAt) * 1000).toInt().coerceAtLeast(offset + 2)
                     updateSession { it.append(Fragment(speaker = Speaker.assistant, text = result.text, startMS = end, endMS = end + 1)) }
                     scheduleTranslation()
                 }
+                typedRepliesSent++
                 scheduleAssessment()
             } catch (_: CancellationException) { }
-            catch (e: Exception) { if (session?.id == id) presentError(e, R.string.error_send_message_failed) }
+            catch (e: Exception) {
+                if (session?.id == id) {
+                    typedReplyError = resolveMessage(e, R.string.error_send_message_failed)
+                    if (errorNeedsKeySetup(e) || needsAccountRecovery(e)) presentError(e, R.string.error_send_message_failed)
+                }
+            }
             finally { if (token == generation) working = false }
         }
     }

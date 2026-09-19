@@ -21,7 +21,45 @@ data class Fragment(
 )
 
 data class Passage(val id: String, val speaker: Speaker, val fragments: List<Fragment>) {
-    val text get() = fragments.joinToString("") { it.text }
+    val text get() = join(fragments.map { it.text })
+    companion object {
+        /** Preserve word continuations; repair only a clear sentence break. */
+        fun join(parts: List<String>): String = parts.fold("") { result, part ->
+            val first = part.takeIf { it.isNotEmpty() }?.codePointAt(0)
+            val last = result.lastOrNull()
+            val word = result.dropLast(1).takeLastWhile { it.isLetter() }
+            val sentenceBreak = first != null && Character.isUpperCase(first) &&
+                (last == '!' || last == '?' || last == '…' || (last == '.' && word.length > 1))
+            result + (if (sentenceBreak) " " else "") + part
+        }
+        // Only for validating learning evidence saved before the caption repair.
+        internal fun legacyJoin(parts: List<String>): String = parts.fold("") { result, part ->
+            val first = part.takeIf { it.isNotEmpty() }?.codePointAt(0)
+            val last = result.takeIf { it.isNotEmpty() }?.codePointBefore(result.length)
+            when {
+                result.isEmpty() -> part
+                last == null || first == null -> result + part
+                Character.isWhitespace(last) || Character.isSpaceChar(last) || Character.isWhitespace(first) || Character.isSpaceChar(first) || isPunctuation(first) || isUnspacedBoundary(last, first) -> result + part
+                else -> "$result $part"
+            }
+        }
+        private fun isUnspacedBoundary(last: Int, first: Int): Boolean {
+            fun han(c: Int) = c in 0x3400..0x4DBF || c in 0x4E00..0x9FFF || c in 0xF900..0xFAFF || c in 0x20000..0x323AF
+            val type = Character.getType(last)
+            val opening = type == Character.START_PUNCTUATION.toInt() || type == Character.INITIAL_QUOTE_PUNCTUATION.toInt()
+            return opening || (han(first) && (han(last) || last in 0x3000..0x303F || last in 0xFF00..0xFFEF))
+        }
+        private fun isPunctuation(c: Int): Boolean {
+            val type = Character.getType(c)
+            return type == Character.CONNECTOR_PUNCTUATION.toInt() ||
+                type == Character.DASH_PUNCTUATION.toInt() ||
+                type == Character.START_PUNCTUATION.toInt() ||
+                type == Character.END_PUNCTUATION.toInt() ||
+                type == Character.INITIAL_QUOTE_PUNCTUATION.toInt() ||
+                type == Character.FINAL_QUOTE_PUNCTUATION.toInt() ||
+                type == Character.OTHER_PUNCTUATION.toInt()
+        }
+    }
     val revisionKey get() = fragments.joinToString(",") { "${it.id}:${it.revision}" }
     val startMS get() = fragments.firstOrNull()?.startMS ?: 0
     val endMS get() = fragments.maxOfOrNull { it.endMS } ?: 0
@@ -61,7 +99,7 @@ data class WordProposal(
 data class Assessment(
     val passageID: String, val revisionKey: String, val outcome: Outcome, var suggestedLevel: Int,
     var nextGoal: String, var capability: String, var words: List<WordProposal>,
-    val createdAt: Double = nowSeconds(), val context: String = "free"
+    val createdAt: Double = nowSeconds(), val context: String = "free", val textAssemblyVersion: Int? = null
 )
 
 @Serializable
@@ -88,12 +126,22 @@ data class SessionRecord(
     var outputTokens: Int = 0, var searchCalls: Int = 0, var endReason: String? = null
 ) {
     val passages get() = Transcript.passages(fragments)
+    // Voice captions use the provider timeline, not time since the local connection attempt.
+    val nextTypedVoiceOffsetMS get() = (fragments.maxOfOrNull { it.endMS } ?: 0).coerceAtMost(Int.MAX_VALUE - 2) + 1
     fun append(f: Fragment) { if (fragments.none { it.id == f.id }) { fragments += f; invalidateChangedAssessments() } }
     fun invalidateChangedAssessments() { val current = passages.associate { it.id to it.revisionKey }; assessments.removeAll { current[it.passageID] != it.revisionKey } }
     fun correctFragment(id: String, text: String) {
         val i = fragments.indexOfFirst { it.id == id }; if (i < 0) return
         val f = fragments[i]; fragments[i] = f.copy(previousTexts = f.previousTexts + f.text, text = text, revision = f.revision + 1)
-        translations.clear(); invalidateChangedAssessments()
+        translations.keys.filter { translationKeyIncludesFragment(it, id) }.forEach { translations.remove(it) }
+        invalidateChangedAssessments()
+    }
+    companion object {
+        fun translationKeyIncludesFragment(key: String, id: String): Boolean {
+            val revision = key.substringAfter("::", missingDelimiterValue = "")
+            if (revision.isEmpty()) return false
+            return revision.split(',').any { part -> part.substringBefore(':') == id }
+        }
     }
 }
 @Serializable
