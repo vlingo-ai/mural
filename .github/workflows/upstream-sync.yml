@@ -89,6 +89,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SYNC_BRANCH: ${{ steps.sync.outputs.branch }}
         run: |
-          gh workflow run checks.yml --ref "$SYNC_BRANCH"
-          gh workflow run contracts.yml --ref "$SYNC_BRANCH"
-          gh workflow run android.yml --ref "$SYNC_BRANCH"
+          gh workflow run checks.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"
+          gh workflow run contracts.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"
+          gh workflow run android.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"
