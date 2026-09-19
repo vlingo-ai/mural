@@ -21,6 +21,7 @@ import { ModelGatewayClient } from './model-gateway/client.js';
 import { AccountModelTasks } from './account-model-tasks.js';
 import { webOrigins } from './web-cors.js';
 import { LiveKitLiveProvider } from './livekit/live-provider.js';
+import { bindHostFromEnvironment } from './runtime-bind.js';
 
 const diagnostics = new Diagnostics(record => { console.log(JSON.stringify(record)); });
 const databaseURL = process.env.DATABASE_URL;
@@ -145,7 +146,7 @@ try {
     await db.end(); process.exit(0);
   })();
   process.on('SIGTERM', () => { void close(); }); process.on('SIGINT', () => { void close(); });
-  await app.listen({ port: Number(process.env.PORT ?? 8080), host: '0.0.0.0' });
+  await app.listen({ port: Number(process.env.PORT ?? 8080), host: bindHostFromEnvironment(process.env) });
   minuteCommerce?.runner.start();
   diagnostics.record('service_started', { operation: 'startup' });
 } catch (error) {

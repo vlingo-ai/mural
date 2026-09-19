@@ -485,6 +485,14 @@ worktree/分支，向该项目协调者报告基线 commit、预计文件范围�
 云端中断或额度耗尽时安全结算；形成一份带真实 participant-minutes、流量、延迟和错误率
 的验证报告。
 
+当前状态（2026-09-20）：**基础设施准备中，尚未部署或验收。** Mural 已从包含 Phase 5.5A
+和最新 upstream 集成的 `origin/main` 建立独立 Phase 5.5B worktree/分支；
+`deploy/phase-5-5b/` 提供 Ubuntu 24.04 单 VPS 的 staging Compose、Caddy、私密环境模板、
+预检、活动会话检查、加密 PostgreSQL 备份、部署顺序和非付费/付费验收清单。部署包固定
+Gateway 音频能力为 `disabled+disabled`，并要求 Gateway/Worker 使用已审查的不可变镜像摘要。
+真实 LiveKit Cloud project、VPS、DNS、secret、Responses-only Gateway 镜像、实际部署和
+Cloud Build 英语/普通话数据仍是未完成门禁，任何本地配置检查不得表述为 Phase 5.5B 完成。
+
 #### Phase 5.5C：LiveKit Cloud Ship 产品内测（5.5B 通过后）
 
 目标：以 `vLingo Speaking Live` 正式品牌，使用相同混合部署拓扑支持受控真实用户内测，
