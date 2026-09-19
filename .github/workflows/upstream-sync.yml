@@ -32,13 +32,30 @@ jobs:
         id: sync
         run: |
           upstream_sha="$(git rev-parse upstream/main)"
+          base_sha="$(git rev-parse origin/main)"
           if git merge-base --is-ancestor "$upstream_sha" origin/main; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          branch="sync/upstream-${upstream_sha:0:12}"
+          branch="sync/upstream-${upstream_sha:0:12}-base-${base_sha:0:12}"
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"
+            remote_branch="origin/$branch"
+            if ! git merge-base --is-ancestor "$base_sha" "$remote_branch" || \
+               ! git merge-base --is-ancestor "$upstream_sha" "$remote_branch"; then
+              echo "Existing sync branch $branch does not contain the expected base and upstream commits." >&2
+              exit 1
+            fi
+            echo "Reusing existing sync branch $branch"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+            echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           git switch -c "$branch" origin/main
           git merge --no-edit upstream/main
           git push origin "$branch"
@@ -53,9 +70,18 @@ jobs:
           UPSTREAM_SHA: ${{ steps.sync.outputs.upstream_sha }}
         run: |
           if gh pr list --base main --head "$SYNC_BRANCH" --state open --json number --jq 'length' | grep -qx 0; then
-            gh pr create --base main --head "$SYNC_BRANCH" \
+            if ! gh pr create --base main --head "$SYNC_BRANCH" \
               --title "chore: sync Chuloo/mural upstream" \
-              --body "Automated upstream sync through ${UPSTREAM_SHA}. Merge only after required Mural checks pass. Conflicts are never resolved automatically."
+              --body "Automated upstream sync through ${UPSTREAM_SHA}. Merge only after required Mural checks pass. Conflicts are never resolved automatically."; then
+              {
+                echo "### Manual pull request required"
+                echo
+                echo "The sync branch was pushed successfully, but organization policy prevented GitHub Actions from creating the pull request."
+                echo
+                echo "Run: \`gh pr create --base main --head $SYNC_BRANCH\`"
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "GitHub Actions could not create the pull request; the sync branch is ready for a maintainer." >&2
+            fi
           fi
       - name: Dispatch required checks for the sync head
         if: steps.sync.outputs.changed == 'true'
