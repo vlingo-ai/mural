@@ -21,10 +21,17 @@ import type { PlayMinuteProvider } from './play-minute-provider.js';
 import { HOSTED_HELPER_BODY_LIMIT, type HostedHelpers } from './hosted-helpers.js';
 import { Diagnostics, errorReference } from './diagnostics.js';
 import { startupDiagnostic, type StartupDiagnostic } from './startup-diagnostics.js';
+import { supportsPublicLanguage } from './live-provider.js';
+import { assertWebPreflight } from './web-cors.js';
+import { modelTaskHelperInput, parseModelTask, publicModelTaskResult } from './model-tasks.js';
+import type { AccountModelTasks } from './account-model-tasks.js';
+import { appendConversationEvent, conversationDetail, listConversations, parseConversationEvent, recordLearningResult } from './conversation-history.js';
 
 export interface Services { diagnostics?: Diagnostics; db: Database; auth: AuthConfig; payments?: SandboxPayments; attestor?: TrialAttestor; minuteAttestor?: MinuteAttestor; guestMinuteAttestor?: GuestMinuteAttestor; appleRevoker?: AppleRevoker; hosted?: HostedVoice; accessRequests?: AccessRequests; aiReports?: AIReports;
   onStartupDiagnostic?: (diagnostic: StartupDiagnostic) => void | Promise<void>;
   hostedHelpers?: HostedHelpers;
+  accountModelTasks?: AccountModelTasks;
+  webOrigins?: ReadonlySet<string>;
   minuteCommerce?: { purchases: MinutePurchases; aiPurchases?: AIValuePurchases; fulfillment?: PurchaseFulfillmentRouter;
     stripe?: StripeMinuteProvider; play?: PlayMinuteProvider };
   accounts?: { admission: AuthAdmission; identityVerifier?: typeof verifyIdentity } }
@@ -79,8 +86,21 @@ export function createApp(services: Services) {
   const windows = new Map<string, { until: number; count: number }>();
   app.addHook('onRequest', async (request, reply) => {
     reply.header('Cache-Control', 'no-store').header('X-Content-Type-Options', 'nosniff');
-    // Fastify decodes static route names. Security checks must use the matched route too.
+    // The public waitlist has a deliberately narrower, independently configured CORS policy.
     const path = request.routeOptions.url ?? request.url.split('?')[0]!;
+    const origin = request.headers.origin;
+    if (origin !== undefined && path !== ACCESS_REQUEST_PATH) {
+      if (!services.webOrigins?.has(origin)) throw new ServiceError('cors_origin_denied', 403);
+      reply.header('Access-Control-Allow-Origin', origin).header('Vary', 'Origin')
+        .header('Access-Control-Expose-Headers', 'X-Mural-Error-Reference, Retry-After');
+      if (request.method === 'OPTIONS') {
+        assertWebPreflight(request.headers['access-control-request-method'], request.headers['access-control-request-headers']);
+        return reply.header('Access-Control-Allow-Methods', 'GET, POST, DELETE')
+          .header('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key')
+          .header('Access-Control-Max-Age', '600').code(204).send();
+      }
+    }
+    // Fastify decodes static route names. Security checks must use the matched route too.
     if (path === '/v1/guest/minutes' && services.guestMinuteAttestor?.requiresTrustedAdmission) {
       if (!services.accounts) throw new ServiceError('guest_minutes_unavailable', 503);
       try { await services.accounts.admission.enter('guest', request.headers, request.raw.socket.remoteAddress ?? request.ip); }
@@ -107,7 +127,8 @@ export function createApp(services: Services) {
     const proxy = services.accounts?.admission.config ?? services.accessRequests?.config;
     if (proxy) {
       let network: string;
-      try { network = trustedClientNetwork(request.headers, request.raw.socket.remoteAddress ?? request.ip, proxy.proxyToken); }
+      try { network = trustedClientNetwork(request.headers, request.raw.socket.remoteAddress ?? request.ip, proxy.proxyToken,
+        'allowLocalLoopback' in proxy && proxy.allowLocalLoopback === true); }
       catch { throw new ServiceError('trusted_proxy_required', 503); }
       networkKey = createHmac('sha256', Buffer.from(proxy.hmacKey, 'hex')).update(network).digest('hex');
     }
@@ -193,7 +214,7 @@ export function createApp(services: Services) {
       return reply.code(202).send({ accepted: true });
     }
   });
-  app.get('/v1/auth/providers', async () => ({ google: Boolean(services.accounts && services.auth.googleClientID),
+  app.get('/v1/auth/providers', async () => ({ google: Boolean(services.accounts && (services.auth.googleClientID || services.auth.googleWebClientID)),
     googleAndroid: Boolean(services.accounts && services.auth.googleAndroidServerClientID && services.auth.googleAndroidClientIDs?.length),
     apple: Boolean(services.accounts && services.auth.appleClientID && services.appleRevoker) }));
   app.get('/v1/feedback/capabilities', async () => ({ aiReports: Boolean(services.aiReports?.config) }));
@@ -360,7 +381,8 @@ export function createApp(services: Services) {
   app.get('/v1/live/capabilities', async request => {
     if (!services.hosted?.minuteFunded || !services.hosted.available || !services.hostedHelpers || !request.headers.authorization) return { hostedMinutes: false };
     const account = await authenticate(db, request.headers.authorization, true);
-    return { hostedMinutes: services.hosted.allows(account) && services.hostedHelpers.allows(account), experimental: true };
+    return { hostedMinutes: services.hosted.allows(account) && services.hostedHelpers.allows(account),
+      transport: services.hosted.clientTransport, experimental: true };
   });
   app.post('/v1/live/sessions', async request => {
     if (!services.hosted?.available) throw new ServiceError('hosted_voice_not_ready', 503);
@@ -370,10 +392,28 @@ export function createApp(services: Services) {
     if (body.requestedMilliseconds !== undefined && (typeof body.requestedMilliseconds !== 'number' ||
         !Number.isSafeInteger(body.requestedMilliseconds) || body.requestedMilliseconds < 60_000 || body.requestedMilliseconds > 3_600_000))
       throw new ServiceError('invalid_request');
+    const language = stringField(body, 'language', 10);
+    if (!supportsPublicLanguage(language)) throw new ServiceError('invalid_language');
     const key = request.headers['idempotency-key'];
     if (typeof key !== 'string') throw new ServiceError('idempotency_key_required');
-    return services.hosted.create(account, key, stringField(body, 'sdp', 65_536), stringField(body, 'language', 10),
+    const { providerSessionID: _privateProviderSessionID, ...publicSession } = await services.hosted.create(
+      account, key, body.sdp === undefined ? '' : stringField(body, 'sdp', 65_536), language,
       { instructions: body.instructions, history: body.history }, body.requestedMilliseconds as number | undefined);
+    return publicSession;
+  });
+  app.post('/internal/livekit/sessions/:id/events', { bodyLimit: HOSTED_HELPER_BODY_LIMIT }, async request => {
+    if (!services.hosted) throw new ServiceError('livekit_control_unavailable', 404);
+    const id = uuid((request.params as { id: string }).id);
+    const event = await services.hosted.acceptTrustedEvent(id, request.headers.authorization, request.body);
+    if (event.type !== 'session.delegation.created') return { accepted: true };
+    if (!services.hostedHelpers) throw new ServiceError('hosted_helpers_not_ready', 503);
+    const owner = (await db.query('SELECT account_id,language FROM hosted_sessions WHERE id=$1 AND state<>\'closed\'', [id])).rows[0];
+    if (!owner) throw new ServiceError('live_session_not_found', 404);
+    const task = parseModelTask({ kind: 'teachingReply', funding: { type: 'liveSession', sessionID: id },
+      language: owner.language, text: event.text, context: event.context });
+    const result = await services.hostedHelpers.request(owner.account_id, id,
+      modelTaskHelperInput(owner.account_id, `livekit:${event.delegationID}`, task));
+    return publicModelTaskResult(task, result);
   });
   app.get('/v1/live/sessions/:id', async request => {
     if (!services.hosted) throw new ServiceError('hosted_voice_not_ready', 503);
@@ -434,6 +474,33 @@ export function createApp(services: Services) {
       if (!reply.raw.destroyed) reply.raw.end();
       return reply;
     }
+  });
+  app.get('/v1/conversations', async request => listConversations(db,
+    await authenticate(db, request.headers.authorization, true)));
+  app.get('/v1/conversations/:id', async request => conversationDetail(db,
+    await authenticate(db, request.headers.authorization, true), uuid((request.params as { id: string }).id)));
+  app.post('/v1/conversations/:id/events', { bodyLimit: 8192 }, async request => appendConversationEvent(db,
+    await authenticate(db, request.headers.authorization, true), uuid((request.params as { id: string }).id),
+    parseConversationEvent(request.body)));
+  app.post('/v1/model-tasks', { bodyLimit: HOSTED_HELPER_BODY_LIMIT }, async request => {
+    const account = await authenticate(db, request.headers.authorization, true);
+    const key = request.headers['idempotency-key'];
+    if (typeof key !== 'string' || Buffer.byteLength(key) < 8 || Buffer.byteLength(key) > 128)
+      throw new ServiceError('idempotency_key_required');
+    const task = parseModelTask(request.body);
+    const input = modelTaskHelperInput(account, key, task);
+    let result;
+    if (task.funding.type === 'account') {
+      if (!services.accountModelTasks) throw new ServiceError('account_model_tasks_not_ready', 503);
+      result = await services.accountModelTasks.request(account, input);
+    } else {
+      if (!services.hosted?.minuteFunded || !services.hostedHelpers) throw new ServiceError('hosted_helpers_not_ready', 503);
+      result = await services.hostedHelpers.request(account, task.funding.sessionID, input);
+    }
+    const publicResult = publicModelTaskResult(task, result);
+    if (task.funding.type === 'liveSession')
+      await recordLearningResult(db, account, task.funding.sessionID, key, task.kind, publicResult);
+    return publicResult;
   });
   app.get('/payment-return', async (_request, reply) => reply.type('text/html').send('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Mural sandbox</title><body><h1>Return to Mural</h1><p>This is a sandbox payment test. The app checks payment confirmation independently.</p></body></html>'));
   return app;

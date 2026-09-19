@@ -631,7 +631,7 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
         persist(); scheduleTranslation(); recoverFinalAssessments(); refreshHostedReadiness()
     }
     fun selectLanguage(id: String) {
-        if (!isRunning && LanguageRegistry.get(id) != null) updatePreferences(archive.preferences.copy(learningLanguageID = id))
+        if (!isRunning && LanguageRegistry.isAvailable(id)) updatePreferences(archive.preferences.copy(learningLanguageID = id))
     }
     fun chooseTheme(theme: ConversationTheme?) {
         if (!isRunning && session != null) resetConversation()
@@ -682,6 +682,10 @@ class MuralViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun start() {
         if (isRunning || !cloudReady()) return
+        if (!LanguageRegistry.isAvailable(language.id)) {
+            presentError(getApplication<Application>().getString(R.string.error_learning_language_unavailable))
+            return
+        }
         val choice = conversationProvider
         if (choice == ConversationProvider.HOSTED_MINUTES && accountChangeBlocked) {
             presentError(getApplication<Application>().getString(R.string.hosted_checking_previous))

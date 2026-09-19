@@ -23,7 +23,8 @@ async function until(predicate: () => Promise<boolean> | boolean) {
   const deadline = Date.now() + 3_000;
   while (!(await predicate())) { if (Date.now() > deadline) throw new Error('Timed out waiting for test condition'); await new Promise(resolve => setTimeout(resolve, 5)); }
 }
-async function fixture(cap = 2_000_000_000n, minuteAllowance?: number, helperBudget?: bigint, paid = false) {
+async function fixture(cap = 2_000_000_000n, minuteAllowance?: number, helperBudget?: bigint, paid = false,
+  controlLeaseMilliseconds?: number) {
   const schema = `voice_test_${randomUUID().replaceAll('-', '')}`, url = new URL(databaseURL!);
   url.searchParams.set('options', `-c search_path=${schema}`);
   const db = connectDatabase(url.toString()); await db.query(`CREATE SCHEMA ${schema}`); await migrate(db);
@@ -73,6 +74,8 @@ async function fixture(cap = 2_000_000_000n, minuteAllowance?: number, helperBud
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address() as { port: number };
   const provider = new OpenAILiveProvider('test-no-real-provider-key', { testOrigin: `http://127.0.0.1:${address.port}`, timeoutMilliseconds: 300, diagnostics: logger });
+  if (controlLeaseMilliseconds !== undefined)
+    Object.defineProperty(provider, 'controlLeaseMilliseconds', { value: controlLeaseMilliseconds });
   const helpers = helperBudget === undefined ? undefined : new HostedHelpers(db,
     { send: async () => { throw new Error('No helper network call expected.'); } }, {
       accountAllowlist: new Set([account]), aggregateFundingCapNano: cap, helperBudgetNanoPerMinute: helperBudget,
@@ -211,7 +214,7 @@ integration('600-second deadline forces close and HTTP fallback; missing final u
 integration('recovery reattaches the saved provider ID and closes without creating again', async () => {
   const f = await fixture();
   try {
-    const live = await f.controller.create(f.account, 'recovery-offer-key', 'v=0', 'en-US');
+    const live = await f.controller.create(f.account, 'recovery-offer-key', 'v=0', 'en');
     f.send(live.providerSessionID, { type: 'session.usage.updated', usage: { seconds: 30 } });
     await until(async () => (await f.controller.status(f.account, live.sessionID)).observedMilliseconds === 30_000);
     await f.restart(); assert.equal(f.creates, 1);
@@ -261,6 +264,23 @@ integration('sideband loss never accepts client usage or releases the reservatio
     f.send(live.providerSessionID, { type: 'session.closed', usage: { seconds: 1 } });
     await until(async () => (await f.controller.status(f.account, live.sessionID)).state === 'closed');
     assert.equal((await f.controller.status(f.account, live.sessionID)).chargedNanoUSD, '12500000');
+  } finally { await f.cleanup(); }
+});
+integration('expired trusted worker lease settles the last cumulative usage and releases minute reservation', async () => {
+  const f = await fixture(2_000_000_000n, 600_000, undefined, false, 30_000);
+  try {
+    const live = await f.controller.create(f.account, 'worker-lease-key', 'v=0', 'en');
+    let row = (await f.db.query('SELECT provider_lease_expires_at FROM hosted_sessions WHERE id=$1', [live.sessionID])).rows[0];
+    assert.equal(row.provider_lease_expires_at.getTime(), f.now + 30_000);
+    f.send(live.providerSessionID, { type: 'session.usage.updated', usage: { seconds: 12 } });
+    await until(async () => (await f.controller.status(f.account, live.sessionID)).observedMilliseconds === 12_000);
+    f.advance(30_001); await f.controller.tick();
+    const status = await f.controller.status(f.account, live.sessionID);
+    assert.equal(status.state, 'closed'); assert.equal(status.chargedMilliseconds, 15_000);
+    assert.deepEqual(await f.minutes(), { balance_ms: '585000', reserved_ms: '0' });
+    row = (await f.db.query('SELECT close_reason,provider_usage_final FROM hosted_sessions WHERE id=$1', [live.sessionID])).rows[0];
+    assert.deepEqual(row, { close_reason: 'worker_lease_expired', provider_usage_final: false });
+    assert.ok(f.hangups > 0);
   } finally { await f.cleanup(); }
 });
 integration('operator allowlist and lifetime funding cap are enforced before a provider create', async () => {
@@ -394,6 +414,25 @@ integration('zero-second finalized sessions consume the minimum and cannot resta
     assert.equal(f.creates, 40);
   } finally { await f.cleanup(); }
 });
+integration('trusted pre-session provider rejection releases minutes without the 15-second minimum', async () => {
+  const f = await fixture(2_000_000_000n, 600_000, 50_000_000n);
+  try {
+    (f.provider as OpenAILiveProvider & { acceptTrustedEvent: () => unknown }).acceptTrustedEvent = () =>
+      ({ type: 'session.provider.rejected', providerStatus: 429, requestID: 'req_runtime_rejection' });
+    const live = await f.controller.create(f.account, 'runtime-rejection', 'v=0', 'en');
+    await f.controller.acceptTrustedEvent(live.sessionID, 'test-control', {
+      type: 'session.provider.rejected', providerStatus: 429,
+    });
+    assert.deepEqual(await f.minutes(), { balance_ms: '600000', reserved_ms: '0' });
+    const row = (await f.db.query(`SELECT state,charged_ms,provider_cost_nano,funding_exposure_nano,
+      provider_rejection_status,provider_rejection_request_id,close_reason FROM hosted_sessions WHERE id=$1`,
+      [live.sessionID])).rows[0];
+    assert.deepEqual(row, { state: 'closed', charged_ms: '0', provider_cost_nano: '0', funding_exposure_nano: '0',
+      provider_rejection_status: 429, provider_rejection_request_id: 'req_runtime_rejection',
+      close_reason: 'provider_runtime_rejected' });
+    assert.equal((await f.db.query('SELECT liability_nano FROM hosted_helper_sessions')).rows[0].liability_nano, '0');
+  } finally { await f.cleanup(); }
+});
 integration('the final sub-minimum residue is charged once without a negative minute wallet', async () => {
   const f = await fixture(2_000_000_000n, 2_000, 50_000_000n);
   try {
@@ -480,7 +519,7 @@ integration('refunding a minute purchase during speech closes and recovers relea
     evidence = { ...scope, orderID: order.orderID, transactionID: 'cs_minute_test', eventID: 'evt_paid', providerProduct: 'price_test',
       quantity: 1, currency: 'usd', totalMinor: 300, state: 'purchased', refundedMinor: 0 };
     await purchases.reconcile('stripe', {});
-    const live = await f.controller.create(f.account, 'minute-refund-live', 'v=0', 'en-US');
+    const live = await f.controller.create(f.account, 'minute-refund-live', 'v=0', 'en');
     evidence = { ...evidence, eventID: 'evt_refunded', refundedMinor: 300, state: 'voided' };
     await purchases.reconcile('stripe', {});
     assert.deepEqual(await f.minutes(), { balance_ms: '600000', reserved_ms: '600000' });

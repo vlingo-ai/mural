@@ -50,8 +50,8 @@ class SettingsParityTest {
         compose.runOnIdle { assertFalse(vm.archive.preferences.meaningVisible) }
         compose.onNodeWithTag("settings-learning-language").performClick()
         capture("02-language-menu")
-        compose.onNodeWithTag("settings-learning-language-fr").performScrollTo().performClick()
-        compose.runOnIdle { assertEquals("fr", vm.archive.preferences.learningLanguageID) }
+        compose.onNodeWithTag("settings-learning-language-zh").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals("zh", vm.archive.preferences.learningLanguageID) }
         compose.onNodeWithTag("settings-meaning-language").performClick()
         compose.onNodeWithTag("settings-meaning-language-Spanish").performScrollTo().performClick()
         compose.runOnIdle { assertEquals("Spanish", vm.archive.preferences.meaningLanguage) }

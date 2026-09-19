@@ -79,6 +79,8 @@ test('hosted HTTP authenticates guest ownership, recovers uncertain sessions and
   const calls: string[] = [];
   let helperFailure: Error | undefined, failAfterPartial = false;
   const hosted = { available: true, minuteFunded: true, allows: (id: string) => id === guest,
+    create: async () => ({ sessionID, providerSessionID: 'private_gateway_session_id', sdp: 'v=0\r\ngateway-answer',
+      deadline: status.deadline, reservedMilliseconds: 600_000, billingBasis: status.billingBasis, experimental: true }),
     current: async (id: string) => { calls.push(`current:${id}`); return { session: id === guest ? status : null }; },
   } as unknown as Services['hosted'];
   const hostedHelpers = { allows: (id: string) => id === guest,
@@ -101,6 +103,16 @@ test('hosted HTTP authenticates guest ownership, recovers uncertain sessions and
     assert.deepEqual((await app.inject({ url: '/v1/live/capabilities', headers: otherHeaders })).json(), { hostedMinutes: false, experimental: true });
     assert.equal((await app.inject('/v1/live/sessions/current')).statusCode, 401);
     assert.equal(calls.length, 0);
+    const created = await app.inject({ method: 'POST', url: '/v1/live/sessions', headers: { ...headers, 'idempotency-key': 'create-live' },
+      payload: { sdp: 'v=0', language: 'en' } });
+    assert.equal(created.statusCode, 200);
+    assert.equal(created.json().sessionID, sessionID);
+    assert.equal(created.json().providerSessionID, undefined);
+    assert.equal(JSON.stringify(created.json()).includes('private_gateway_session_id'), false);
+    const hiddenLanguage = await app.inject({ method: 'POST', url: '/v1/live/sessions',
+      headers: { ...headers, 'idempotency-key': 'hidden-language' }, payload: { sdp: 'v=0', language: 'es-ES' } });
+    assert.equal(hiddenLanguage.statusCode, 400);
+    assert.deepEqual(hiddenLanguage.json(), { error: { code: 'invalid_language' } });
     const recovered = await app.inject({ url: '/v1/live/sessions/current', headers });
     assert.deepEqual(recovered.json(), { session: status }); assert.equal(recovered.headers['cache-control'], 'no-store');
     assert.deepEqual((await app.inject({ url: '/v1/live/sessions/current', headers: otherHeaders })).json(), { session: null });

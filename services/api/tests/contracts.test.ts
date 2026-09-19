@@ -10,6 +10,9 @@ test('public contract freezes the Web/iOS/Android product boundary', async () =>
   assert.equal(contract.openapi, '3.1.0');
   assert.equal(contract.info.version, '1.0.0');
   assert.deepEqual(Object.keys(contract.paths).sort(), [
+    '/v1/conversations',
+    '/v1/conversations/{sessionID}',
+    '/v1/conversations/{sessionID}/events',
     '/v1/live/sessions',
     '/v1/live/sessions/{sessionID}',
     '/v1/live/sessions/{sessionID}/close',
@@ -17,9 +20,24 @@ test('public contract freezes the Web/iOS/Android product boundary', async () =>
   ]);
 
   const schemas = contract.components.schemas;
+  assert.equal(schemas.ConversationEventInput.additionalProperties, false);
+  assert.deepEqual(schemas.ConversationEventInput.properties.source.enum, ['live', 'typed']);
+  assert.deepEqual(schemas.ConversationSummary.properties.language.type, ['string', 'null']);
+  assert.equal(schemas.ConversationSummary.properties.language.maxLength, 32);
   assert.equal(schemas.LiveSessionCreateRequest.additionalProperties, false);
   assert.equal(schemas.LiveSessionCreateRequest.properties.transport.properties.type.const, 'webrtc');
   assert.equal(schemas.ModelTaskRequest.discriminator.propertyName, 'kind');
+  assert.deepEqual(schemas.LiveSessionFunding.required, ['type', 'sessionID']);
+  assert.equal(schemas.LiveSessionFunding.properties.type.const, 'liveSession');
+  for (const name of ['TranslationTask', 'AssessmentTask', 'TeachingReplyTask'])
+    assert.equal(schemas[name].properties.funding.$ref, '#/components/schemas/LiveSessionFunding');
+  assert.deepEqual(schemas.AccountAIValueFunding.required, ['type']);
+  assert.equal(schemas.AccountAIValueFunding.properties.type.const, 'account');
+  assert.deepEqual(schemas.TopicSearchTask.properties.funding.oneOf.map((item: { $ref: string }) => item.$ref), [
+    '#/components/schemas/LiveSessionFunding', '#/components/schemas/AccountAIValueFunding',
+  ]);
+  assert.equal(schemas.AssessmentTask.properties.context.$ref, '#/components/schemas/TaskConversationContext');
+  assert.equal(schemas.AssessmentTask.properties.passage.$ref, '#/components/schemas/AssessmentPassage');
   assert.deepEqual(
     schemas.ModelTaskRequest.oneOf.map((item: { $ref: string }) => item.$ref),
     [

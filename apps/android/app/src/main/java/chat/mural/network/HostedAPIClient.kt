@@ -325,7 +325,7 @@ class HostedAPIClient internal constructor(
 
     private fun validateCreate(value: LiveSessionRequest) {
         if ((value.requestedMilliseconds != null && value.requestedMilliseconds !in 60_000L..3_600_000L) ||
-            !UUID_PATTERN.matches(value.requestID) || LanguageRegistry.all.none { it.locale == value.language } ||
+            !UUID_PATTERN.matches(value.requestID) || LanguageRegistry.availableLanguages.none { it.locale == value.language } ||
             !value.sdp.startsWith("v=0") || value.sdp.utf8Size() > 65_536 || !validText(value.instructions, 12_000) ||
             value.history.size > 40 || value.history.toString().utf8Size() > 6_000) throw HostedFailure.InvalidRequest
         for (entry in value.history) {

@@ -113,6 +113,7 @@ import MuralCore
     }
     func start() {
         guard !isRunning else { return }
+        guard LanguageRegistry.isAvailable(language.id) else { showSettings = true; return }
         guard hasAIConsent else { startAfterConsent = true; showAIConsent = true; return }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--preview") { showSettings = true; return }
@@ -154,7 +155,7 @@ import MuralCore
         if hasAIConsent { start() }
     }
     func selectLanguage(_ id: String) {
-        guard !isRunning, id != language.id, LanguageRegistry.module(for: id) != nil else { return }
+        guard !isRunning, id != language.id, LanguageRegistry.isAvailable(id) else { return }
         cancelReset(); languageGeneration = UUID()
         connectionTask?.cancel(); closeTask?.cancel(); durationTask?.cancel()
         meanings.reset(); assessmentTask?.cancel(); saveTask?.cancel(); saveTask = nil

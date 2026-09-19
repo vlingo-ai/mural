@@ -103,6 +103,52 @@
         }
       }
     },
+    "/v1/conversations": {
+      "get": {
+        "operationId": "listConversations",
+        "summary": "List the authenticated user's server-authoritative conversation history",
+        "responses": {
+          "200": {
+            "description": "Recent conversations",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationList" } } }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/conversations/{sessionID}": {
+      "get": {
+        "operationId": "getConversation",
+        "summary": "Get transcript fragments and learning results for an owned conversation",
+        "parameters": [{ "$ref": "#/components/parameters/SessionID" }],
+        "responses": {
+          "200": {
+            "description": "Conversation detail",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationDetail" } } }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/conversations/{sessionID}/events": {
+      "post": {
+        "operationId": "appendConversationEvent",
+        "summary": "Idempotently append a bounded frontend-visible transcript fragment",
+        "parameters": [{ "$ref": "#/components/parameters/SessionID" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationEventInput" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Event accepted or previously stored",
+            "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false,
+              "required": ["accepted","duplicate"], "properties": { "accepted": { "const": true }, "duplicate": { "type": "boolean" } } } } }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/v1/model-tasks": {
       "post": {
         "operationId": "createModelTask",
@@ -313,12 +359,16 @@
         "additionalProperties": false,
         "required": [
           "kind",
+          "funding",
           "text",
           "targetLanguage"
         ],
         "properties": {
           "kind": {
             "const": "translation"
+          },
+          "funding": {
+            "$ref": "#/components/schemas/LiveSessionFunding"
           },
           "text": {
             "type": "string",
@@ -334,8 +384,19 @@
           },
           "targetLanguage": {
             "type": "string",
-            "minLength": 2,
-            "maxLength": 16
+            "enum": [
+              "English",
+              "French",
+              "German",
+              "Spanish",
+              "Norwegian",
+              "Portuguese",
+              "Italian",
+              "Chinese (Simplified)",
+              "Polish",
+              "Arabic",
+              "Ukrainian"
+            ]
           }
         }
       },
@@ -344,20 +405,28 @@
         "additionalProperties": false,
         "required": [
           "kind",
-          "sessionID",
-          "passageID"
+          "funding",
+          "language",
+          "context",
+          "passage"
         ],
         "properties": {
           "kind": {
             "const": "assessment"
           },
-          "sessionID": {
-            "type": "string",
-            "format": "uuid"
+          "funding": {
+            "$ref": "#/components/schemas/LiveSessionFunding"
           },
-          "passageID": {
+          "language": {
             "type": "string",
-            "format": "uuid"
+            "minLength": 2,
+            "maxLength": 16
+          },
+          "context": {
+            "$ref": "#/components/schemas/TaskConversationContext"
+          },
+          "passage": {
+            "$ref": "#/components/schemas/AssessmentPassage"
           }
         }
       },
@@ -366,21 +435,30 @@
         "additionalProperties": false,
         "required": [
           "kind",
-          "sessionID",
-          "text"
+          "funding",
+          "language",
+          "text",
+          "context"
         ],
         "properties": {
           "kind": {
             "const": "teachingReply"
           },
-          "sessionID": {
+          "funding": {
+            "$ref": "#/components/schemas/LiveSessionFunding"
+          },
+          "language": {
             "type": "string",
-            "format": "uuid"
+            "minLength": 2,
+            "maxLength": 16
           },
           "text": {
             "type": "string",
             "minLength": 1,
             "maxLength": 8000
+          },
+          "context": {
+            "$ref": "#/components/schemas/TaskConversationContext"
           }
         }
       },
@@ -389,12 +467,23 @@
         "additionalProperties": false,
         "required": [
           "kind",
+          "funding",
           "query",
           "language"
         ],
         "properties": {
           "kind": {
             "const": "topicSearch"
+          },
+          "funding": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LiveSessionFunding"
+              },
+              {
+                "$ref": "#/components/schemas/AccountAIValueFunding"
+              }
+            ]
           },
           "query": {
             "type": "string",
@@ -405,6 +494,107 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 16
+          }
+        }
+      },
+      "LiveSessionFunding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "sessionID"
+        ],
+        "properties": {
+          "type": {
+            "const": "liveSession"
+          },
+          "sessionID": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AccountAIValueFunding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "account"
+          }
+        }
+      },
+      "TaskConversationContext": {
+        "type": "array",
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "speaker",
+            "text"
+          ],
+          "properties": {
+            "speaker": {
+              "type": "string",
+              "enum": [
+                "user",
+                "assistant"
+              ]
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            }
+          }
+        }
+      },
+      "AssessmentPassage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "fragments"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fragments": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "text",
+                "meaningVisible",
+                "typed"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4000
+                },
+                "meaningVisible": {
+                  "type": "boolean"
+                },
+                "typed": {
+                  "type": "boolean"
+                }
+              }
+            }
           }
         }
       },
@@ -644,6 +834,64 @@
           "usage": {
             "$ref": "#/components/schemas/TaskUsage"
           }
+        }
+      },
+      "ConversationEventInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["eventID", "speaker", "text", "source"],
+        "properties": {
+          "eventID": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+          "speaker": { "type": "string", "enum": ["user", "assistant"] },
+          "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
+          "source": { "type": "string", "enum": ["live", "typed"] }
+        }
+      },
+      "ConversationSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "language", "state", "createdAt", "deadline", "preview", "eventCount", "resultCount"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "language": { "type": ["string", "null"], "maxLength": 32 },
+          "state": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "deadline": { "type": "string", "format": "date-time" },
+          "preview": { "type": ["string", "null"] },
+          "eventCount": { "type": "integer", "minimum": 0 },
+          "resultCount": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "ConversationList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["conversations"],
+        "properties": { "conversations": { "type": "array", "items": { "$ref": "#/components/schemas/ConversationSummary" } } }
+      },
+      "ConversationDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "language", "state", "createdAt", "deadline", "observedMilliseconds", "chargedMilliseconds", "events", "results"],
+        "properties": {
+            "id": { "type": "string", "format": "uuid" },
+            "language": { "type": ["string", "null"], "maxLength": 32 },
+            "state": { "type": "string" },
+            "createdAt": { "type": "string", "format": "date-time" },
+            "deadline": { "type": "string", "format": "date-time" },
+            "observedMilliseconds": { "type": "integer", "minimum": 0 },
+            "chargedMilliseconds": { "type": ["integer", "null"], "minimum": 0 },
+            "events": { "type": "array", "items": { "type": "object", "additionalProperties": false,
+              "required": ["eventID", "speaker", "text", "source", "createdAt"], "properties": {
+                "eventID": { "type": "string" }, "speaker": { "type": "string", "enum": ["user", "assistant"] },
+                "text": { "type": "string" }, "source": { "type": "string", "enum": ["live", "typed"] },
+                "createdAt": { "type": "string", "format": "date-time" }
+              } } },
+            "results": { "type": "array", "items": { "type": "object", "additionalProperties": false,
+              "required": ["kind", "result", "createdAt"], "properties": {
+                "kind": { "type": "string", "enum": ["translation", "assessment", "teachingReply", "topicSearch"] },
+                "result": { "$ref": "#/components/schemas/ModelTaskResult" },
+                "createdAt": { "type": "string", "format": "date-time" }
+              } } }
         }
       },
       "ModelTaskResult": {

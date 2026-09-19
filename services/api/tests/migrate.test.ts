@@ -67,8 +67,8 @@ integration('a crash after schema commit leaves validation retryable without rep
   await migrate(f.db);assert.equal(await validated(f.db),true);assert.equal(await validated(f.db,true),true);assert.deepEqual(await history(f.db),committed);
  }finally{await f.cleanup();}
 });
-integration('already deployed validated 019-021 history is unchanged and its constraint is not scanned again',async()=>{
- const f=await fixture();
+integration('022 replaces and validates rejection evidence without rewriting deployed 019-021 history',async()=>{
+ const f=await fixture();let rejectionScans=0;
  try{
   await f.db.query('CREATE TABLE schema_migrations(name text PRIMARY KEY,applied_at timestamptz NOT NULL DEFAULT now())');
   const path=new URL('../migrations/',import.meta.url);
@@ -79,9 +79,15 @@ integration('already deployed validated 019-021 history is unchanged and its con
    await f.db.query(sql);await f.db.query('INSERT INTO schema_migrations(name) VALUES($1)',[file]);
   }
   const before=await history(f.db);assert.equal(await validated(f.db),true);
-  await migrate(intercept(f.db,async(text,run)=>{assert.notEqual(text,validateSQL);return run();}));
+  await migrate(intercept(f.db,async(text,run)=>{
+   if(text===validateSQL){
+    rejectionScans++;
+    assert.ok((await history(f.db)).some(row=>row.name==='022_live_runtime_rejection.sql'));
+   }
+   return run();
+  }));
   const after=await history(f.db);assert.deepEqual(after.filter(row=>row.name<'022'),before);
-  assert.equal(await validated(f.db),true);assert.equal(await validated(f.db,true),true);
+  assert.equal(rejectionScans,1);assert.equal(await validated(f.db),true);assert.equal(await validated(f.db,true),true);
  }finally{await f.cleanup();}
 });
 integration('failed validation preserves applied history and enforces new writes until repaired and retried',async()=>{

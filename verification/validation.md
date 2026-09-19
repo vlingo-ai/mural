@@ -177,3 +177,30 @@ Visual review after the full UI run found that the fixed consent footer crowded 
 After the owner unlocked the phone, the final build launched normally at 16:37:51 CEST. Its running process was confirmed. This reopened the persistent learning store without verification arguments.
 
 The device results verify the application/provider paths with synthetic typed input and real voice output. They do not verify recognition of a human speaker, pronunciation, tones, correction quality, unscripted interruptions, headphones or cellular operation. The proficient-speaker checks requested in issues #10–#13 remain open. Pinyin uses dictionary tones and may need correction for names, ambiguous words and connected-speech tone changes. The Android contribution is not integrated in this checkout, so there is no generated Android language catalog to update here.
+
+## Product-language availability compatibility
+
+15 September 2026
+
+Mural now distinguishes languages retained for archive compatibility from languages offered for
+new learning. Existing modules `nb`, `es`, `fr`, `de`, `it` and `pt` remain registered and decode
+without rewriting historical sessions. New onboarding, Settings selections and Live session
+creation expose only `en` and `zh`. New installations default to `en`; schema-v1 archives with no
+language continue to migrate as `nb`. The future `yue` module remains gated until the separate
+Hong Kong Traditional Cantonese quality review is complete.
+
+- Swift Core: **74 tests passed** with no failures.
+- Android: **314 unit tests passed**; lint and debug APK assembly succeeded using OpenJDK 17,
+  Android platform 36 and build-tools 35.0.0.
+- iOS: the generic arm64 Simulator build succeeded; **18 UI tests passed** on iPhone 17 / iOS 26.5.
+  The suite explicitly checks that the six historical-only languages are absent from onboarding
+  and Settings, while Mandarin selection, pinyin, transcript retention and English/Mandarin
+  switching continue to work.
+- Python: **53 repository checks passed**, including 11 language exporter tests; generated Android
+  content, `git diff --check` and the Swift/Kotlin cross-platform contract check passed.
+- Mural API: TypeScript checking and the focused Live-language provider test passed after aligning
+  the English locale with the clients on `en`. The public server-side product allowlist remains a
+  Phase 4 boundary change; retained provider locales are not presented by the updated clients.
+
+All checks were offline and used in-memory or synthetic fixtures. No OpenAI key was read and no
+paid API request was made. This checkpoint does not add or validate Cantonese content or speech.

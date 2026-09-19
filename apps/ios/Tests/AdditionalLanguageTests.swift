@@ -24,7 +24,10 @@ final class AdditionalLanguageTests: XCTestCase {
     }
 
     func testRegistrationPreservesOldIDsAndSetsRequestedVarieties() {
-        XCTAssertEqual(LanguageRegistry.all.map(\.id), ["nb", "es", "en", "fr", "de", "it", "pt", "zh"])
+        XCTAssertEqual(LanguageRegistry.knownLanguages.map(\.id), ["nb", "es", "en", "fr", "de", "it", "pt", "zh"])
+        XCTAssertEqual(LanguageRegistry.availableLanguages.map(\.id), ["en", "zh"])
+        XCTAssertEqual(LanguageRegistry.defaultID, "en")
+        XCTAssertEqual(LanguageRegistry.legacyDefaultID, "nb")
         for (id, locale, greeting) in [("de", "de-DE", "Hallo!"), ("it", "it-IT", "Ciao!"), ("pt", "pt-BR", "Olá!"), ("zh", "zh-CN", "你好！")] {
             XCTAssertEqual(LanguageRegistry.module(for: id)?.locale, locale)
             XCTAssertEqual(LanguageRegistry.module(for: id)?.greeting, greeting)
@@ -59,7 +62,7 @@ final class AdditionalLanguageTests: XCTestCase {
 
     func testAllEightLanguagesRoundTripWithIsolatedProgressAndHiddenWords() throws {
         var archive = Archive()
-        archive.sessions = LanguageRegistry.all.flatMap { [session($0.id), session($0.id, day: 2)] }
+        archive.sessions = LanguageRegistry.knownLanguages.flatMap { [session($0.id), session($0.id, day: 2)] }
         archive.preferences.meaningLanguage = "Chinese (Simplified)"
         archive.preferences.hiddenWords = ["pt|radio|radio"]
         for id in ids {
@@ -69,7 +72,7 @@ final class AdditionalLanguageTests: XCTestCase {
             XCTAssertEqual(restored.preferences.meaningLanguage, "Chinese (Simplified)")
             XCTAssertEqual(restored.sessions.map(\.id), archive.sessions.map(\.id))
             var keys = Set<String>()
-            for language in LanguageRegistry.all {
+            for language in LanguageRegistry.knownLanguages {
                 let state = LearningEngine.project(restored.sessions, languageID: language.id, now: restored.sessions.last!.startedAt)
                 XCTAssertEqual(state.observationCount, 2, language.id)
                 XCTAssertEqual(state.words.count, 1, language.id)
@@ -110,7 +113,7 @@ final class AdditionalLanguageTests: XCTestCase {
 
     func testForeignEvidenceIsRejectedForEveryNewLanguageAndEvidenceKind() {
         for id in ids {
-            for other in LanguageRegistry.all where other.id != id {
+            for other in LanguageRegistry.knownLanguages where other.id != id {
                 for kind in [EvidenceKind.independent, .assisted, .understanding, .exposure, .lapse] {
                     var record = session(id)
                     record.assessments[0].words[0].language = other.id

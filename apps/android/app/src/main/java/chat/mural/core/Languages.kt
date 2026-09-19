@@ -42,7 +42,8 @@ data class LanguageModule(
 }
 
 object LanguageRegistry {
-    const val defaultID = "nb"
+    const val defaultID = "en"
+    const val legacyDefaultID = "nb"
     private val norwegian = LanguageModule(
         id = "nb",
         name = "Norwegian",
@@ -201,8 +202,10 @@ object LanguageRegistry {
             "cabin" to ConversationTheme("cabin", "周末出游", "A change of scene", "mountain.2", "Local life", "一起设想一个周末旅行，选择城市、海边或乡村，讨论实际安排和喜欢做的事情。", 2),
             "traditions" to ConversationTheme("traditions", "日常习俗", "Small customs, big stories", "flag", "Local life", "用普通话聊日常习俗和节日。比较学习者熟悉的地方，避免把任何一种习惯说成所有人的共同体验。", 2))
     )
-    val all = listOf(norwegian, spanish, english, french, german, italian, portuguese, mandarin)
-    fun get(id: String) = all.firstOrNull { it.id == id }
+    val knownLanguages = listOf(norwegian, spanish, english, french, german, italian, portuguese, mandarin)
+    val availableLanguages = listOf(english, mandarin)
+    fun get(id: String) = knownLanguages.firstOrNull { it.id == id }
+    fun isAvailable(id: String) = availableLanguages.any { it.id == id }
 }
 
 object MeaningLanguages {

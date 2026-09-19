@@ -1,21 +1,26 @@
 # How Mural keeps languages independent
 
-A learner can be comfortable in Norwegian and new to Spanish. Mural therefore gives each conversation an immutable language ID and projects vocabulary, challenge level and capability observations from that language's evidence only. Identical word forms have different vocabulary keys across languages, so hiding or recalling a word in one language does not affect another.
+A learner can be comfortable in one language and new to another. Mural therefore gives each conversation an immutable language ID and projects vocabulary, challenge level and capability observations from that language's evidence only. Identical word forms have different vocabulary keys across languages, so hiding or recalling a word in one language does not affect another.
 
-Language-specific content lives in `apps/ios/Core/Languages/`. Each module defines its greeting, regional speech guidance, writing conventions, lemma rules, six teaching stages and cultural theme overrides. `LanguageRegistry` supplies the available choices to the UI.
+Language-specific content lives in `apps/ios/Core/Languages/`. Each module defines its greeting, regional speech guidance, writing conventions, lemma rules, six teaching stages and cultural theme overrides.
 
-| Storage ID | Learning target | Locale |
-| --- | --- | --- |
-| `nb` | Norwegian Bokmål, Eastern Norwegian speech | `nb-NO` |
-| `es` | Spanish from Spain | `es-ES` |
-| `en` | International English | `en-US` |
-| `fr` | French from France | `fr-FR` |
-| `de` | Standard German from Germany | `de-DE` |
-| `it` | Italian from Italy | `it-IT` |
-| `pt` | Brazilian Portuguese | `pt-BR` |
-| `zh` | Standard Mandarin, Simplified Chinese | `zh-CN` |
+The product target is English, Mandarin and Hong Kong Cantonese. After the availability split is implemented, new conversations will expose English and Mandarin. Cantonese remains planned until its Hong Kong Traditional Chinese content and human voice-quality gate pass. The existing Norwegian, Spanish, French, German, Italian and Portuguese modules will be hidden from new selection but retained for historical decoding. This target-language policy is independent of interface localization and meaning-subtitle languages. Until that migration lands, the current registry and UI still expose all eight implemented modules.
+
+| Storage ID | Learning target | Locale | Target availability |
+| --- | --- | --- | --- |
+| `en` | International English | `en-US` | Available |
+| `zh` | Standard Mandarin, Simplified Chinese | `zh-CN` | Available |
+| `yue` | Hong Kong Cantonese, Traditional Chinese | `yue-Hant-HK` | Planned, gated |
+| `nb` | Norwegian Bokmål, Eastern Norwegian speech | `nb-NO` | Historical decoding |
+| `es` | Spanish from Spain | `es-ES` | Historical decoding |
+| `fr` | French from France | `fr-FR` | Historical decoding |
+| `de` | Standard German from Germany | `de-DE` | Historical decoding |
+| `it` | Italian from Italy | `it-IT` | Historical decoding |
+| `pt` | Brazilian Portuguese | `pt-BR` | Historical decoding |
 
 These locales describe the initial teaching targets. Modules accept valid regional usage from learners. Regional pronunciation is a model instruction and still needs listening checks. Portuguese's stable `pt` storage ID currently belongs to the Brazilian module; a future independently selectable variety must not silently reinterpret existing progress.
+
+`LanguageRegistry` must separate known languages from selectable languages. `knownLanguages` resolves every retained archive ID; `availableLanguages` drives onboarding, settings and new-session validation. A new installation defaults to English, while schema-v1 archives without a language ID must continue to migrate to Norwegian. Those defaults need separate constants so an application-default change cannot rewrite historical meaning. An upgraded user whose preference names a historical-only language can view and export existing data, but must explicitly choose an available language before starting a new conversation.
 
 `TeachingPolicy` combines a module with the shared teaching rules. Voice, assessment, typed replies, help, word lookup, subtitles and current-topic search all use that policy. The audio transport and provider connection remain shared. A module can override selected theme IDs while inheriting the common conversation catalog.
 
@@ -27,13 +32,15 @@ Mandarin builds on [richardguerre's contribution in #4](https://github.com/Chulo
 
 Pinyin appears separately below selectable Chinese text, with a Show/Hide control. Word links use Chinese word boundaries. Lemmas stay in characters, observed forms and quotations stay unchanged, and generated pinyin never becomes learning evidence. Script identifiers such as `zh-Hans` and `zh-Hant` are accepted by the spoken-language check, so Chinese text does not trigger a false language redirect. Simplified Chinese is also available for meaning subtitles.
 
+Hong Kong Cantonese is a separate language module, not a Mandarin variety. Its stable storage ID is `yue`, its first product locale is `yue-Hant-HK`, and its own output uses Hong Kong Traditional Chinese. It must keep separate progress, vocabulary, assessment prompts, speech guidance and fixtures. Mandarin pinyin is never reused for Cantonese; if pronunciation annotation ships, it uses reviewed Jyutping. Because the provider does not publish a Cantonese quality guarantee for `gpt-live-1`, Cantonese stays unavailable until competent Hong Kong Cantonese speakers approve continuous speech, interruption handling, transcription, code-switching and conservative corrections.
+
 These are compiled modules. Adding one ships with an app update; there is no remote module download or extra service. Every new language needs a proficient-speaker teaching and pronunciation review. The Android contribution is not integrated in this checkout, so there is no Android generated catalog to update here.
 
 See [how to add a language](add-language.md) for the implementation steps.
 
 ## Two native cores, one contract
 
-The Android client is a separate Kotlin/Compose app, not a shared build. `scripts/export_android_content.py` generates Android's language content (`Languages.kt`) from the Swift modules under `apps/ios/Core/Languages/`, so a module registered in `LanguageRegistry.all` reaches both platforms without being written twice.
+The Android client is a separate Kotlin/Compose app, not a shared build. `scripts/export_android_content.py` generates Android's language content (`Languages.kt`) from the Swift known-language modules, so retained archive modules reach both platforms without being written twice. Availability is exported separately and must match the Web/iOS product list.
 
 Everything else in the learning core is ported by hand, so `scripts/check_cross_platform.py` checks that the two ports stay in agreement: the teaching prompts sent to the model, a fixed table of shared numeric constants (recall spacing, evidence thresholds, session limits), and the required fields of the JSON backup archive. Golden fixtures under `shared/fixtures/cross-platform/` are read by both `swift test` and the Android unit tests, so a behavior change can be verified identically on both cores.
 

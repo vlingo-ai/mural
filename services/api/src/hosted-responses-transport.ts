@@ -1,7 +1,7 @@
 import { responseTextStream } from './response-text-stream.js';
 import { Diagnostics } from './diagnostics.js';
 import { boundedJSON } from './live-provider.js';
-import type { HostedResponsesRequest, HostedResponsesTransport } from './hosted-helpers.js';
+import type { HostedResponsesContext, HostedResponsesRequest, HostedResponsesTransport } from './hosted-helpers.js';
 import { ServiceError } from './errors.js';
 
 /** Fixed provider destination, one attempt, no redirects or retained response content. */
@@ -11,7 +11,9 @@ export class OpenAIHostedResponses implements HostedResponsesTransport {
     if (!/^[\x21-\x7e]{20,512}$/.test(key)) throw new ServiceError('hosted_helpers_configuration_invalid', 503);
     this.#key = key;
   }
-  async send(body: HostedResponsesRequest, signal: AbortSignal, onText?: (text: string) => void): Promise<unknown> {
+  async send(body: HostedResponsesRequest, signal: AbortSignal,
+    contextOrText?: HostedResponsesContext | ((text: string) => void), onText?: (text: string) => void): Promise<unknown> {
+    const textReceiver = typeof contextOrText === 'function' ? contextOrText : onText;
     const started = performance.now();
     let status: number | undefined, requestID: string | undefined;
     try {
@@ -22,7 +24,7 @@ export class OpenAIHostedResponses implements HostedResponsesTransport {
       });
       status = response.status; requestID = response.headers.get('x-request-id') ?? undefined;
       if (!response.ok) { await response.body?.cancel(); throw new Error(); }
-      const result = body.stream ? await responseTextStream(response, onText ?? (() => {})) : await boundedJSON(response, 1_048_576);
+      const result = body.stream ? await responseTextStream(response, textReceiver ?? (() => {})) : await boundedJSON(response, 1_048_576);
       this.diagnostics.record('provider_completed', { operation: 'helper.respond', providerStatus: status,
         providerRequestID: requestID, durationMilliseconds: performance.now() - started });
       return result;

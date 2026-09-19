@@ -39,9 +39,16 @@ final class MuralUITests: XCTestCase {
         }
     }
 
-    func testGermanOnboarding() { checkNewOnboarding(id: "de", greeting: "Hallo!") }
-    func testItalianOnboarding() { checkNewOnboarding(id: "it", greeting: "Ciao!") }
-    func testBrazilianPortugueseOnboarding() { checkNewOnboarding(id: "pt", greeting: "Olá!") }
+    func testLegacyLanguagesAreHiddenFromOnboarding() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--preview", "--preview-onboarding"]
+        app.launch()
+        XCTAssertTrue(app.buttons["onboarding-language-en"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["onboarding-language-zh"].exists)
+        for id in ["nb", "es", "fr", "de", "it", "pt"] {
+            XCTAssertFalse(app.buttons["onboarding-language-\(id)"].exists)
+        }
+    }
     func testMandarinOnboardingWithOptionalPinyin() { checkNewOnboarding(id: "zh", greeting: "你好！") }
 
     func testMandarinSelectionAtLargestAccessibilityTextSize() {
@@ -67,31 +74,15 @@ final class MuralUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["target-caption"].label, "你好！")
     }
 
-    func testNewLanguageSettingsThemesWordsAndReturnToNorwegian() {
+    func testLegacyLanguagesAreHiddenFromSettings() {
         let app = launch()
-        for (selection, name, greeting, theme) in [
-            ("German · Germany", "German", "Hallo!", "Ein Kaffee?"),
-            ("Italian · Italy", "Italian", "Ciao!", "Un caffè?"),
-            ("Portuguese · Brazil", "Portuguese", "Olá!", "Um cafezinho?"),
-            ("Mandarin Chinese · Mainland China", "Mandarin Chinese", "你好！", "喝杯咖啡？")
-        ] {
-            app.buttons["Settings"].tap()
-            app.buttons["learning-language-picker"].tap()
-            app.buttons[selection].tap()
-            app.buttons["Done"].tap()
-            XCTAssertEqual(app.staticTexts["target-caption"].label, greeting)
-            app.tabBars.buttons["Themes"].tap()
-            XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", theme)).firstMatch.exists)
-            app.tabBars.buttons["Words"].tap()
-            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Little by little · \(name)")).firstMatch.exists)
-            app.tabBars.buttons["Talk"].tap()
-        }
         app.buttons["Settings"].tap()
         app.buttons["learning-language-picker"].tap()
-        app.buttons["Norwegian · Bokmål"].tap()
-        app.buttons["Done"].tap()
-        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hei!")
-        XCTAssertFalse(app.buttons["pinyin-toggle"].exists)
+        XCTAssertTrue(app.buttons["English · International"].exists)
+        XCTAssertTrue(app.buttons["Mandarin Chinese · Mainland China"].exists)
+        for selection in ["Norwegian · Bokmål", "Spanish · Spain", "French · France", "German · Germany", "Italian · Italy", "Portuguese · Brazil"] {
+            XCTAssertFalse(app.buttons[selection].exists)
+        }
     }
 
     func testSimplifiedChineseMeaningsAreAvailableInOnboarding() {
@@ -174,7 +165,7 @@ final class MuralUITests: XCTestCase {
     func testGreetingAndMeaningToggle() {
         let app = launch()
         XCTAssertTrue(app.staticTexts["target-caption"].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hei!")
+        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hi!")
         XCTAssertEqual(app.staticTexts["microphone-status"].label, "Microphone off")
         app.buttons["Hide meaning subtitles"].tap()
         XCTAssertFalse(app.staticTexts["meaning-caption"].exists)
@@ -253,10 +244,11 @@ final class MuralUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--preview", "--preview-onboarding"]
         app.launch()
-        XCTAssertTrue(app.buttons["onboarding-language-fr"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["onboarding-language-zh"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["onboarding-language-fr"].exists)
         let languageScreen = XCTAttachment(screenshot: app.screenshot())
         languageScreen.name = "Onboarding - language"; languageScreen.lifetime = .keepAlways; add(languageScreen)
-        app.buttons["onboarding-language-fr"].tap()
+        app.buttons["onboarding-language-zh"].tap()
         app.buttons["onboarding-continue"].tap()
         XCTAssertTrue(app.buttons["onboarding-meaning-picker"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["onboarding-ai-consent"].exists)
@@ -269,7 +261,7 @@ final class MuralUITests: XCTestCase {
         meaningScreen.name = "Onboarding - meanings and consent"; meaningScreen.lifetime = .keepAlways; add(meaningScreen)
         app.buttons["onboarding-continue"].tap()
         XCTAssertTrue(app.staticTexts["target-caption"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["target-caption"].label, "Salut !")
+        XCTAssertEqual(app.staticTexts["target-caption"].label, "你好！")
         XCTAssertEqual(app.staticTexts["meaning-caption"].label, "¡Hola!")
         XCTAssertEqual(app.staticTexts["microphone-status"].label, "Microphone off")
         XCTAssertFalse(app.secureTextFields["api-key"].exists)
@@ -287,7 +279,7 @@ final class MuralUITests: XCTestCase {
         app.buttons["onboarding-meaning-picker"].tap()
         app.buttons["Spanish"].tap()
         app.buttons["onboarding-back"].tap()
-        app.buttons["onboarding-language-fr"].tap()
+        app.buttons["onboarding-language-zh"].tap()
         app.buttons["onboarding-continue"].tap()
         XCTAssertEqual(app.staticTexts["onboarding-meaning-example"].label, "¡Hola!")
         app.buttons["onboarding-continue"].tap()
@@ -295,9 +287,9 @@ final class MuralUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["meaning-caption"].label, "¡Hola!")
     }
 
-    func testSettingsCanSwitchToEnglishAndFrench() {
+    func testSettingsCanSwitchToEnglishAndMandarin() {
         let app = launch()
-        for (selection, greeting) in [("English · International", "Hi!"), ("French · France", "Salut !")] {
+        for (selection, greeting) in [("English · International", "Hi!"), ("Mandarin Chinese · Mainland China", "你好！")] {
             app.buttons["Settings"].tap()
             app.buttons["learning-language-picker"].tap()
             app.buttons[selection].tap()
@@ -311,20 +303,20 @@ final class MuralUITests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "A coffee?")).firstMatch.tap()
         app.buttons["Settings"].tap()
         app.buttons["learning-language-picker"].tap()
-        app.buttons["Spanish · Spain"].tap()
+        app.buttons["Mandarin Chinese · Mainland China"].tap()
         app.buttons["Done"].tap()
-        XCTAssertEqual(app.staticTexts["target-caption"].label, "¡Hola!")
-        XCTAssertTrue(app.staticTexts["A little everyday Spanish"].exists)
+        XCTAssertEqual(app.staticTexts["target-caption"].label, "你好！")
+        XCTAssertTrue(app.staticTexts["A little everyday Mandarin Chinese"].exists)
         app.tabBars.buttons["Themes"].tap()
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Un café")).firstMatch.exists)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "喝杯咖啡？")).firstMatch.exists)
         app.tabBars.buttons["Words"].tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Little by little · Spanish")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Little by little · Mandarin Chinese")).firstMatch.exists)
         app.tabBars.buttons["Talk"].tap()
         app.buttons["Settings"].tap()
         app.buttons["learning-language-picker"].tap()
-        app.buttons["Norwegian · Bokmål"].tap()
+        app.buttons["English · International"].tap()
         app.buttons["Done"].tap()
-        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hei!")
+        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hi!")
     }
 
     func testMeaningLabelWorksAfterEndingAndManualResetKeepsHistory() {
@@ -339,7 +331,7 @@ final class MuralUITests: XCTestCase {
         app.buttons["Show meaning subtitles"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.93)).tap()
         XCTAssertEqual(app.staticTexts["meaning-caption"].label, "I like coffee.")
         app.buttons["new-conversation"].tap()
-        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hei!")
+        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hi!")
         XCTAssertEqual(app.staticTexts["microphone-status"].label, "Microphone off")
         XCTAssertFalse(app.staticTexts["A coffee?"].exists)
         app.tabBars.buttons["Words"].tap()
@@ -348,29 +340,33 @@ final class MuralUITests: XCTestCase {
     }
 
     func testEndedConversationAutomaticallyReturnsToGreeting() {
-        let app = launch(ended: true)
+        let app = XCUIApplication()
+        app.launchArguments = ["--preview", "--ended-conversation", "--preview-language=zh"]
+        app.launch()
         XCTAssertTrue(app.buttons["new-conversation"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["target-caption"].label, "Jeg liker kaffe.")
+        XCTAssertEqual(app.staticTexts["target-caption"].label, "我喜欢喝咖啡。")
         let ready = NSPredicate(format: "label == %@", "Ready when you are")
         expectation(for: ready, evaluatedWith: app.staticTexts["conversation-status"])
         waitForExpectations(timeout: 18)
-        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hei!")
+        XCTAssertEqual(app.staticTexts["target-caption"].label, "你好！")
         XCTAssertEqual(app.staticTexts["meaning-caption"].label, "Hi!")
         XCTAssertFalse(app.buttons["new-conversation"].exists)
     }
 
     func testOpenTranscriptRemainsReadableAfterAutomaticReset() {
-        let app = launch(ended: true)
+        let app = XCUIApplication()
+        app.launchArguments = ["--preview", "--ended-conversation", "--preview-language=zh"]
+        app.launch()
         XCTAssertTrue(app.buttons["new-conversation"].waitForExistence(timeout: 5))
         app.buttons["Conversation transcript"].tap()
         XCTAssertTrue(app.staticTexts["I like coffee."].exists)
         let delay = expectation(description: "Allow the 15-second reset to finish")
         DispatchQueue.main.asyncAfter(deadline: .now() + 16) { delay.fulfill() }
         waitForExpectations(timeout: 18)
-        XCTAssertTrue(app.staticTexts["Jeg liker kaffe."].exists)
+        XCTAssertTrue(app.staticTexts["我喜欢喝咖啡。"].exists)
         XCTAssertTrue(app.staticTexts["I like coffee."].exists)
         app.buttons["Done"].tap()
-        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hei!")
+        XCTAssertEqual(app.staticTexts["target-caption"].label, "你好！")
     }
     func testNetworkRecoveryLifecycleThroughRealTransport() {
         let app = XCUIApplication()
