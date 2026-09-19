@@ -44,6 +44,11 @@ Web / iOS ── WebRTC ── LiveKit Room ── Agent Worker ── gpt-live-
   加载；原 OpenAI/Gateway WebRTC 路径继续作为显式回滚方案。
 - 浏览器只得到有房间范围和短有效期的 LiveKit token，不得到 OpenAI key、LiveKit
   API secret 或 Worker control token。
+- 产品级 Live capability 由 Mural 聚合，实时 provider/model 的就绪状态由 Agent Worker
+  提供；Model Gateway 不新增 Live capability 或 `GATEWAY_LIVE_BACKEND`。它只承担
+  client delegation 所需的 Responses 路由以及独立 ASR/Alignment 等非实时能力。
+- 既有 Gateway hosted-live 路径暂时作为 legacy/显式回滚实现保留，但不参与 LiveKit
+  产品可用性判断，也不要求 Web/iOS 查询 Model Gateway 内部 capability。
 
 ## 已验证
 

@@ -415,6 +415,21 @@ LiveKit Cloud Build；Mural API、Model Gateway 和 Agent Worker 仍由产品方
 公网 ASR provider 或远程 Forced Aligner；不得复制一套 Linux 专用网关。ASR 与
 Forced Alignment 是两个独立能力和故障域，必须分别装配、发布 capability、限流和鉴权。
 
+LiveKit-only 架构不在 Model Gateway 增加 `GATEWAY_LIVE_BACKEND` 或产品级 Live
+capability。职责固定为：
+
+```text
+Mural API       聚合产品 live_session capability、权限、余额、并发和 kill switch
+Agent Worker    配置并连接实时 provider/model，向 Mural 报告就绪和生命周期
+Model Gateway   提供 Responses、ASR、Alignment 及其他非实时模型路由
+Web/iOS         只读取 Mural 的产品 capability，不查询 Model Gateway 内部配置
+```
+
+实时会话中的 client delegation 仍按
+`Agent Worker → Mural API → Model Gateway Responses Router` 执行；这只依赖 Responses
+capability，不使 Model Gateway 成为 Live capability 的所有者。既有 Gateway hosted-live
+实现暂时保留为 legacy/显式回滚路径，不参与 LiveKit 产品可用性判断，也不为它新增部署参数。
+
 配置模型冻结为：
 
 ```text
@@ -464,6 +479,11 @@ GATEWAY_ALIGNMENT_BACKEND=disabled
 此时只启用 Model Gateway core/Responses 能力，先完成 LiveKit Cloud 混合部署门禁。后续按
 “remote Forced Aligner → 公网 ASR provider”的顺序增量启用，不把 GPU 节点作为 5.5B
 首轮验收前置条件。
+
+Live 配置保持在真正的能力所有者：Mural 使用 `MURAL_LIVE_TRANSPORT=livekit-room|disabled`；
+Agent Worker 使用自己的 provider/model 配置。不得把具体 Responses provider/model 固定为
+delegation 的产品契约；Mural 只发送 `mural.reasoning.default` 等逻辑模型，由 Model Gateway
+按部署配置选择实际供应商和模型。
 
 Model Gateway 另有项目并行开发。任何实现开始前必须在最新 `main` 基线上新建专用
 worktree/分支，向该项目协调者报告基线 commit、预计文件范围和运行服务影响；不得直接在
