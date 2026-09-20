@@ -86,6 +86,13 @@ alert configuration, and confirmation that Region Pinning is off.
 2. Add an SSH key; disable password/root SSH after verifying the operator account in a second shell.
 3. Configure the provider firewall and Ubuntu firewall to allow inbound TCP 22 only from operator
    IPs, TCP 80/443 from the Internet, and UDP 443 for HTTP/3. Deny inbound 5432, 8000, and 8080.
+   When the staging operator has a frequently changing VPN egress address, Phase 5.5B may retain
+   TCP 22 from `0.0.0.0/0` as a documented temporary exception only if root login, password login,
+   and keyboard-interactive login are disabled; public-key login is the sole SSH authentication
+   method; UFW rate-limits port 22; unattended security updates and SSH logging remain enabled; and
+   no other administrative or internal service port is public. Record this exception in the
+   verification report. Replace it with Alibaba Cloud Session Manager, Workbench, a private overlay
+   network, or restricted operator CIDRs before long-term or production use.
 4. Create DNS `A` records for:
 
    - `speaking-live-staging.vlingo.ai`
@@ -192,6 +199,9 @@ Before a provider call, prove all of the following:
 
 - Public Web and API use valid TLS; plain HTTP redirects to HTTPS.
 - Ports 5432, 8000, and 8080 are unreachable from an external host.
+- SSH uses public-key authentication only, rejects new root sessions, and is source-restricted; if
+  the documented dynamic-VPN staging exception is active, prove UFW rate limiting and record public
+  TCP 22 as an unresolved hardening item.
 - Mural `/healthz` is healthy and the database is ready.
 - Model Gateway health and Responses capability are ready; ASR and Alignment report disabled.
 - Mural product capability advertises `livekit-room` only to the restricted staging account after
