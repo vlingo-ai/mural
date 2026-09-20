@@ -180,10 +180,14 @@ printing secret values. A PASS is preparation evidence, not deployment evidence.
 
    ```sh
    docker compose --env-file .env up -d model-gateway
-   docker compose --env-file .env run --rm migrate
+   docker compose --env-file .env up --no-deps migrate
    docker compose --env-file .env up -d api agent-worker
    docker compose --env-file .env up -d edge
    ```
+
+   The `migrate` service must exit successfully before starting the API. Using the declared service
+   (rather than a removed one-off container) satisfies the API's `service_completed_successfully`
+   dependency without running migrations a second time.
 
 5. Run `./verify.sh`. Record `git rev-parse HEAD`, `docker compose images`, the sanitized verify
    output, migration result, public certificate subjects/expiry, and a 15-minute sanitized log tail.
