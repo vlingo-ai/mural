@@ -4,14 +4,14 @@ This procedure enables native Google sign-in independently of payments, free tri
 
 ## Configure the identity provider
 
-Create a Google **iOS** OAuth client for the app's bundle ID and use that same client ID as `GOOGLE_CLIENT_ID` on the server and as the native authorization audience. The current Mural app uses bundle ID `no.william.mural`; its public client ID is `1034240936303-gernpir75rp4uvc8m5imrhrs18npma5n.apps.googleusercontent.com`, in project `mural-508413`. This installed-app PKCE flow needs no Google client secret on the backend. [Google iOS backend authentication](https://developers.google.com/identity/sign-in/ios/backend-auth)
+Create a Google **iOS** OAuth client for the app's bundle ID and use that same client ID as `GOOGLE_IOS_CLIENT_ID` on the server and as the native authorization audience. The current Mural app uses bundle ID `no.william.mural`; its public client ID is `1034240936303-gernpir75rp4uvc8m5imrhrs18npma5n.apps.googleusercontent.com`, in project `mural-508413`. This installed-app PKCE flow needs no Google client secret on the backend. [Google iOS backend authentication](https://developers.google.com/identity/sign-in/ios/backend-auth)
 
 Mural's Google project is External/In production as of September 12, 2026, with verified and published branding. It requests only `openid` and `email`. For a separate development project, note that Testing is not an invitation-only gate for these basic identity scopes. Workspace policies can still block authorization. [Google OAuth app states](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview)
 
 For Web, create a separate Google **Web application** OAuth client, configure its exact HTTPS and
 local development origins, set it as `GOOGLE_WEB_CLIENT_ID` on the server and
 `VITE_GOOGLE_CLIENT_ID` at Web build time. The backend accepts either the native or Web audience;
-do not replace `GOOGLE_CLIENT_ID`, because doing so would break existing iOS sign-in.
+do not replace `GOOGLE_IOS_CLIENT_ID`, because doing so would break existing iOS sign-in.
 
 For Apple later, configure the native client/bundle ID and Sign in with Apple capability, then supply `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY_PATH`. Mount the `.p8` key read-only in the API container. Startup imports it as an ES256 key before offering Apple signup. A successful local key import does not verify portal configuration; complete a real sign-in and deletion test before enabling the app button. The backend must be able to exchange a fresh Apple code and revoke the returned token. [Apple token revocation](https://developer.apple.com/documentation/signinwithapplerestapi/revoke-tokens)
 
@@ -38,7 +38,7 @@ Generate the two secrets privately and write them into the mode-600 deployment e
 ACCOUNTS_ENABLED=true
 ACCOUNTS_HMAC_KEY=<random 32-byte lowercase hex secret>
 ACCOUNTS_PROXY_TOKEN=<different random 32-byte lowercase hex secret>
-GOOGLE_CLIENT_ID=<the iOS OAuth client ID>
+GOOGLE_IOS_CLIENT_ID=<the iOS OAuth client ID>
 ```
 
 The HMAC and proxy secrets must differ. The proxy token can share the existing trusted-Caddy token if the deployment already manages one; never reuse the HMAC key as a token. Leave `ACCOUNTS_ALLOW_LOCAL_LOOPBACK` unset in production. Explicit `true` permits direct loopback requests for local tests only. Leave Apple variables unset for the Google-only release.

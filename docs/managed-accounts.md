@@ -7,7 +7,7 @@ On 12 September 2026, the owner confirmed that real Google sign-in worked on the
 ## Enable Google
 
 1. Deploy the account service using the [server setup guide](../services/api/docs/enable-accounts.md). Use an HTTPS origin with no path, query, fragment or embedded credentials. Confirm the server's `/v1/auth/providers` response enables Google before distributing a configured app.
-2. Create a Google OAuth client of type **iOS** for the app's bundle ID. Set the server's `GOOGLE_CLIENT_ID` to the same value. This flow uses the native client's audience and requires no Google client secret. Configure the OAuth consent screen for your intended users.
+2. Create a Google OAuth client of type **iOS** for the app's bundle ID. Set the server's `GOOGLE_IOS_CLIENT_ID` to the same value. This flow uses the native client's audience and requires no Google client secret. Configure the OAuth consent screen for your intended users.
 3. Add these public values to the ignored `apps/ios/Config/Local.xcconfig`, preserving its existing signing settings:
 
 ```xcconfig

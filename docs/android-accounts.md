@@ -8,7 +8,7 @@ This branch implements native Google sign-in, secure session storage, account re
 
 1. Register an **Android** OAuth client for the app's package name and signing certificate SHA-1. Debug and Play-distributed builds need their respective certificates. For a Play build, use the Play App Signing certificate, not only the upload certificate.
 2. Register a **Web application** OAuth client as the native account service's audience. This ID-token flow needs no browser redirect URI or client secret in the app or API.
-3. Preserve the server's existing iOS `GOOGLE_CLIENT_ID`. Set `GOOGLE_ANDROID_SERVER_CLIENT_ID` to the web client ID and `GOOGLE_ANDROID_CLIENT_IDS` to the comma-separated Android client IDs accepted for this service.
+3. Preserve the server's existing iOS `GOOGLE_IOS_CLIENT_ID`. Set `GOOGLE_ANDROID_SERVER_CLIENT_ID` to the web client ID and `GOOGLE_ANDROID_CLIENT_IDS` to the comma-separated Android client IDs accepted for this service.
 4. Deploy the reviewed service and confirm `GET /v1/auth/providers` returns `googleAndroid: true`. A true flag reports configuration; it does not prove that a real Google authorization works.
 5. Put these public configuration values in the ignored `apps/android/local.properties`, alongside any SDK path:
 

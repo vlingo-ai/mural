@@ -66,7 +66,7 @@ This starts the foundation only. It does not enable hosted voice or real purchas
 
 ## Configure identity and sandbox checkout
 
-Set `GOOGLE_CLIENT_ID` to the exact audience issued to the native app. Request a nonce from `/v1/auth/challenge`, include that exact nonce in the Google OIDC authorization request, and send the resulting ID token to `/v1/auth/exchange`. Tokens without the expected nonce are rejected. The server does not accept an email address or client-declared account ID as authentication.
+Set `GOOGLE_IOS_CLIENT_ID` to the exact audience issued to the iOS app. Request a nonce from `/v1/auth/challenge`, include that exact nonce in the Google OIDC authorization request, and send the resulting ID token to `/v1/auth/exchange`. Tokens without the expected nonce are rejected. The server does not accept an email address or client-declared account ID as authentication.
 
 Apple sign-in requires `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, and `APPLE_PRIVATE_KEY_PATH`, pointing to a private Sign in with Apple `.p8` file. The adapter exchanges a fresh native authorization code, verifies the returned ID token against the authenticated account’s Apple subject, and revokes its refresh/access token. Provider tokens stay in memory. Supplying `APPLE_CLIENT_ID` alone does not enable Apple sign-in. The adapter has cryptographic tests using fake responses; real Apple configuration and device verification remain pending. Mount the private key read-only through a deployment override; never add it to the image or repository.
 
