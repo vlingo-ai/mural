@@ -31,6 +31,10 @@ The client ID is public configuration and will be supplied as `GOOGLE_WEB_CLIENT
 `VITE_GOOGLE_CLIENT_ID` to the Web build. The generated client secret is not required by this flow
 and must not be committed, copied into the VPS environment, or exposed to either client.
 
+`GOOGLE_IOS_CLIENT_ID` remains empty for Phase 5.5B. Phase 6 will create a separate user-owned iOS
+client only after the new app bundle ID is fixed; this staging deployment does not reuse the
+upstream Mural iOS client.
+
 ## Remaining verification
 
 - Put the public client ID into the private staging `.env` under both expected variable names.
