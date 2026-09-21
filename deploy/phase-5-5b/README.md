@@ -136,8 +136,9 @@ chmod 600 .env
 Fill `.env` through the secret manager or an editor that does not persist cloud history. Generate
 independent random values for database, Gateway, account, LiveKit control, Worker provider, and
 Gateway provider credentials. `WORKER_OPENAI_API_KEY` and `GATEWAY_OPENAI_API_KEY` must be different
-keys so either workload can be revoked independently. Use only staging OAuth clients and explicit
-test account UUIDs.
+keys so either workload can be revoked independently. Use only staging OAuth clients. For the first
+identity-only boot, keep `HOSTED_VOICE_EXPERIMENTAL=false`, `HOSTED_HELPERS_EXPERIMENTAL=false`, an
+empty `HOSTED_VOICE_ACCOUNT_ALLOWLIST`, and zero hosted budgets. Do not invent an account UUID.
 
 Run:
 
@@ -176,12 +177,13 @@ printing secret values. A PASS is preparation evidence, not deployment evidence.
    encrypted backup is non-empty and decryptable on the separate recovery host. Keep the previous
    Compose file, Mural image, Gateway image, Worker image, `.env`, and database backup as rollback.
 
-4. Start the internal services, run only repository migrations, then start public edge:
+4. Start the internal services, run only repository migrations, then start the API and public edge
+   in identity-only mode. Do not start the Agent Worker yet:
 
    ```sh
    docker compose --env-file .env up -d model-gateway
    docker compose --env-file .env up --no-deps migrate
-   docker compose --env-file .env up -d api agent-worker
+   docker compose --env-file .env up -d api
    docker compose --env-file .env up -d edge
    ```
 
@@ -191,6 +193,13 @@ printing secret values. A PASS is preparation evidence, not deployment evidence.
 
 5. Run `./verify.sh`. Record `git rev-parse HEAD`, `docker compose images`, the sanitized verify
    output, migration result, public certificate subjects/expiry, and a 15-minute sanitized log tail.
+
+6. Sign in once through the staging Web origin with one approved Google test user. Query only the
+   new non-guest account ID (not its email or token) from PostgreSQL. Put that existing UUID in
+   `HOSTED_VOICE_ACCOUNT_ALLOWLIST`, set both experimental gates to `true`, and apply the separately
+   reviewed lifetime and per-minute budgets. Rerun `./preflight.sh`, start `agent-worker`, and
+   recreate `api`. Confirm the worker registers before Gate 6. This gate change enables restricted
+   capability only; it does not authorize a billable provider session.
 
 Rollback before any real Build session: stop `edge`, `agent-worker`, and `api`; restore the previous
 image digests and Compose file; restore the encrypted PostgreSQL backup only if a migration is not
