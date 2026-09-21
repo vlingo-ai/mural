@@ -123,9 +123,9 @@ try {
     throw new Error('Android Google identity configuration is incomplete.');
   if (googleWebClientID && !/^[A-Za-z0-9-]+\.apps\.googleusercontent\.com$/.test(googleWebClientID))
     throw new Error('Web Google identity configuration is invalid.');
-  if (accounts && !hasGoogleSignIn({ googleClientID: process.env.GOOGLE_CLIENT_ID, googleWebClientID, googleAndroidServerClientID, googleAndroidClientIDs }) &&
+  if (accounts && !hasGoogleSignIn({ googleClientID: process.env.GOOGLE_IOS_CLIENT_ID, googleWebClientID, googleAndroidServerClientID, googleAndroidClientIDs }) &&
     !(appleClient && appleRevoker)) throw new Error('No account identity provider configured.');
-  const app = createApp({ db, auth: { googleClientID: process.env.GOOGLE_CLIENT_ID, googleWebClientID, appleClientID: appleClient,
+  const app = createApp({ db, auth: { googleClientID: process.env.GOOGLE_IOS_CLIENT_ID, googleWebClientID, appleClientID: appleClient,
     googleAndroidServerClientID, googleAndroidClientIDs }, payments, appleRevoker, hosted, hostedHelpers,
     accountModelTasks, webOrigins: webOrigins(process.env.MURAL_WEB_ALLOWED_ORIGINS), minuteCommerce, accessRequests, accounts, aiReports,guestMinuteAttestor,
     diagnostics, onStartupDiagnostic: diagnostic => console.warn(JSON.stringify({ event: 'conversation_request_failed', ...diagnostic })) });
