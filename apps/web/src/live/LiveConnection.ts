@@ -2,6 +2,7 @@ import type { TranscriptEvent } from '../api/contracts';
 import { providerLocale, type AvailableLanguage } from '../api/contracts';
 import type { MuralAPI } from '../api/mural';
 import type { Room, TranscriptionSegment } from 'livekit-client';
+import { observeBrowserOffline } from './browser-connectivity';
 import { MuralReconnectPolicy } from './livekit-reconnect';
 
 export type LiveState = 'idle' | 'requesting-microphone' | 'connecting' | 'active' | 'closing' | 'failed';
@@ -21,6 +22,7 @@ export class LiveConnection {
   private liveKitReady = false;
   private liveKitReadyTimer?: number;
   private liveKitAgentIdentity?: string;
+  private stopObservingOffline?: () => void;
 
   constructor(
     private readonly api: MuralAPI,
@@ -120,6 +122,9 @@ export class LiveConnection {
     const room = new LiveKitRoom({ adaptiveStream: true, dynacast: true,
       reconnectPolicy: new MuralReconnectPolicy() });
     this.room = room;
+    this.stopObservingOffline = observeBrowserOffline(() => {
+      if (!this.closed) this.onState('connecting');
+    });
     room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
       if (track.kind !== Track.Kind.Audio) return;
       this.liveKitAgentIdentity = participant.identity;
@@ -173,6 +178,8 @@ export class LiveConnection {
   private failLiveKitAgent(): void {
     if (this.closed) return;
     this.closed = true;
+    this.stopObservingOffline?.();
+    this.stopObservingOffline = undefined;
     this.onEvent({ type: 'mural.live.agent_lost' });
     this.onState('failed');
     if (this.sessionID) void this.api.closeLiveSession(this.sessionID).catch(() => {});
@@ -252,6 +259,8 @@ export class LiveConnection {
     this.transcriptionText.clear();
     this.liveKitReady = false;
     this.liveKitAgentIdentity = undefined;
+    this.stopObservingOffline?.();
+    this.stopObservingOffline = undefined;
     if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
     this.liveKitReadyTimer = undefined;
     this.remote.getTracks().forEach(track => this.remote.removeTrack(track));
