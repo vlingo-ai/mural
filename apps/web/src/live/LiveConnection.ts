@@ -3,8 +3,9 @@ import { providerLocale, type AvailableLanguage } from '../api/contracts';
 import type { MuralAPI } from '../api/mural';
 import type { Room, TranscriptionSegment } from 'livekit-client';
 import { observeBrowserOffline } from './browser-connectivity';
+import { retryHistoryWrite } from './history-sync';
 import { MuralReconnectPolicy } from './livekit-reconnect';
-import { agentDisconnectIsTerminal } from './livekit-state';
+import { agentDisconnectIsTerminal, agentMediaIsReady } from './livekit-state';
 
 export type LiveState = 'idle' | 'requesting-microphone' | 'connecting' | 'active' | 'closing' | 'failed';
 
@@ -127,6 +128,7 @@ export class LiveConnection {
     this.stopObservingOffline = observeBrowserOffline(() => {
       if (!this.closed) {
         this.liveKitReconnecting = true;
+        this.liveKitReady = false;
         this.onState('connecting');
       }
     });
@@ -154,13 +156,20 @@ export class LiveConnection {
     room.on(RoomEvent.Reconnecting, () => {
       if (!this.closed) {
         this.liveKitReconnecting = true;
+        this.liveKitReady = false;
         this.onState('connecting');
       }
     });
     room.on(RoomEvent.Reconnected, () => {
       if (!this.closed) {
         this.liveKitReconnecting = false;
-        this.onState(this.liveKitReady ? 'active' : 'connecting');
+        if (agentMediaIsReady(this.liveKitAgentIdentity, room.remoteParticipants.values())) {
+          this.liveKitReady = true;
+          this.onState('active');
+        } else {
+          this.onState('connecting');
+          this.armLiveKitReadyTimeout();
+        }
       }
     });
     room.on(RoomEvent.Disconnected, () => {
@@ -178,6 +187,12 @@ export class LiveConnection {
     });
     this.sessionID = result.sessionID;
     this.onSession(result.sessionID);
+    this.armLiveKitReadyTimeout();
+    this.onEvent({ type: 'mural.session.created', session: { id: result.sessionID } });
+  }
+
+  private armLiveKitReadyTimeout(): void {
+    if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
     this.liveKitReadyTimer = globalThis.setTimeout(() => {
       if (!this.closed && !this.liveKitReady) {
         this.onState('failed');
@@ -185,7 +200,6 @@ export class LiveConnection {
         void this.room?.disconnect();
       }
     }, 20_000);
-    this.onEvent({ type: 'mural.session.created', session: { id: result.sessionID } });
   }
 
   private markLiveKitActive(): void {
@@ -311,7 +325,9 @@ export class LiveConnection {
   }
 
   private persistEvent(sessionID: string, event: { eventID: string; speaker: 'user' | 'assistant'; text: string; source: 'live' | 'typed' }): Promise<void> {
-    const write = this.historyWrite.then(() => this.api.appendConversationEvent(sessionID, event).then(() => {}));
+    const write = this.historyWrite.then(() => retryHistoryWrite(
+      () => this.api.appendConversationEvent(sessionID, event).then(() => {}),
+    ));
     this.historyWrite = write.catch(() => this.onEvent({ type: 'mural.history.sync_failed' }));
     return write;
   }
