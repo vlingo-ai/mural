@@ -2,6 +2,7 @@ import type { TranscriptEvent } from '../api/contracts';
 import { providerLocale, type AvailableLanguage } from '../api/contracts';
 import type { MuralAPI } from '../api/mural';
 import type { Room, TranscriptionSegment } from 'livekit-client';
+import { MuralReconnectPolicy } from './livekit-reconnect';
 
 export type LiveState = 'idle' | 'requesting-microphone' | 'connecting' | 'active' | 'closing' | 'failed';
 
@@ -116,7 +117,8 @@ export class LiveConnection {
     const result = await this.api.createLiveSession({ language: providerLocale(language),
       requestedMilliseconds: 15 * 60_000 }, crypto.randomUUID());
     if (result.transport.type !== 'livekit-room') throw new Error('Mural returned an unexpected live transport.');
-    const room = new LiveKitRoom({ adaptiveStream: true, dynacast: true });
+    const room = new LiveKitRoom({ adaptiveStream: true, dynacast: true,
+      reconnectPolicy: new MuralReconnectPolicy() });
     this.room = room;
     room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
       if (track.kind !== Track.Kind.Audio) return;
