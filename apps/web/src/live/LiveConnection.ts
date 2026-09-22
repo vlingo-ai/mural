@@ -4,6 +4,7 @@ import type { MuralAPI } from '../api/mural';
 import type { Room, TranscriptionSegment } from 'livekit-client';
 import { observeBrowserOffline } from './browser-connectivity';
 import { MuralReconnectPolicy } from './livekit-reconnect';
+import { agentDisconnectIsTerminal } from './livekit-state';
 
 export type LiveState = 'idle' | 'requesting-microphone' | 'connecting' | 'active' | 'closing' | 'failed';
 
@@ -22,6 +23,7 @@ export class LiveConnection {
   private liveKitReady = false;
   private liveKitReadyTimer?: number;
   private liveKitAgentIdentity?: string;
+  private liveKitReconnecting = false;
   private stopObservingOffline?: () => void;
 
   constructor(
@@ -123,7 +125,10 @@ export class LiveConnection {
       reconnectPolicy: new MuralReconnectPolicy() });
     this.room = room;
     this.stopObservingOffline = observeBrowserOffline(() => {
-      if (!this.closed) this.onState('connecting');
+      if (!this.closed) {
+        this.liveKitReconnecting = true;
+        this.onState('connecting');
+      }
     });
     room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
       if (track.kind !== Track.Kind.Audio) return;
@@ -143,11 +148,27 @@ export class LiveConnection {
       this.receiveTranscriptions(segments, participant?.isLocal === true);
     });
     room.on(RoomEvent.ParticipantDisconnected, participant => {
-      if (!this.closed && participant.identity === this.liveKitAgentIdentity) this.failLiveKitAgent();
+      if (!this.closed && agentDisconnectIsTerminal(this.liveKitAgentIdentity,
+        participant.identity, this.liveKitReconnecting)) this.failLiveKitAgent();
     });
-    room.on(RoomEvent.Reconnecting, () => { if (!this.closed) this.onState('connecting'); });
-    room.on(RoomEvent.Reconnected, () => { if (!this.closed) this.onState(this.liveKitReady ? 'active' : 'connecting'); });
-    room.on(RoomEvent.Disconnected, () => { if (!this.closed) this.onState('failed'); });
+    room.on(RoomEvent.Reconnecting, () => {
+      if (!this.closed) {
+        this.liveKitReconnecting = true;
+        this.onState('connecting');
+      }
+    });
+    room.on(RoomEvent.Reconnected, () => {
+      if (!this.closed) {
+        this.liveKitReconnecting = false;
+        this.onState(this.liveKitReady ? 'active' : 'connecting');
+      }
+    });
+    room.on(RoomEvent.Disconnected, () => {
+      if (!this.closed) {
+        this.liveKitReconnecting = false;
+        this.onState('failed');
+      }
+    });
     await room.connect(result.transport.url, result.transport.token);
     if (this.closed) { await room.disconnect(); return; }
     const track = this.local?.getAudioTracks()[0];
@@ -172,7 +193,7 @@ export class LiveConnection {
     this.liveKitReady = true;
     if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
     this.liveKitReadyTimer = undefined;
-    this.onState('active');
+    if (!this.liveKitReconnecting) this.onState('active');
   }
 
   private failLiveKitAgent(): void {
@@ -259,6 +280,7 @@ export class LiveConnection {
     this.transcriptionText.clear();
     this.liveKitReady = false;
     this.liveKitAgentIdentity = undefined;
+    this.liveKitReconnecting = false;
     this.stopObservingOffline?.();
     this.stopObservingOffline = undefined;
     if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
