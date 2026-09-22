@@ -168,6 +168,7 @@ services:
     environment:
       WEB_DOMAIN: ${WEB_DOMAIN:?Set WEB_DOMAIN}
       API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN}
+      ACCOUNTS_PROXY_TOKEN: ${ACCOUNTS_PROXY_TOKEN:?Set ACCOUNTS_PROXY_TOKEN}
     volumes:
       - caddy_data:/data
       - caddy_config:/config
