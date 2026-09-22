@@ -125,7 +125,11 @@ export function createApp(services: Services) {
     if (path === ACCESS_REQUEST_PATH || path === AI_REPORT_PATH || path === '/healthz') return;
     let networkKey = request.ip;
     const proxy = services.accounts?.admission.config ?? services.accessRequests?.config;
-    if (proxy) {
+    // The LiveKit Worker reaches this control route directly over the private Compose network.
+    // Its per-session control token authenticates the event; it must not impersonate Caddy by
+    // adding the public client-address headers. Keep the generic source-address rate limit below.
+    const internalLiveKitControl = path === '/internal/livekit/sessions/:id/events';
+    if (proxy && !internalLiveKitControl) {
       let network: string;
       try { network = trustedClientNetwork(request.headers, request.raw.socket.remoteAddress ?? request.ip, proxy.proxyToken,
         'allowLocalLoopback' in proxy && proxy.allowLocalLoopback === true); }
