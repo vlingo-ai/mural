@@ -39,5 +39,6 @@ authorization. `LIVEKIT_CONTROL_SECRET` remains API-only.
 
 ## Remaining gate
 
-The separately authorized, billable English and Mandarin Gate 7 acceptance remains incomplete.
-Phase 5.5B is not complete.
+Gate 7 was subsequently authorized and started. Its bounded live results, reconnect fix, deployment,
+and remaining acceptance items are recorded in `2026-09-22-gate-7-bounded-acceptance.md`. Phase
+5.5B remains incomplete.
