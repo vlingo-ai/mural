@@ -20,6 +20,11 @@ session was authorized or started by the checks recorded here.
   directory's README.
 - Environment-name inspection exposed no secret values: API had no OpenAI key; Worker had no
   database, Accounts, or Gateway secret; Model Gateway had no LiveKit credential or Worker key.
+- A temporary five-minute Mural authentication session for the existing restricted staging account
+  made one read-only request to `/v1/live/capabilities`. The endpoint returned HTTP 200 with
+  `hostedMinutes=true`, `transport=livekit-room`, and `experimental=true`. The script deleted the
+  temporary session in `finally`; a follow-up database query found zero unrevoked sessions for that
+  account expiring within six minutes. No LiveKit room or provider request was created.
 
 ## Accepted security follow-up
 
@@ -34,5 +39,5 @@ authorization. `LIVEKIT_CONTROL_SECRET` remains API-only.
 
 ## Remaining gate
 
-Authenticated restricted-account capability checks and the separately authorized, billable
-English and Mandarin Gate 7 acceptance remain incomplete. Phase 5.5B is not complete.
+The separately authorized, billable English and Mandarin Gate 7 acceptance remains incomplete.
+Phase 5.5B is not complete.
