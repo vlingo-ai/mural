@@ -10,7 +10,7 @@ import XCTest
         try await Task.sleep(for: .milliseconds(60))
         XCTAssertEqual(failures, 0)
         recovery.disconnected()
-        try await Task.sleep(for: .milliseconds(70))
+        await waitUntil { failures == 1 }
         XCTAssertEqual(failures, 1)
         recovery.disconnected()
         try await Task.sleep(for: .milliseconds(60))
@@ -36,5 +36,15 @@ import XCTest
         recovery.connected()
         try await Task.sleep(for: .milliseconds(70))
         XCTAssertEqual(failures, 0)
+    }
+
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        condition: () -> Bool
+    ) async {
+        let deadline = ContinuousClock.now + timeout
+        while !condition(), ContinuousClock.now < deadline {
+            await Task.yield()
+        }
     }
 }
