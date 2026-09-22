@@ -11,3 +11,10 @@ TCP 22 may temporarily remain public while public-key-only authentication, disab
 login, UFW rate limiting, automatic security updates, and SSH logging are verified. Every dated
 report must list this as an unresolved hardening item until a source-restricted or private access
 path replaces it. This exception does not authorize exposing ports 5432, 8000, or 8080.
+
+The staging operator also accepted the current shared LiveKit project key pair for the bounded
+Phase 5.5B staging gate on 2026-09-22. The API uses it for room lifecycle, agent dispatch, and
+short-lived participant tokens; the Worker uses it to authenticate and register. Record splitting
+this into distinct API and Worker key pairs as an unresolved defense-in-depth item until the pairs
+are independently rotatable and the old shared pair has been revoked. `LIVEKIT_CONTROL_SECRET`
+must remain API-only. Do not record key values, secret hashes, or raw environment inspection.

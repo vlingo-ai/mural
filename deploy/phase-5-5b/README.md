@@ -226,6 +226,23 @@ Before a provider call, prove all of the following:
 - Logs and LiveKit room metadata contain no transcript, authorization header, OpenAI key, LiveKit
   secret, database URL, or long-lived user credential.
 
+### Accepted LiveKit credential hardening follow-up
+
+The Phase 5.5B deployment intentionally supplies the same LiveKit project API key and secret to
+both `api` and `agent-worker`. The API needs them to create and delete rooms, dispatch the named
+agent, and mint short-lived participant tokens. The Worker needs them to authenticate and register
+with the same LiveKit project. `LIVEKIT_CONTROL_SECRET` remains API-only, and the API has no OpenAI
+key.
+
+This shared project credential is accepted for the bounded staging gate, but it couples rotation
+and revocation across the two services. Before long-term or broader operation, create distinct
+LiveKit key pairs in the same project and replace the shared variables with explicit API and Worker
+variables. Update Compose and preflight checks so the pairs must differ, recreate only the affected
+containers after confirming no active sessions, verify room creation/dispatch/Worker registration,
+then revoke the old shared pair. Separate pairs improve audit and independent revocation; do not
+claim that they provide fine-grained LiveKit authorization unless the provider configuration also
+enforces such scopes.
+
 ## Gate 7 — bounded Cloud Build acceptance
 
 This gate incurs LiveKit participant minutes and OpenAI usage. Run it only after the user confirms
