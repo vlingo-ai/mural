@@ -25,6 +25,7 @@ export class LiveConnection {
   private liveKitReadyTimer?: number;
   private liveKitAgentIdentity?: string;
   private liveKitReconnecting = false;
+  private liveKitRecovery?: Promise<void>;
   private stopObservingOffline?: () => void;
 
   constructor(
@@ -122,46 +123,42 @@ export class LiveConnection {
     const result = await this.api.createLiveSession({ language: providerLocale(language),
       requestedMilliseconds: 15 * 60_000 }, crypto.randomUUID());
     if (result.transport.type !== 'livekit-room') throw new Error('Mural returned an unexpected live transport.');
-    const room = new LiveKitRoom({ adaptiveStream: true, dynacast: true,
-      reconnectPolicy: new MuralReconnectPolicy() });
-    this.room = room;
-    this.stopObservingOffline = observeBrowserOffline(() => {
-      if (!this.closed) {
-        this.liveKitReconnecting = true;
-        this.liveKitReady = false;
-        this.onState('connecting');
-      }
-    });
-    room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
-      if (track.kind !== Track.Kind.Audio) return;
-      this.liveKitAgentIdentity = participant.identity;
-      this.markLiveKitActive();
-      this.remote.addTrack(track.mediaStreamTrack);
-      this.onRemoteStream(this.remote);
-    });
-    room.on(RoomEvent.TrackUnsubscribed, track => {
-      if (track.kind === Track.Kind.Audio) this.remote.removeTrack(track.mediaStreamTrack);
-    });
-    room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
-      if (participant?.isLocal === false) {
+    const transport = result.transport;
+    const openRoom = async (): Promise<void> => {
+      const room = new LiveKitRoom({ adaptiveStream: true, dynacast: true,
+        reconnectPolicy: new MuralReconnectPolicy() });
+      this.room = room;
+      room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+        if (this.room !== room || track.kind !== Track.Kind.Audio) return;
         this.liveKitAgentIdentity = participant.identity;
         this.markLiveKitActive();
-      }
-      this.receiveTranscriptions(segments, participant?.isLocal === true);
-    });
-    room.on(RoomEvent.ParticipantDisconnected, participant => {
-      if (!this.closed && agentDisconnectIsTerminal(this.liveKitAgentIdentity,
-        participant.identity, this.liveKitReconnecting)) this.failLiveKitAgent();
-    });
-    room.on(RoomEvent.Reconnecting, () => {
-      if (!this.closed) {
-        this.liveKitReconnecting = true;
-        this.liveKitReady = false;
-        this.onState('connecting');
-      }
-    });
-    room.on(RoomEvent.Reconnected, () => {
-      if (!this.closed) {
+        this.remote.addTrack(track.mediaStreamTrack);
+        this.onRemoteStream(this.remote);
+      });
+      room.on(RoomEvent.TrackUnsubscribed, track => {
+        if (this.room === room && track.kind === Track.Kind.Audio) this.remote.removeTrack(track.mediaStreamTrack);
+      });
+      room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
+        if (this.room !== room) return;
+        if (participant?.isLocal === false) {
+          this.liveKitAgentIdentity = participant.identity;
+          this.markLiveKitActive();
+        }
+        this.receiveTranscriptions(segments, participant?.isLocal === true);
+      });
+      room.on(RoomEvent.ParticipantDisconnected, participant => {
+        if (this.room === room && !this.closed && agentDisconnectIsTerminal(this.liveKitAgentIdentity,
+          participant.identity, this.liveKitReconnecting)) this.failLiveKitAgent();
+      });
+      room.on(RoomEvent.Reconnecting, () => {
+        if (this.room === room && !this.closed) {
+          this.liveKitReconnecting = true;
+          this.liveKitReady = false;
+          this.onState('connecting');
+        }
+      });
+      room.on(RoomEvent.Reconnected, () => {
+        if (this.room !== room || this.closed) return;
         this.liveKitReconnecting = false;
         if (agentMediaIsReady(this.liveKitAgentIdentity, room.remoteParticipants.values())) {
           this.liveKitReady = true;
@@ -170,21 +167,41 @@ export class LiveConnection {
           this.onState('connecting');
           this.armLiveKitReadyTimeout();
         }
-      }
-    });
-    room.on(RoomEvent.Disconnected, () => {
+      });
+      room.on(RoomEvent.Disconnected, () => {
+        if (this.room === room && !this.closed) {
+          this.liveKitReconnecting = false;
+          this.onState('failed');
+        }
+      });
+      await room.connect(transport.url, transport.token);
+      if (this.closed || this.room !== room) { await room.disconnect(); return; }
+      const track = this.local?.getAudioTracks()[0];
+      if (!track) throw new Error('No local microphone track.');
+      await room.localParticipant.publishTrack(new LocalAudioTrack(track), {
+        source: Track.Source.Microphone,
+      });
+    };
+    const recoverRoom = (): void => {
+      if (this.closed || !this.liveKitReconnecting || this.liveKitRecovery) return;
+      this.liveKitRecovery = (async () => {
+        const previous = this.room;
+        this.room = undefined;
+        this.remote.getTracks().forEach(track => this.remote.removeTrack(track));
+        await previous?.disconnect();
+        await openRoom();
+        if (!this.closed) this.armLiveKitReadyTimeout();
+      })().catch(() => this.failLiveKitAgent()).finally(() => { this.liveKitRecovery = undefined; });
+    };
+    this.stopObservingOffline = observeBrowserOffline(() => {
       if (!this.closed) {
-        this.liveKitReconnecting = false;
-        this.onState('failed');
+        this.liveKitReconnecting = true;
+        this.liveKitReady = false;
+        this.onState('connecting');
       }
-    });
-    await room.connect(result.transport.url, result.transport.token);
-    if (this.closed) { await room.disconnect(); return; }
-    const track = this.local?.getAudioTracks()[0];
-    if (!track) throw new Error('No local microphone track.');
-    await room.localParticipant.publishTrack(new LocalAudioTrack(track), {
-      source: Track.Source.Microphone,
-    });
+    }, globalThis, recoverRoom);
+    await openRoom();
+    if (this.closed) return;
     this.sessionID = result.sessionID;
     this.onSession(result.sessionID);
     this.armLiveKitReadyTimeout();
@@ -295,6 +312,7 @@ export class LiveConnection {
     this.liveKitReady = false;
     this.liveKitAgentIdentity = undefined;
     this.liveKitReconnecting = false;
+    this.liveKitRecovery = undefined;
     this.stopObservingOffline?.();
     this.stopObservingOffline = undefined;
     if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);

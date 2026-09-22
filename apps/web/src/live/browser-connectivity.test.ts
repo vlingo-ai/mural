@@ -14,4 +14,22 @@ describe('observeBrowserOffline', () => {
     source.dispatchEvent(new Event('offline'));
     expect(onOffline).toHaveBeenCalledTimes(1);
   });
+
+  it('reports restored browser connectivity and detaches both listeners', () => {
+    const source = new EventTarget();
+    const onOffline = vi.fn();
+    const onOnline = vi.fn();
+    const stop = observeBrowserOffline(onOffline, source, onOnline);
+
+    source.dispatchEvent(new Event('offline'));
+    source.dispatchEvent(new Event('online'));
+    expect(onOffline).toHaveBeenCalledTimes(1);
+    expect(onOnline).toHaveBeenCalledTimes(1);
+
+    stop();
+    source.dispatchEvent(new Event('offline'));
+    source.dispatchEvent(new Event('online'));
+    expect(onOffline).toHaveBeenCalledTimes(1);
+    expect(onOnline).toHaveBeenCalledTimes(1);
+  });
 });
