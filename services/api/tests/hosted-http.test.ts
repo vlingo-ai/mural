@@ -60,6 +60,42 @@ test('JSON and streaming helpers share the network limit before authentication o
   }
 });
 
+test('LiveKit control uses its private source for rate limiting without weakening public proxy admission', async () => {
+  const proxyToken = randomBytes(32).toString('hex');
+  let accepted = 0;
+  const db = { query: async () => ({ rows: [] }) } as unknown as Database;
+  const hosted = {
+    minuteFunded: true,
+    acceptTrustedEvent: async () => {
+      accepted++;
+      return { type: 'session.heartbeat', usage: { seconds: 1 } };
+    },
+  } as unknown as Services['hosted'];
+  const app = createApp({
+    db,
+    auth: {},
+    hosted,
+    accounts: {
+      admission: { config: { proxyToken, hmacKey: randomBytes(32).toString('hex') } },
+    } as Services['accounts'],
+  });
+  try {
+    const internal = await app.inject({
+      method: 'POST',
+      url: `/internal/livekit/sessions/${randomUUID()}/events`,
+      headers: { authorization: 'Bearer private-session-control' },
+      payload: { type: 'session.heartbeat', seconds: 1 },
+    });
+    assert.equal(internal.statusCode, 200);
+    assert.equal(accepted, 1);
+    const publicWithoutProxy = await app.inject('/v1/live/capabilities');
+    assert.equal(publicWithoutProxy.statusCode, 503);
+    assert.deepEqual(publicWithoutProxy.json(), { error: { code: 'trusted_proxy_required' } });
+  } finally {
+    await app.close();
+  }
+});
+
 const databaseURL = process.env.TEST_DATABASE_URL;
 if (databaseURL && !new URL(databaseURL).pathname.endsWith('_test')) throw new Error('Dedicated test database required.');
 test('hosted HTTP authenticates guest ownership, recovers uncertain sessions and bounds helper bodies', {
