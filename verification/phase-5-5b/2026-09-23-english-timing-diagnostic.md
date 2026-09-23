@@ -134,3 +134,40 @@ for other events, so energy transitions cannot crowd out close/failure events; r
 are not persisted or uploaded. PR #35 passed CI and the Edge-only staging rollout passed
 non-billable checks; see the follow-up rollout record. No new paid live sample has been taken,
 and the first live report cannot be retroactively completed from the new events.
+
+## Second bounded English observation after energy-gate rollout (2026-09-23)
+
+Before this run, the Mural wallet had `balance_ms=116000` and `reserved_ms=0`, the global
+`active-sessions.sh` query returned no rows, LiveKit showed zero concurrent Agent sessions and
+one registered Worker, and the `mural-dev` OpenAI Usage dashboard showed USD 0.92 for the last
+30 days with all API keys selected. The operator authorized the bounded run. The Web page was
+signed in to the intended test account, English was selected, the timing report was empty, and
+the page was Idle. No Wi-Fi interruption or Mandarin test was attempted.
+
+The operator reported audible Agent speech, captions, and a successful natural English
+interruption, then explicitly stopped. The Web page returned to Idle. Its local diagnostic
+reported `initial-media-ready` at 8,455 ms, `firstAudioMs=14,366`, one interruption candidate
+with local onset at 26,644 ms, remote energy silence at 26,924 ms, and `latencyMs=280`; the
+Stop request was at 31,205 ms. The new local/remote energy-transition events showed that the
+candidate arose while remote energy was present, rather than in a remote-audio gap. This is one
+browser-clock candidate corroborated by the operator's functional report, **not** a median,
+worst-case bound, or proof of provider interruption latency. The diagnostic does not measure
+physical acoustic onset or independently prove that the user's speech caused the remote stop.
+
+The latest account-owned Mural session `bf8b529d-939f-41f9-87ec-b64ac749dd0f` was `closed`
+with `close_reason=user_requested`, `observed_ms=charged_ms=23000`,
+`provider_usage_final=true`, and a `settled` minute reservation with `used_ms=23000`.
+The wallet fell to `balance_ms=93000` and `reserved_ms=0`. LiveKit showed zero concurrent Agent
+sessions after the run. Its past-seven-day project aggregates changed from 20 to 21 room
+sessions, 7.50 to 7.78 MB upstream, and 6.48 to 6.71 MB downstream; displayed participant
+minutes still displayed 105 at observation time; rounding or dashboard lag may explain the
+unchanged display. These are project-wide counters, not this
+session's billable OpenAI duration or VPS peak-load measurements.
+
+After a dashboard refresh, the same OpenAI `mural-dev` / all-keys / last-30-days view still
+displayed USD 0.92. **Do not infer zero new provider charge** from this immediately observed
+figure: dashboard posting can lag, and voice/backend charges require final reconciliation.
+Pause further paid samples until the external spend updates or another reliable final-cost
+check establishes headroom. This run adds one measured first-audio and one interruption
+candidate, but no reconnection sample, concurrent VPS CPU/RSS peak, or latency distribution.
+Gate 7 remains deployed but not accepted.
