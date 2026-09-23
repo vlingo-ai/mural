@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import test from 'node:test';
-import { isLiveKitRoomAbsent, LiveKitLiveProvider } from '../src/livekit/live-provider.js';
+import { isLiveKitRoomAbsent, liveKitRoomOptions, LiveKitLiveProvider } from '../src/livekit/live-provider.js';
 
 const secret = 'control-secret-with-at-least-thirty-two-bytes';
 const sessionID = 'c0a8012a-1a2b-4c3d-8e5f-123456789abc';
@@ -60,4 +60,10 @@ test('LiveKit treats only its exact missing-room response as an idempotent close
   assert.equal(isLiveKitRoomAbsent({ code: 'not_found', status: 500 }), false);
   assert.equal(isLiveKitRoomAbsent({ code: 'permission_denied', status: 404 }), false);
   assert.equal(isLiveKitRoomAbsent(new Error('requested room does not exist')), false);
+});
+
+test('room departure grace exceeds the bounded browser reconnect window', () => {
+  assert.deepEqual(liveKitRoomOptions(sessionID), {
+    name: sessionID, emptyTimeout: 60, departureTimeout: 60, maxParticipants: 2,
+  });
 });
