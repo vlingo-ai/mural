@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { AccessToken, AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk';
+import { AccessToken, AgentDispatchClient, RoomServiceClient, ServerError } from 'livekit-server-sdk';
 import { ServiceError } from '../errors.js';
-import { LiveCreateFailure, liveInstructions, parseLiveContext, type LiveContext, type LiveCreateResult,
+import { LiveCreateFailure, LiveCreateRejectedError, liveInstructions, parseLiveContext, type LiveContext, type LiveCreateResult,
   type LiveDelegation, type LiveProvider, type LiveProviderRejection, type Sideband, type VoiceUsage } from '../live-provider.js';
 
 type Listener = { onUsage: (event: VoiceUsage) => void; onLoss: () => void };
@@ -85,7 +85,17 @@ export class LiveKitLiveProvider implements LiveProvider {
       token.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true, canPublishData: true });
       return { sessionID: room, transport: { type: 'livekit-room', url: this.#url.toString(), token: await token.toJwt() } };
     } catch (error) {
-      if (created) await this.#rooms.deleteRoom(room).catch(() => {});
+      let roomAbsent = !created;
+      if (created) {
+        try { await this.#rooms.deleteRoom(room); roomAbsent = true; }
+        catch (cleanupError) { roomAbsent = isLiveKitRoomAbsent(cleanupError); }
+      }
+      // A terminal CreateRoom 4xx proves no room was made. A dispatch 429 is
+      // also safely rejected only after the already-created room is confirmed
+      // absent. Ambiguous results and failed cleanup retain their funding hold.
+      if (error instanceof ServerError && error.status >= 400 && error.status < 500 && error.status !== 408 &&
+          (!created || (error.status === 429 && roomAbsent)))
+        throw new LiveCreateRejectedError(error.status);
       throw new LiveCreateFailure('transport', undefined,
         object(error) && typeof error.requestId === 'string' ? error.requestId : undefined);
     }

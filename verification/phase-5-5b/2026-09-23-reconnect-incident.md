@@ -1,8 +1,7 @@
 # Phase 5.5B reconnect incident — 2026-09-23
 
-Status: **staging deployed, Gate 7 not accepted**. This record distinguishes the currently deployed
-revision from the candidate fix. Do not spend more of the bounded live allowance merely to repeat
-the same five-second Wi-Fi test before the candidate passes review and non-billable checks.
+Status: **repair deployed to staging; one bounded English reconnect retest passed; Gate 7 not
+accepted**. This is a single observed pass, not general proof of network recovery reliability.
 
 ## Observed failure and evidence
 
@@ -73,13 +72,67 @@ and API tests (121 passed, 288 PostgreSQL-dependent tests skipped without `TEST_
 passed. The new simulated cases cover SDK-only recovery, confirmed
 offline/online, join retry, missing Agent audio, missing microphone publication, event ordering,
 Agent loss, room deletion, initial join failure, stale asynchronous results, and deadline expiry.
-These are **not** evidence
-of live Cloud recovery. Review/CI, compatible API-before-Web deployment, non-billable health and
-sanitized-log checks, and a bounded live retest within the operator's existing authorization
-remain. Retrieve the
+These are **not** evidence of live Cloud recovery. [PR #24](https://github.com/vlingo-ai/mural/pull/24)
+merged as `ad1659cc6f442d7a4db06534b4a75f1c92be9371`; all six CI checks passed. On
+2026-09-23, the operator deployed that exact source to the Tokyo staging VPS in API-before-Web
+order, after confirming no active sessions. The API image
+`vlingo-speaking-live-api:ad1659cc6f442d7a4db06534b4a75f1c92be9371` has runtime image ID
+`sha256:af5b485f03b677b23f2457e3a366c77372857aff897ad219d13b9e06b6adf4cb`;
+the Edge runtime image ID is
+`sha256:369b0c14e3c2bbc1326f4f06245b03bc1194902ebbcfd100676c4c9954268f6f`.
+Worker and Gateway remained on their existing immutable digests; PostgreSQL was not restarted,
+and no migration changed or was rerun.
+
+Before deployment, `postgres-20260923T033914Z.sql.gz.age` was copied to the separate Mac recovery
+host, SHA-256 `cb22865514eadbbc60e29d5eb9a0eeedf8731b12be797f73bb4e56e5b26e3791`;
+the copy decrypted and passed `gzip -t`. The previous API image tag
+`vlingo-speaking-live-api:4bedf19783e5ccc819f362895d2f122a6307a9d9` remains available,
+the previous Edge image is tagged `vlingo-speaking-live-staging-edge:rollback-d71cc8f`
+(`sha256:df960e8c871d2fc1e9c05d9bd84029d38772d5cbe7c3acfb11a9f3f6d746c213`),
+and the previous private configuration is retained as `.env.rollback-d71cc8f` with mode 600.
+No database rollback is indicated for this no-migration release; do not restore a backup over
+active or unresolved sessions.
+
+Post-deployment `./verify.sh ./.env` passed public TLS, Web/API/Gateway health, disabled Gateway
+audio capabilities, container status, and sanitized-log checks. The API reported healthy with
+`hostedVoice=true`, `guestMinutes=false`, and `livePayments=false`. These non-billable checks
+establish deployment compatibility, **not** live reconnect acceptance.
+
+Under the existing bounded Gate 7 authorization, the operator ran one English five-second Mac
+Wi-Fi interruption against the repaired Web and API. The UI entered Connecting about ten seconds
+after disconnection, returned to Active after Wi-Fi was restored, and a fresh spoken English
+utterance received a new audible reply. Explicit Stop returned the UI to Idle. Session
+`a09b6e2a-afe3-4d22-9c7d-96f6a15a0500` closed with `user_requested`, final provider usage,
+`observed_ms=charged_ms=46000`, and `reserved_ms=0`; the trial balance fell from 225,000 to
+179,000 ms. The active-session check showed none. This validates the tested short-interruption
+path including microphone republication; it does not validate longer outages or every browser.
+The roughly ten-second Connecting delay remains a UX limitation because neither browser offline
+nor SDK disconnect detection is immediate for this network failure.
+
+After the operator reported that Server history appeared to contain only the post-reconnect line,
+the signed-in Web UI was inspected. The newest history **list row** shows only its latest-line
+preview; opening that row loads Conversation detail with four persisted events in order: pre-loss
+user greeting and Agent reply, followed by post-recovery user greeting and Agent reply. No missing
+pre-loss event was observed in this session. The detail renders below the entire history list,
+outside the current viewport, so the interface makes the preview easy to mistake for the full
+record. This is a separate history-discoverability UX issue, not evidence of lost persistence.
+
+Retrieve the
 Cloud room-end reason if the operator signs in to the LiveKit console; do not claim that the
 ten-second timeout is proven until that record is available.
 
 Other Gate 7 blockers from the prior record remain: controlled quota/limit refusal, Mandarin ASR
 quality, Mandarin Worker-hard-stop or a reviewed language-independent rationale, and the required
 latency/resource/participant-minute summary. The release must remain **deployed but not accepted**.
+
+After the successful reconnect retest, code review found that the deployed LiveKit adapter wraps
+even a terminal `CreateRoom` HTTP 429 as an uncertain transport failure. That conservatively keeps
+the funding hold for reconciliation, so the requested quota-refusal assertion (`reserved_ms=0`)
+cannot yet be claimed. A local, **not deployed** follow-up treats a pre-room terminal 4xx
+(other than timeout 408) as a known rejection. A dispatch 429 after room creation is known only
+when room deletion is confirmed; failed cleanup and ambiguous errors remain uncertain. Mock-LiveKit
+tests cover CreateRoom 429/408 and dispatch 429 with successful, absent, or failed room cleanup;
+API TypeScript check, build, and the full runnable API suite (123 passed, 288 database-dependent
+tests skipped without `TEST_DATABASE_URL`) pass.
+This is not a Cloud quota test and must be reviewed and deployed before any controlled live
+rejection exercise. Do not exhaust shared Build capacity or purchase a higher plan to force one.
