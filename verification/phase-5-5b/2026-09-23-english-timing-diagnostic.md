@@ -2,7 +2,8 @@
 
 Status: **deployed to staging; one bounded English live observation made, but timing acceptance and Gate 7 remain open**.
 Deployment and rollback evidence is in
-[the rollout record](2026-09-23-english-timing-rollout.md).
+[the initial rollout record](2026-09-23-english-timing-rollout.md) and
+[the energy-gate follow-up rollout](2026-09-23-english-energy-gates-rollout.md).
 
 The Web diagnostic is off by default. On the staging hostname only, adding `?timing=1` exposes
 an in-memory panel; local development also permits it. Opening the panel does not create a room
@@ -129,7 +130,7 @@ The follow-up Web diagnostic implementation now adds relative `local-energy-onse
 threshold crossing from a local onset during a remote-audio gap without changing the existing
 barge-in latency definition. These are energy transitions, not speech recognition or proof of
 audible playback. At most 120 such events per session are retained, with additional space reserved
-for other events, so energy transitions cannot crowd
-out close/failure events; raw samples still are not persisted or uploaded. This change must pass
-Web checks and a staged rollout before any live observation can use it. The first live report
-cannot be retroactively completed from the new events.
+for other events, so energy transitions cannot crowd out close/failure events; raw samples still
+are not persisted or uploaded. PR #35 passed CI and the Edge-only staging rollout passed
+non-billable checks; see the follow-up rollout record. No new paid live sample has been taken,
+and the first live report cannot be retroactively completed from the new events.
