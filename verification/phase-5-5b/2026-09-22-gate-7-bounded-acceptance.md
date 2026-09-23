@@ -95,5 +95,6 @@ OpenAI speech. All 16 Mural sessions were closed, and the two identified Worker-
 settled reservations, but their `provider_usage_final=false` cost markers still require operator
 reconciliation.
 The idle container resource snapshot is not a peak-load measurement. Cloud rejection, Mandarin ASR
-quality, latency/resource/error metrics, and the historical room-duration discrepancy remain
-acceptance work; no additional paid test is justified yet.
+quality, latency/resource/error metrics, and a watch for renewed Web-only room duration remain
+acceptance work. Before any additional bounded live test, recheck the remaining trial allowance,
+Cloud project usage, and active sessions; do not repeat a fault case only to manufacture quota.

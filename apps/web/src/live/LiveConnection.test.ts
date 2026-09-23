@@ -184,6 +184,7 @@ describe('LiveKit reconnect lifecycle', () => {
     await vi.advanceTimersByTimeAsync(1_000);
     expect(h.states.at(-1)).toBe('failed');
     expect(h.closeLiveSession).toHaveBeenCalledTimes(1);
+    expect(mock.rooms[0]!.state).toBe('disconnected');
   });
 
   it('fails immediately when LiveKit reports that the room was deleted', async () => {
@@ -193,6 +194,7 @@ describe('LiveKit reconnect lifecycle', () => {
     mock.rooms[0]!.emit(RoomEvent.Disconnected, 5);
     expect(h.states.at(-1)).toBe('failed');
     expect(h.closeLiveSession).toHaveBeenCalledTimes(1);
+    expect(mock.rooms[0]!.state).toBe('disconnected');
   });
 
   it('rebuilds if SDK says Reconnected but Agent audio does not return', async () => {
@@ -254,6 +256,7 @@ describe('LiveKit reconnect lifecycle', () => {
     expect(h.states.at(-1)).toBe('failed');
     expect(h.closeLiveSession).toHaveBeenCalledTimes(1);
     expect(h.microphone.stop).toHaveBeenCalledTimes(1);
+    expect(mock.rooms.every(room => room.state === 'disconnected')).toBe(true);
   });
 
   it('closes an admitted API session if the initial LiveKit join fails', async () => {

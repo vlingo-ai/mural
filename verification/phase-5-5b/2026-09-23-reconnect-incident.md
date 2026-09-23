@@ -188,7 +188,13 @@ and closed at 12:05:29 CST on 2026-09-23, with both participants leaving by 12:0
 Mural closed at 12:05:13 CST with 46,000 ms charged. This one clean run does not establish
 that all later room rejoin attempts are impossible. Track Cloud participant-minutes separately
 from Mural's 15-minute authorized provider-usage budget; do not infer OpenAI usage from a Web-only
-room. No further billable test should run until this discrepancy is understood and bounded.
+room. The old Web revision handled an unexpected `RoomEvent.Disconnected` by displaying Failed
+without closing the Room. PR #24 instead enters a bounded 40-second recovery; a terminal room
+deletion or expired recovery calls the API close and disconnects the current Room. Focused mock
+tests now assert that Agent loss, deleted room, and exhausted recovery all disconnect their Room.
+This bounds the application-managed retry path after loss detection; it is not a guarantee of
+instant network-failure detection or proof against every Cloud-side room rejoin. Recheck the
+remaining trial allowance, Cloud project usage, and active sessions before any further live run.
 
 At the later database audit, 16 Mural sessions created since 2026-09-22 00:00 UTC were all
 `closed`, none unresolved; their `charged_ms` total was 721,000, consistent with the separately
