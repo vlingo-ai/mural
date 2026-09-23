@@ -47,6 +47,10 @@ the same five-second Wi-Fi test before the candidate passes review and non-billa
 - API room departure grace: 60 seconds. Web/SDK recovery deadline: 40 seconds. The extra margin
   permits network detection, retry, and explicit API close before Cloud's room timeout; an
   unreachable browser still fails closed and does not run for the full 15-minute session cap.
+  Tradeoff: if the browser cannot reach the API to request close, the Worker/room may run for up
+  to 60 seconds after the last participant leaves, versus ten seconds previously. This increases
+  worst-case provider usage for a failed connection and must be checked against the remaining
+  Gate 7 allowance before another live test.
 - Start Connecting on browser offline, SDK signal reconnect, SDK media reconnect, Agent audio
   unsubscribe, or unexpected Room disconnect. A browser that emits no offline event can still
   take until SDK failure detection; instantaneous Wi-Fi-loss display cannot be guaranteed.
