@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import test from 'node:test';
+import { LiveCreateFailure, LiveCreateRejectedError } from '../src/live-provider.js';
 import { isLiveKitRoomAbsent, liveKitRoomOptions, LiveKitLiveProvider } from '../src/livekit/live-provider.js';
 
 const secret = 'control-secret-with-at-least-thirty-two-bytes';
@@ -66,4 +67,61 @@ test('room departure grace exceeds the bounded browser reconnect window', () => 
   assert.deepEqual(liveKitRoomOptions(sessionID), {
     name: sessionID, emptyTimeout: 60, departureTimeout: 60, maxParticipants: 2,
   });
+});
+
+test('terminal LiveKit CreateRoom 429 is a known rejection, but timeout remains uncertain', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const status of [429, 408]) {
+      let requests = 0;
+      globalThis.fetch = async () => {
+        requests++;
+        return new Response(JSON.stringify({ code: 'resource_exhausted', msg: 'private provider details' }), {
+          status, headers: { 'content-type': 'application/json' },
+        });
+      };
+      await assert.rejects(provider().create('', 'en', undefined, sessionID), error => {
+        if (status === 429) {
+          assert.ok(error instanceof LiveCreateRejectedError);
+          assert.equal(error.providerStatus, 429);
+        } else {
+          assert.ok(error instanceof LiveCreateFailure);
+          assert.equal(error.category, 'transport');
+        }
+        assert.doesNotMatch(String(error), /private provider details/);
+        return true;
+      });
+      assert.equal(requests, 1, 'a known rejection or timeout must not be retried');
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a dispatch rejection after room creation stays uncertain and attempts room cleanup', async () => {
+  const originalFetch = globalThis.fetch;
+  const paths: string[] = [];
+  try {
+    globalThis.fetch = async input => {
+      const path = new URL(String(input)).pathname;
+      paths.push(path);
+      if (path.endsWith('/CreateRoom') || path.endsWith('/DeleteRoom'))
+        return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+      if (path.endsWith('/CreateDispatch'))
+        return new Response(JSON.stringify({ code: 'resource_exhausted', msg: 'private provider details' }), {
+          status: 429, headers: { 'content-type': 'application/json' },
+        });
+      throw new Error('unexpected LiveKit API call');
+    };
+    await assert.rejects(provider().create('', 'en', undefined, sessionID), error => {
+      assert.ok(error instanceof LiveCreateFailure);
+      assert.equal(error.category, 'transport');
+      assert.equal(error instanceof LiveCreateRejectedError, false);
+      assert.doesNotMatch(String(error), /private provider details/);
+      return true;
+    });
+    assert.deepEqual(paths.map(path => path.split('/').at(-1)), ['CreateRoom', 'CreateDispatch', 'DeleteRoom']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

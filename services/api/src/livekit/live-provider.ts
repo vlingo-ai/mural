@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { AccessToken, AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk';
+import { AccessToken, AgentDispatchClient, RoomServiceClient, ServerError } from 'livekit-server-sdk';
 import { ServiceError } from '../errors.js';
-import { LiveCreateFailure, liveInstructions, parseLiveContext, type LiveContext, type LiveCreateResult,
+import { LiveCreateFailure, LiveCreateRejectedError, liveInstructions, parseLiveContext, type LiveContext, type LiveCreateResult,
   type LiveDelegation, type LiveProvider, type LiveProviderRejection, type Sideband, type VoiceUsage } from '../live-provider.js';
 
 type Listener = { onUsage: (event: VoiceUsage) => void; onLoss: () => void };
@@ -86,6 +86,11 @@ export class LiveKitLiveProvider implements LiveProvider {
       return { sessionID: room, transport: { type: 'livekit-room', url: this.#url.toString(), token: await token.toJwt() } };
     } catch (error) {
       if (created) await this.#rooms.deleteRoom(room).catch(() => {});
+      // A terminal 4xx from CreateRoom proves that no room was created. Release the
+      // reservation through HostedVoice's known-rejection path; a failure after
+      // room creation or an ambiguous timeout/5xx must stay unreconciled.
+      if (!created && error instanceof ServerError && error.status >= 400 && error.status < 500 && error.status !== 408)
+        throw new LiveCreateRejectedError(error.status);
       throw new LiveCreateFailure('transport', undefined,
         object(error) && typeof error.requestId === 'string' ? error.requestId : undefined);
     }
