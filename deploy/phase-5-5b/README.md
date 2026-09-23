@@ -267,6 +267,13 @@ Phase 5.5B passes only when both languages pass, the numbers above are recorded,
 provider secret, and every failure case settles or is explicitly marked for operator reconciliation.
 Until then, report **prepared** or **deployed but not accepted**, never **Phase 5.5B complete**.
 
+Staging-only quality exception accepted by the operator on 2026-09-23: the previously observed
+Mandarin ASR accuracy issue will not receive another billable Phase 5.5B retest. Mandarin functional
+audio, captions, translation, interruption, and reconnect evidence remains in scope; do not mark
+ASR accuracy as passing or attribute its cause solely to OpenAI without isolation. Record it as an
+accepted staging limitation requiring a defined quality rubric before broader release. This
+exception does not waive the Cloud rejection or measurement requirements above.
+
 ## Required evidence record
 
 Create a dated file under `verification/phase-5-5b/` containing:

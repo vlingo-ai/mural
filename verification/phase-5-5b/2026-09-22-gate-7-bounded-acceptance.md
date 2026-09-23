@@ -62,9 +62,11 @@ registration/media placement was Japan A.
 ## Open acceptance items and limits
 
 - Mandarin audio, translation, interruption, captions, and reconnect worked, but the operator
-  reported materially inaccurate Mandarin ASR in an earlier live sample. Treat this as an open
-  quality finding; do not describe Mandarin quality acceptance as passed without a defined rubric
-  and follow-up sample.
+  reported materially inaccurate Mandarin ASR in an earlier live sample. On 2026-09-23 the
+  operator accepted this as a **staging-only quality limitation** and waived another billable
+  Mandarin ASR retest in Phase 5.5B. Accuracy was **not** accepted as passing, and the cause was
+  **not** proven to be exclusively upstream: microphone processing, media transport, and caption
+  assembly remain application-controlled. Reassess with a defined rubric before broader release.
 - The Cloud quota/limit rejection path still needs a controlled fail-closed exercise with a safe
   user error and `reserved_ms=0`. Do not purchase capacity or deliberately exhaust shared Build
   allowance to manufacture this test.
@@ -77,8 +79,8 @@ registration/media placement was Japan A.
 - SSH TCP 22 remains temporarily public under the accepted dynamic-VPN exception. The shared
   API/Worker LiveKit project credential remains an accepted staging-only hardening item.
 
-Until these items are resolved, the accurate release status is **deployed but not accepted**, not
-**Phase 5.5B complete**.
+Until the remaining mandatory items are resolved, the accurate release status is
+**deployed but not accepted**, not **Phase 5.5B complete**.
 
 ## 2026-09-23 continuation
 
@@ -89,6 +91,14 @@ one successful bounded English reconnect retest, and the reviewed language-indep
 Worker hard-stop rationale. A later non-billable local test joins LiveKit's 429 adapter to real
 PostgreSQL minute/helper settlement and passes, but no actual LiveKit Cloud quota refusal has been
 forced or observed.
+On 2026-09-23 the operator explicitly retained the original **real Cloud quota/limit refusal**
+acceptance criterion; the local 429 test is complementary evidence, not a substitute. Do not
+exhaust shared Build capacity, change plans, or claim Gate 7 accepted to manufacture a result.
+The project's read-only Cloud quota page says Build limits are fixed. It showed 100 concurrent
+participants (past-7-day peak 2) and 10,000 API requests per minute (peak 5); no adjustable
+project-side RoomService test limit was exposed. A forced limit by saturating either shared
+resource would be outside this bounded acceptance. A provider-supported isolated rejection
+mechanism or an actual naturally occurring Cloud refusal is still required for the literal gate.
 
 The 24-hour LiveKit project aggregate and Mural's 721,000 ms total charge use different accounting
 units: two historical, pre-repair Web-only room re-joins account for at least 59 cloud participant
@@ -96,7 +106,8 @@ minutes after their corresponding Mural sessions had closed. They are not eviden
 OpenAI speech. All 16 Mural sessions were closed, and the two identified Worker-lease cases had
 settled reservations, but their `provider_usage_final=false` cost markers still require operator
 reconciliation.
-The idle container resource snapshot is not a peak-load measurement. Cloud rejection, Mandarin ASR
-quality, latency/resource/error metrics, and a watch for renewed Web-only room duration remain
-acceptance work. Before any additional bounded live test, recheck the remaining trial allowance,
+The idle container resource snapshot is not a peak-load measurement. Cloud rejection,
+latency/resource/error metrics, and a watch for renewed Web-only room duration remain acceptance
+work; Mandarin ASR accuracy is an explicitly accepted staging limitation, not a passed quality
+check. Before any additional bounded live test, recheck the remaining trial allowance,
 Cloud project usage, and active sessions; do not repeat a fault case only to manufacture quota.
