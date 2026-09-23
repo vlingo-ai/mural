@@ -98,29 +98,40 @@ test('terminal LiveKit CreateRoom 429 is a known rejection, but timeout remains 
   }
 });
 
-test('a dispatch rejection after room creation stays uncertain and attempts room cleanup', async () => {
+test('dispatch 429 releases funding only when room cleanup is confirmed', async () => {
   const originalFetch = globalThis.fetch;
-  const paths: string[] = [];
   try {
-    globalThis.fetch = async input => {
-      const path = new URL(String(input)).pathname;
-      paths.push(path);
-      if (path.endsWith('/CreateRoom') || path.endsWith('/DeleteRoom'))
-        return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
-      if (path.endsWith('/CreateDispatch'))
-        return new Response(JSON.stringify({ code: 'resource_exhausted', msg: 'private provider details' }), {
-          status: 429, headers: { 'content-type': 'application/json' },
-        });
-      throw new Error('unexpected LiveKit API call');
-    };
-    await assert.rejects(provider().create('', 'en', undefined, sessionID), error => {
-      assert.ok(error instanceof LiveCreateFailure);
-      assert.equal(error.category, 'transport');
-      assert.equal(error instanceof LiveCreateRejectedError, false);
-      assert.doesNotMatch(String(error), /private provider details/);
-      return true;
-    });
-    assert.deepEqual(paths.map(path => path.split('/').at(-1)), ['CreateRoom', 'CreateDispatch', 'DeleteRoom']);
+    for (const cleanupStatus of [200, 404, 503]) {
+      const paths: string[] = [];
+      globalThis.fetch = async input => {
+        const path = new URL(String(input)).pathname;
+        paths.push(path);
+        if (path.endsWith('/CreateRoom'))
+          return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+        if (path.endsWith('/DeleteRoom'))
+          return new Response(JSON.stringify({ code: cleanupStatus === 404 ? 'not_found' : 'unavailable' }), {
+            status: cleanupStatus, headers: { 'content-type': 'application/json' },
+          });
+        if (path.endsWith('/CreateDispatch'))
+          return new Response(JSON.stringify({ code: 'resource_exhausted', msg: 'private provider details' }), {
+            status: 429, headers: { 'content-type': 'application/json' },
+          });
+        throw new Error('unexpected LiveKit API call');
+      };
+      await assert.rejects(provider().create('', 'en', undefined, sessionID), error => {
+        if (cleanupStatus === 503) {
+          assert.ok(error instanceof LiveCreateFailure);
+          assert.equal(error.category, 'transport');
+          assert.equal(error instanceof LiveCreateRejectedError, false);
+        } else {
+          assert.ok(error instanceof LiveCreateRejectedError);
+          assert.equal(error.providerStatus, 429);
+        }
+        assert.doesNotMatch(String(error), /private provider details/);
+        return true;
+      });
+      assert.deepEqual(paths.map(path => path.split('/').at(-1)), ['CreateRoom', 'CreateDispatch', 'DeleteRoom']);
+    }
   } finally {
     globalThis.fetch = originalFetch;
   }

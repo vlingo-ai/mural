@@ -128,10 +128,11 @@ latency/resource/participant-minute summary. The release must remain **deployed 
 After the successful reconnect retest, code review found that the deployed LiveKit adapter wraps
 even a terminal `CreateRoom` HTTP 429 as an uncertain transport failure. That conservatively keeps
 the funding hold for reconciliation, so the requested quota-refusal assertion (`reserved_ms=0`)
-cannot yet be claimed. A local, **not deployed** follow-up changes only a pre-room terminal 4xx
-(other than timeout 408) into a known rejection; errors after room creation and ambiguous failures
-remain uncertain. Mock-LiveKit tests cover CreateRoom 429/408 and post-room dispatch 429 with
-cleanup; API TypeScript check, build, and the full runnable API suite (122 passed, 288
-database-dependent tests skipped without `TEST_DATABASE_URL`) pass.
+cannot yet be claimed. A local, **not deployed** follow-up treats a pre-room terminal 4xx
+(other than timeout 408) as a known rejection. A dispatch 429 after room creation is known only
+when room deletion is confirmed; failed cleanup and ambiguous errors remain uncertain. Mock-LiveKit
+tests cover CreateRoom 429/408 and dispatch 429 with successful, absent, or failed room cleanup;
+API TypeScript check, build, and the full runnable API suite (123 passed, 288 database-dependent
+tests skipped without `TEST_DATABASE_URL`) pass.
 This is not a Cloud quota test and must be reviewed and deployed before any controlled live
 rejection exercise. Do not exhaust shared Build capacity or purchase a higher plan to force one.
