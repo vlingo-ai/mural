@@ -209,6 +209,18 @@ This bounds the application-managed retry path after loss detection; it is not a
 instant network-failure detection or proof against every Cloud-side room rejoin. Recheck the
 remaining trial allowance, Cloud project usage, and active sessions before any further live run.
 
+At 2026-09-23 15:10 CST, the project-wide LiveKit Usage dashboard's **past 7 days** window
+displayed 18 room sessions, 103 WebRTC participant-minutes, 6.82 MB upstream, and 5.84 MB
+downstream. The Sessions dashboard's **past 24 hours** window displayed 17 rooms; filtering to
+Active returned no results. These are different time windows and cannot be compared as a billing
+reconciliation. The latest post-repair room's Cloud events showed a Web participant connection
+timeout at 12:04:56.66 CST and a new active Web participant at 12:04:57.61 CST, a 0.95-second
+Cloud-side participant gap. The start of the Wi-Fi outage, browser state transition, first audible
+response, and interruption were not timestamped by that page, so this is **not** a measured UX
+reconnect latency. Agent insights for that room reported no observability data; historical
+first-audio and interruption median/worst values cannot be reconstructed reliably from the
+available Cloud dashboard.
+
 At the later database audit, 16 Mural sessions created since 2026-09-22 00:00 UTC were all
 `closed`, none unresolved; their `charged_ms` total was 721,000, consistent with the separately
 observed 179,000 ms remaining from the 900,000 ms authorization. Two records carried
@@ -219,6 +231,13 @@ charged. Both minute reservations were `settled` with matching `used_ms`; neithe
 open user hold. The provider's final cost for these two cases remains unconfirmed and retains an
 operator reconciliation marker. Do not conflate a closed Mural ledger entry with a verified final
 OpenAI invoice.
+
+A subsequent read-only aggregate of those 16 Mural sessions found the following close outcomes;
+all were `closed` and the total remained 721,000 ms: English `deadline` 1 / 42,000 ms,
+`user_requested` 4 / 186,000 ms, `worker_lease_expired` 2 / 57,000 ms, and no close reason
+recorded 6 / 327,000 ms; Mandarin `user_requested` 3 / 109,000 ms. The deliberate fault tests
+and null close reasons prevent this distribution from being reported as a natural production
+error rate. No new billable session was started to collect it.
 
 An **idle-only** `docker stats --no-stream` snapshot showed API 0.06% CPU / 33.41 MiB, Edge
 0.01% / 13.14 MiB, Worker 0.60% / 458.7 MiB, Gateway 0.04% / 66.66 MiB, and PostgreSQL 0.06% /
