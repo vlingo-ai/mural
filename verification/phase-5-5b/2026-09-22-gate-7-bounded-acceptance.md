@@ -203,3 +203,18 @@ with final provider usage and released reservations. The last checked wallet was
 remaining, reserved 0, with no active sessions. Recheck these values and actual OpenAI spend
 before any further paid test. No paid call was made during the follow-up instrumentation rollout.
 The safe real LiveKit Cloud quota-refusal criterion remains open, so Gate 7 is still not accepted.
+
+## 2026-09-23 bounded English timing follow-up
+
+One more operator-authorized English live sample was taken after the energy-gate diagnostic
+deployment. Audio, captions, and natural interruption worked according to the operator. The
+browser reported `firstAudioMs=14366` and one interruption candidate at 280 ms; Stop was
+requested at 31,205 ms. The corresponding Mural session closed `user_requested` with final
+provider usage, 23,000 ms observed/charged, a settled reservation, 93,000 ms wallet balance,
+and zero reserved. The LiveKit project had zero concurrent Agent sessions afterward. Details and
+measurement limits are in the [timing diagnostic record](2026-09-23-english-timing-diagnostic.md).
+The OpenAI Usage dashboard still displayed the pre-run USD 0.92 immediately after refresh, so
+its new charge is **not yet reconciled**; do not count it as zero or start another paid sample
+on that basis. One new first-audio and one interruption candidate do not establish a median,
+worst-case bound, or reconnection latency. Real Cloud quota refusal and concurrent resource
+metrics also remain open. The status is **deployed but not Gate 7 accepted**.
