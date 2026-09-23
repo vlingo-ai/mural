@@ -7,6 +7,7 @@ import { retryHistoryWrite } from './history-sync';
 import { MuralReconnectPolicy, MURAL_MEDIA_READY_MS, MURAL_RECOVERY_FALLBACK_MS,
   MURAL_RECOVERY_RETRY_MS, MURAL_RECOVERY_WINDOW_MS } from './livekit-reconnect';
 import { agentDisconnectIsTerminal, agentMediaIsReady, microphoneIsReady } from './livekit-state';
+import type { TimingKind } from './timing-diagnostic';
 
 export type LiveState = 'idle' | 'requesting-microphone' | 'connecting' | 'active' | 'closing' | 'failed';
 
@@ -40,6 +41,8 @@ export class LiveConnection {
     private readonly onEvent: (event: TranscriptEvent | Record<string, unknown>) => void,
     private readonly onRemoteStream: (stream: MediaStream) => void,
     private readonly onSession: (sessionID: string | undefined) => void = () => {},
+    private readonly onTiming: (kind: TimingKind) => void = () => {},
+    private readonly onLocalStream: (stream: MediaStream) => void = () => {},
   ) {}
 
   async connect(language: AvailableLanguage, inputDeviceID?: string): Promise<void> {
@@ -56,6 +59,7 @@ export class LiveConnection {
         video: false,
       });
       if (this.closed || generation !== this.generation) return;
+      this.onLocalStream(this.local);
       this.onState('connecting');
       const capabilities = await this.api.liveCapabilities();
       if (!capabilities.hostedMinutes) throw new Error('Hosted voice is not available.');
@@ -64,6 +68,7 @@ export class LiveConnection {
       else await this.connectWebRTC(language);
     } catch (error) {
       if (generation !== this.generation) return;
+      this.onTiming('failed');
       this.disconnect();
       this.onState('failed');
       throw error;
@@ -152,6 +157,7 @@ export class LiveConnection {
       this.clearLiveKitRecoveryTimers();
       if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
       this.liveKitReadyTimer = undefined;
+      this.onTiming('recovery-media-ready');
       this.onState('active');
     };
     const scheduleRecovery = (delay: number): void => {
@@ -163,8 +169,10 @@ export class LiveConnection {
     };
     const beginRecovery = (): void => {
       if (!current() || !this.sessionID) return;
+      const firstDetection = !this.liveKitReconnecting;
       this.liveKitReconnecting = true;
       this.liveKitReady = false;
+      if (firstDetection) this.onTiming('recovery-detected');
       if (this.liveKitAgentDepartureTimer !== undefined) globalThis.clearTimeout(this.liveKitAgentDepartureTimer);
       this.liveKitAgentDepartureTimer = undefined;
       if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
@@ -276,7 +284,11 @@ export class LiveConnection {
       this.liveKitRecovery = recovery;
       void recovery.finally(() => { if (this.liveKitRecovery === recovery) this.liveKitRecovery = undefined; });
     };
-    this.stopObservingOffline = observeBrowserOffline(beginRecovery, globalThis, () => {
+    this.stopObservingOffline = observeBrowserOffline(() => {
+      this.onTiming('browser-offline');
+      beginRecovery();
+    }, globalThis, () => {
+      this.onTiming('browser-online');
       if (current() && this.liveKitReconnecting) {
         if (this.liveKitRecoveryTimer !== undefined) globalThis.clearTimeout(this.liveKitRecoveryTimer);
         this.liveKitRecoveryTimer = undefined;
@@ -308,6 +320,7 @@ export class LiveConnection {
     this.liveKitReady = true;
     if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
     this.liveKitReadyTimer = undefined;
+    this.onTiming('initial-media-ready');
     if (!this.liveKitReconnecting) this.onState('active');
   }
 
@@ -330,6 +343,7 @@ export class LiveConnection {
     this.liveKitReadyTimer = undefined;
     this.stopObservingOffline?.();
     this.stopObservingOffline = undefined;
+    this.onTiming('failed');
     this.onEvent({ type: reason === 'agent_lost' ? 'mural.live.agent_lost' : 'mural.live.reconnect_failed' });
     this.onState('failed');
     if (this.sessionID) void this.api.closeLiveSession(this.sessionID).catch(() => {});
@@ -383,6 +397,7 @@ export class LiveConnection {
   }
 
   close(): void {
+    this.onTiming('stop-requested');
     this.onState('closing');
     if (this.channel?.readyState === 'open') this.channel.send(JSON.stringify({ type: 'session.close', event_id: crypto.randomUUID() }));
     // A user-requested disconnect is expected; suppress transport failure handlers while

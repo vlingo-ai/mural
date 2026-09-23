@@ -4,6 +4,7 @@ import { RoomEvent } from 'livekit-client';
 import type { MuralAPI } from '../api/mural';
 import { LiveConnection, type LiveState } from './LiveConnection';
 import { MURAL_RECOVERY_FALLBACK_MS, MURAL_RECOVERY_RETRY_MS, MURAL_RECOVERY_WINDOW_MS } from './livekit-reconnect';
+import type { TimingKind } from './timing-diagnostic';
 
 type FakeTrack = MediaStreamTrack & { readyState: 'live' | 'ended' };
 type FakeRoom = {
@@ -103,7 +104,9 @@ function harness() {
     closeLiveSession,
   } as unknown as MuralAPI;
   const states: LiveState[] = [];
-  const connection = new LiveConnection(api, state => states.push(state), () => {}, () => {});
+  const timings: TimingKind[] = [];
+  const connection = new LiveConnection(api, state => states.push(state), () => {}, () => {},
+    () => {}, kind => timings.push(kind));
   const agentAudio = { kind: 'audio', mediaStreamTrack: { readyState: 'live' } as FakeTrack };
   const publishAgent = (room: FakeRoom) => {
     (room as FakeRoom & { remoteParticipants: Map<string, unknown> }).remoteParticipants = new Map([
@@ -113,7 +116,7 @@ function harness() {
     ]);
     room.emit(RoomEvent.TrackSubscribed, agentAudio, {}, { identity: 'agent' });
   };
-  return { connection, states, closeLiveSession, publishAgent, microphone };
+  return { connection, states, timings, closeLiveSession, publishAgent, microphone };
 }
 
 describe('LiveKit reconnect lifecycle', () => {
@@ -134,6 +137,7 @@ describe('LiveKit reconnect lifecycle', () => {
     });
     h.publishAgent(room);
     expect(h.states.at(-1)).toBe('active');
+    expect(h.timings).toContain('initial-media-ready');
     h.connection.disconnect();
   });
 
@@ -148,6 +152,8 @@ describe('LiveKit reconnect lifecycle', () => {
     expect(mock.rooms).toHaveLength(2);
     h.publishAgent(mock.rooms[1]!);
     expect(h.states.at(-1)).toBe('active');
+    expect(h.timings.filter(kind => kind === 'recovery-detected')).toHaveLength(1);
+    expect(h.timings.filter(kind => kind === 'recovery-media-ready')).toHaveLength(1);
     expect(h.closeLiveSession).not.toHaveBeenCalled();
     expect(h.microphone.readyState).toBe('live');
     h.connection.disconnect();

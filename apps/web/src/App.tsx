@@ -4,6 +4,7 @@ import { knownLanguages, providerLocale, type AccountProfile, type AvailableLang
 import { disableGoogleAutoSelect, signInWithGoogle } from './api/google';
 import { MuralAPI, MuralAPIError } from './api/mural';
 import { LiveConnection, type LiveState } from './live/LiveConnection';
+import { AudioEnergyProbe, TimingRecorder, type TimingReport } from './live/timing-diagnostic';
 import { historyCache } from './storage/history-cache';
 
 type Caption = { id: string; speaker: 'user' | 'assistant'; text: string; source: 'live' | 'typed' };
@@ -42,12 +43,18 @@ export default function App() {
   const [history, setHistory] = useState<ConversationSummary[]>([]);
   const [detail, setDetail] = useState<ConversationDetail>();
   const [error, setError] = useState<string>();
+  const [timingReport, setTimingReport] = useState<TimingReport>();
   const audio = useRef<HTMLAudioElement>(null);
   const tokenRef = useRef(token); tokenRef.current = token;
   const accountRef = useRef(account); accountRef.current = account;
   const origin = import.meta.env.VITE_MURAL_API_ORIGIN || 'http://127.0.0.1:8080';
   const googleClientID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
   const api = useMemo(() => new MuralAPI(origin, () => tokenRef.current.trim() || undefined), [origin]);
+  const timingEnabled = new URLSearchParams(window.location.search).get('timing') === '1' &&
+    (import.meta.env.DEV || window.location.hostname === 'speaking-live-staging.vlingo.ai');
+  const timing = useMemo(() => timingEnabled ? new TimingRecorder(() => performance.now(), setTimingReport) : undefined,
+    [timingEnabled]);
+  const audioProbe = useMemo(() => timing ? new AudioEnergyProbe(timing) : undefined, [timing]);
   const connection = useMemo(() => new LiveConnection(api, setState, event => {
     const transcript = event as Partial<TranscriptEvent>;
     if (transcript.type === 'session.transcript.appended' && (transcript.speaker === 'user' || transcript.speaker === 'assistant') && typeof transcript.text === 'string') {
@@ -63,10 +70,14 @@ export default function App() {
     if (event.type === 'mural.history.sync_failed') setError('The live conversation continues, but history sync needs a retry.');
     if (event.type === 'mural.live.agent_lost') setError('The voice service stopped unexpectedly. Start a new conversation to reconnect.');
     if (event.type === 'mural.live.reconnect_failed') setError('The connection could not be restored. Start a new conversation.');
-    if (event.type === 'session.closed') { setState('idle'); void refreshHistory(accountRef.current?.accountID); }
-  }, stream => { if (audio.current) audio.current.srcObject = stream; }, setSessionID), [api]);
+    if (event.type === 'session.closed') {
+      timing?.mark('closed'); audioProbe?.stop(); setState('idle'); void refreshHistory(accountRef.current?.accountID);
+    }
+  }, stream => { if (audio.current) audio.current.srcObject = stream; audioProbe?.attachRemote(stream); },
+  setSessionID, kind => { timing?.mark(kind); if (kind === 'failed' || kind === 'stop-requested') audioProbe?.stop(); },
+  stream => audioProbe?.attachLocal(stream)), [api, timing, audioProbe]);
 
-  useEffect(() => () => connection.disconnect(), [connection]);
+  useEffect(() => () => { connection.disconnect(); audioProbe?.stop(); }, [connection, audioProbe]);
   useEffect(() => {
     if (!outputDevice || !audio.current || !('setSinkId' in audio.current)) return;
     void (audio.current as HTMLAudioElement & { setSinkId(id: string): Promise<void> }).setSinkId(outputDevice);
@@ -97,11 +108,13 @@ export default function App() {
   async function signOut() {
     try { await api.signOut(); } catch { /* Local credential disposal still signs the browser out. */ }
     connection.disconnect(); disableGoogleAutoSelect(); if (account) await historyCache.clear(account.accountID);
+    audioProbe?.stop();
     tokenRef.current = ''; setToken(''); setAccount(undefined);
     setHistory([]); setDetail(undefined); setCaptions([]); setResult(undefined);
   }
   async function start() {
     setError(undefined); setCaptions([]); setResult(undefined);
+    timing?.start(); audioProbe?.start(audio.current);
     try { await connection.connect(language, inputDevice || undefined); await refreshDevices(); }
     catch (cause) { setError(safeMessage(cause)); }
   }
@@ -171,6 +184,9 @@ export default function App() {
       <div className="learning-actions"><button onClick={() => void runLiveTask('translation')} disabled={!active || !latestUser || toolBusy}>Translate latest</button>
         <button onClick={() => void runLiveTask('assessment')} disabled={!active || !latestUser || toolBusy}>Learning feedback</button></div><audio ref={audio} autoPlay />
     </section>
+    {timing && <details className="panel timing-diagnostic"><summary>Staging timing diagnostic</summary>
+      <p>Opt-in browser measurements only. Audio frames are analyzed transiently, never recorded or uploaded; speech-onset timings require manual validation.</p>
+      <pre>{JSON.stringify(timingReport ?? timing.report(), null, 2)}</pre></details>}
     <section className="workspace" aria-label="Learning tools and history">
       <div className="panel"><p className="eyebrow">Current topic</p><div className="typed"><input value={topic} onChange={event => setTopic(event.target.value)}
         placeholder="Find a current conversation topic" maxLength={500} disabled={!token || toolBusy} /><button onClick={() => void searchTopic()} disabled={!token || !topic.trim() || toolBusy}>Explore</button></div>
