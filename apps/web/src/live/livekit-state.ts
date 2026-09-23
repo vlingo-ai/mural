@@ -8,11 +8,12 @@ export function agentDisconnectIsTerminal(
 
 export function agentMediaIsReady(
   expectedIdentity: string | undefined,
-  participants: Iterable<{ identity: string; audioTrackPublications: ReadonlyMap<string, unknown> }>,
+  participants: Iterable<{ identity: string; audioTrackPublications: ReadonlyMap<string, { isSubscribed: boolean }> }>,
 ): boolean {
   if (!expectedIdentity) return false;
   for (const participant of participants) {
-    if (participant.identity === expectedIdentity && participant.audioTrackPublications.size > 0) return true;
+    if (participant.identity === expectedIdentity &&
+        [...participant.audioTrackPublications.values()].some(publication => publication.isSubscribed)) return true;
   }
   return false;
 }
