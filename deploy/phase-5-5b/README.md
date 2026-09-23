@@ -248,7 +248,7 @@ enforces such scopes.
 This gate incurs LiveKit participant minutes and OpenAI usage. Run it only after the user confirms
 the Build allowance and provider budgets.
 
-For both `en` and `zh-CN`, use the same restricted test account and record:
+For the current English-only (`en`) staging acceptance scope, use the restricted test account and record:
 
 1. create → both participants connected → remote audio → captions → typed input;
 2. natural interruption and a client delegation through Mural → Gateway Responses;
@@ -263,16 +263,19 @@ participant minutes, ingress/egress bytes, error count/rate, VPS CPU/RSS, and Mu
 Correlate LiveKit and Mural with the opaque Mural session ID only. Never export room metadata or
 transcripts as test evidence.
 
-Phase 5.5B passes only when both languages pass, the numbers above are recorded, no client has a
+The revised English-only Phase 5.5B scope passes only when English passes, the numbers above are recorded, no client has a
 provider secret, and every failure case settles or is explicitly marked for operator reconciliation.
 Until then, report **prepared** or **deployed but not accepted**, never **Phase 5.5B complete**.
 
-Staging-only quality exception accepted by the operator on 2026-09-23: the previously observed
-Mandarin ASR accuracy issue will not receive another billable Phase 5.5B retest. Mandarin functional
-audio, captions, translation, interruption, and reconnect evidence remains in scope; do not mark
-ASR accuracy as passing or attribute its cause solely to OpenAI without isolation. Record it as an
-accepted staging limitation requiring a defined quality rubric before broader release. This
-exception does not waive the Cloud rejection or measurement requirements above.
+Operator scope change on 2026-09-23: pause Mandarin development and testing for this acceptance;
+the Web selector marks Mandarin and Cantonese as "coming later" and offers English alone. This
+supersedes the earlier staging-only Mandarin ASR retest waiver and the original two-language
+Gate 7 requirement for this English-only staging release, but does **not** establish Mandarin
+quality or Phase 5.5B bilingual acceptance. Existing Mandarin history remains readable. The
+server retains `zh-CN` compatibility for existing/native clients; the selector change is not an
+API-wide language ban. Reopen Mandarin with a defined quality rubric and its own acceptance
+before making it selectable again. This scope change does not waive Cloud rejection or
+measurement requirements above.
 
 ## Required evidence record
 
