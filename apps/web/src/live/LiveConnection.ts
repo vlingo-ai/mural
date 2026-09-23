@@ -124,7 +124,7 @@ export class LiveConnection {
       requestedMilliseconds: 15 * 60_000 }, crypto.randomUUID());
     if (result.transport.type !== 'livekit-room') throw new Error('Mural returned an unexpected live transport.');
     const transport = result.transport;
-    const openRoom = async (): Promise<void> => {
+    const openRoom = async (): Promise<Room | undefined> => {
       const room = new LiveKitRoom({ adaptiveStream: true, dynacast: true,
         reconnectPolicy: new MuralReconnectPolicy() });
       this.room = room;
@@ -140,10 +140,6 @@ export class LiveConnection {
       });
       room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
         if (this.room !== room) return;
-        if (participant?.isLocal === false) {
-          this.liveKitAgentIdentity = participant.identity;
-          this.markLiveKitActive();
-        }
         this.receiveTranscriptions(segments, participant?.isLocal === true);
       });
       room.on(RoomEvent.ParticipantDisconnected, participant => {
@@ -181,6 +177,7 @@ export class LiveConnection {
       await room.localParticipant.publishTrack(new LocalAudioTrack(track), {
         source: Track.Source.Microphone,
       });
+      return room;
     };
     const recoverRoom = (): void => {
       if (this.closed || !this.liveKitReconnecting || this.liveKitRecovery) return;
@@ -189,8 +186,17 @@ export class LiveConnection {
         this.room = undefined;
         this.remote.getTracks().forEach(track => this.remote.removeTrack(track));
         await previous?.disconnect();
-        await openRoom();
-        if (!this.closed) this.armLiveKitReadyTimeout();
+        const room = await openRoom();
+        if (this.closed || !room) return;
+        this.liveKitReconnecting = false;
+        if (agentMediaIsReady(this.liveKitAgentIdentity, room.remoteParticipants.values())) {
+          this.liveKitReady = true;
+          this.onState('active');
+        } else {
+          this.liveKitReady = false;
+          this.onState('connecting');
+          this.armLiveKitReadyTimeout();
+        }
       })().catch(() => this.failLiveKitAgent()).finally(() => { this.liveKitRecovery = undefined; });
     };
     this.stopObservingOffline = observeBrowserOffline(() => {

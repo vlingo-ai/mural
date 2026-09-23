@@ -16,14 +16,16 @@ describe('agentDisconnectIsTerminal', () => {
 });
 
 describe('agentMediaIsReady', () => {
-  const participant = (identity: string, audioTracks: number) => ({
+  const participant = (identity: string, audioTracks: number, subscribed = true) => ({
     identity,
-    audioTrackPublications: new Map(Array.from({ length: audioTracks }, (_, index) => [`audio-${index}`, {}])),
+    audioTrackPublications: new Map(Array.from({ length: audioTracks }, (_, index) =>
+      [`audio-${index}`, { isSubscribed: subscribed }])),
   });
 
-  it('requires the known agent and an audio publication after reconnect', () => {
+  it('requires subscribed audio from the known agent after reconnect', () => {
     expect(agentMediaIsReady('agent', [participant('agent', 1)])).toBe(true);
     expect(agentMediaIsReady('agent', [participant('agent', 0)])).toBe(false);
+    expect(agentMediaIsReady('agent', [participant('agent', 1, false)])).toBe(false);
     expect(agentMediaIsReady('agent', [participant('learner', 1)])).toBe(false);
     expect(agentMediaIsReady(undefined, [participant('agent', 1)])).toBe(false);
   });
