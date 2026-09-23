@@ -7,8 +7,9 @@ an in-memory panel; local development also permits it. Opening the panel does no
 or call a provider. The normal Web UI, API requests, credentials, and server behavior are unchanged.
 
 The panel records only event names and relative milliseconds from the browser's
-`performance.now()` clock. It never retains or uploads raw audio, transcript text, account data,
-room metadata, credentials, or wall-clock timestamps. Its JSON report has no session ID; the
+`performance.now()` clock. The analyser uses transient audio frame buffers, clears them on
+detach, and never persists or uploads them. Transcript text, account data, room metadata,
+credentials, and wall-clock timestamps are not recorded. Its JSON report has no session ID; the
 operator must correlate a bounded test manually with the separately held opaque Mural session ID.
 
 ## Measurement definitions

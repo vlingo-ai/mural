@@ -1,5 +1,5 @@
 // Opt-in staging diagnostics: relative browser timestamps and audio energy only.
-// Neither audio samples nor conversation content are retained or uploaded.
+// Analyser frames are transient and cleared on detach; nothing is persisted or uploaded.
 export type TimingKind = 'start-click' | 'initial-media-ready' | 'first-audio' |
   'browser-offline' | 'browser-online' | 'recovery-detected' | 'recovery-media-ready' |
   'post-recovery-audio' | 'speech-onset-candidate' | 'remote-silence-after-onset' |
@@ -178,7 +178,9 @@ export class AudioEnergyProbe {
   stop(): void {
     if (this.timer !== undefined) globalThis.clearInterval(this.timer);
     this.timer = undefined;
-    for (const input of [this.local, this.remote]) { input?.source.disconnect(); input?.analyser.disconnect(); }
+    for (const input of [this.local, this.remote]) {
+      input?.source.disconnect(); input?.analyser.disconnect(); input?.samples.fill(0);
+    }
     this.local = this.remote = undefined;
     this.sink?.disconnect();
     this.sink = undefined;
@@ -190,6 +192,7 @@ export class AudioEnergyProbe {
   private attach(previous: AudioInput | undefined, stream: MediaStream): AudioInput | undefined {
     previous?.source.disconnect();
     previous?.analyser.disconnect();
+    previous?.samples.fill(0);
     if (!this.context || !this.sink || stream.getAudioTracks().length === 0) return undefined;
     try {
       const source = this.context.createMediaStreamSource(stream), analyser = this.context.createAnalyser();
