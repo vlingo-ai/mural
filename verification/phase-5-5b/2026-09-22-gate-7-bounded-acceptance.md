@@ -79,3 +79,21 @@ registration/media placement was Japan A.
 
 Until these items are resolved, the accurate release status is **deployed but not accepted**, not
 **Phase 5.5B complete**.
+
+## 2026-09-23 continuation
+
+The later reconnect repair and quota-rejection API repair were deployed separately after this
+initial record. See [the dated reconnect and quota incident record](2026-09-23-reconnect-incident.md)
+for exact revisions, the fresh off-server encrypted backup, passing deployment verification, the
+one successful bounded English reconnect retest, and the reviewed language-independent Mandarin
+Worker hard-stop rationale. No actual LiveKit Cloud quota refusal has been forced or observed.
+
+The 24-hour LiveKit project aggregate and Mural's 721,000 ms total charge use different accounting
+units: two historical, pre-repair Web-only room re-joins account for at least 59 cloud participant
+minutes after their corresponding Mural sessions had closed. They are not evidence of continued
+OpenAI speech. All 16 Mural sessions were closed, and the two identified Worker-lease cases had
+settled reservations, but their `provider_usage_final=false` cost markers still require operator
+reconciliation.
+The idle container resource snapshot is not a peak-load measurement. Cloud rejection, Mandarin ASR
+quality, latency/resource/error metrics, and the historical room-duration discrepancy remain
+acceptance work; no additional paid test is justified yet.

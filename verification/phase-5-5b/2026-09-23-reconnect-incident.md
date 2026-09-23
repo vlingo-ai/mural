@@ -128,11 +128,98 @@ latency/resource/participant-minute summary. The release must remain **deployed 
 After the successful reconnect retest, code review found that the deployed LiveKit adapter wraps
 even a terminal `CreateRoom` HTTP 429 as an uncertain transport failure. That conservatively keeps
 the funding hold for reconciliation, so the requested quota-refusal assertion (`reserved_ms=0`)
-cannot yet be claimed. A local, **not deployed** follow-up treats a pre-room terminal 4xx
+could not yet be claimed. At that point, a local, **not yet deployed** follow-up treated a pre-room terminal 4xx
 (other than timeout 408) as a known rejection. A dispatch 429 after room creation is known only
 when room deletion is confirmed; failed cleanup and ambiguous errors remain uncertain. Mock-LiveKit
 tests cover CreateRoom 429/408 and dispatch 429 with successful, absent, or failed room cleanup;
 API TypeScript check, build, and the full runnable API suite (123 passed, 288 database-dependent
 tests skipped without `TEST_DATABASE_URL`) pass.
-This is not a Cloud quota test and must be reviewed and deployed before any controlled live
-rejection exercise. Do not exhaust shared Build capacity or purchase a higher plan to force one.
+This was not a Cloud quota test. Do not exhaust shared Build capacity or purchase a higher plan to
+force one.
+
+## Quota rejection repair deployed — 2026-09-23
+
+[PR #25](https://github.com/vlingo-ai/mural/pull/25) merged as
+`5f71474339ffcc2689319e7ecd8ebff2afcd2561`; contracts, secret scan, Web, Swift,
+PostgreSQL-backed server, and deployment CI passed. The API adapter now treats a terminal
+pre-room LiveKit 4xx other than 408 as a known refusal. A dispatch 429 after room creation is
+known only if room deletion succeeds or returns exact `not_found`/404. Failed cleanup, timeouts,
+and other ambiguous outcomes retain the reservation for reconciliation. Tests cover these cases
+without exhausting Cloud quota. The established HostedVoice settlement path releases a known
+rejection with zero usage; this deployment has **not** exercised a real Cloud quota refusal.
+
+Before switching the API, the operator confirmed no active sessions and made encrypted backup
+`postgres-20260923T061547Z.sql.gz.age`. Its separate Mac recovery copy has SHA-256
+`6ea3133e686c3d7b66d099b5dffbb4e075cd5bd53604433de5bb94ab4b6d1802`, matched the VPS copy,
+and passed `age` decryption plus `gzip -t`. The prior API image
+`vlingo-speaking-live-api:ad1659cc6f442d7a4db06534b4a75f1c92be9371` remains tagged with
+runtime image ID `sha256:af5b485f03b677b23f2457e3a366c77372857aff897ad219d13b9e06b6adf4cb`;
+private rollback config `.env.rollback-ad1659c` is mode 600. The operator built the exact merged
+source, then recreated **only** the API container with
+`vlingo-speaking-live-api:5f71474339ffcc2689319e7ecd8ebff2afcd2561`, runtime image ID
+`sha256:e06df747c27218f63db741aa85b3208010a5ee6eb77512707925919adbcfdff1`. No database
+migration ran and the Worker, Gateway, Web/Edge, and PostgreSQL containers were not restarted.
+`verify.sh` passed public TLS, health, disabled Gateway audio capabilities, service status, and
+sanitized-log checks; `pg_isready` reported accepting connections; no active Mural session remained.
+The public API `/healthz` returned HTTP 200 with hosted voice enabled, guest minutes disabled,
+and live payments disabled. This is deployment verification, not Gate 7 acceptance.
+
+## Historical Cloud room-duration discrepancy
+
+The LiveKit Build project Usage view for the preceding 24 hours displayed 17 room sessions,
+102 WebRTC participant-minutes, 6.57 MB upstream, and 5.6 MB downstream. These are
+**project-wide** figures, not Mural-billed duration or a per-test latency measurement.
+Two 2026-09-22 pre-PR-#24 rooms explain at least 59 participant-minutes of that total:
+
+- Mural session `2da2c09b-f435-4ee8-84ad-f9eb1c4e1c75` closed at 15:00:24 CST after
+  66,000 ms of observed/charged provider usage. A subsequent LiveKit room session of the
+  **same name** opened at 15:00:55 CST and had only a Web subscriber until 15:39:30 CST.
+  LiveKit displayed 38 participant-minutes for this later room.
+- Mural session `3cce6e55-4bf4-44f2-8589-9258fdca1ed4` closed at 17:14:10 CST after
+  90,000 ms observed/charged. A subsequent same-name LiveKit room opened at 17:14:41 CST
+  with only a Web subscriber until 17:35:58 CST. LiveKit displayed 21 participant-minutes.
+
+Both later rooms were closed when inspected. The 31-second gap after each Mural close and the
+single Web subscriber are consistent with an older browser SDK retry rejoining a same-name room
+after Mural had finalized it; this is an **inference**, not a proven LiveKit server cause. The
+then-deployed Web revision predated PR #24's bounded recovery and explicit fail cleanup. The
+PR-#24 English retest room, by contrast, had both Agent and Web participants, opened at 12:04:21
+and closed at 12:05:29 CST on 2026-09-23, with both participants leaving by 12:05:13 CST;
+Mural closed at 12:05:13 CST with 46,000 ms charged. This one clean run does not establish
+that all later room rejoin attempts are impossible. Track Cloud participant-minutes separately
+from Mural's 15-minute authorized provider-usage budget; do not infer OpenAI usage from a Web-only
+room. No further billable test should run until this discrepancy is understood and bounded.
+
+At the later database audit, 16 Mural sessions created since 2026-09-22 00:00 UTC were all
+`closed`, none unresolved; their `charged_ms` total was 721,000, consistent with the separately
+observed 179,000 ms remaining from the 900,000 ms authorization. Two records carried
+`provider_usage_final=false`, both English `worker_lease_expired` cases. Session
+`b5f7f26b-2cf8-4570-9ffc-9ecf34ed5dd6` had zero trusted observed milliseconds and the disclosed
+15,000 ms minimum charge; `aed1ca70-5c66-497d-baef-53822d66efb9` had 42,000 ms observed and
+charged. Both minute reservations were `settled` with matching `used_ms`; neither represents an
+open user hold. The provider's final cost for these two cases remains unconfirmed and retains an
+operator reconciliation marker. Do not conflate a closed Mural ledger entry with a verified final
+OpenAI invoice.
+
+An **idle-only** `docker stats --no-stream` snapshot showed API 0.06% CPU / 33.41 MiB, Edge
+0.01% / 13.14 MiB, Worker 0.60% / 458.7 MiB, Gateway 0.04% / 66.66 MiB, and PostgreSQL 0.06% /
+36.98 MiB. These values are not peak CPU/RSS during a live call and cannot satisfy that Gate 7
+measurement by themselves.
+
+## Mandarin Worker hard-stop review basis
+
+The 2026-09-22 English hard-stop is the live fault-injection evidence: Mural closed the session
+as `worker_lease_expired`, kept `provider_usage_final=false` for operator reconciliation, and
+released its minute reservation. A separate Mandarin Worker process kill would spend the shared
+allowance and interrupt the same staging Worker, so the proposed substitute is an explicit
+language-independence review, **not** a claim that a Mandarin hard-stop was run.
+
+`workers/livekit-gpt-live/mural_livekit/metadata.py` admits both `en` and `zh-CN`. The Worker
+heartbeat and shutdown paths in `worker.py` send only the opaque session ID, cumulative usage,
+and control token; neither branches on language. Mural's `HostedVoice.tick()` chooses lease
+expiry and room hangup from persisted provider ID, lease timestamp, and observed milliseconds;
+`recordUsage()` settles from the trusted cumulative usage and funding ledger, with no language
+branch. Language affects initial instructions and history, not these failure/settlement paths.
+Both languages previously completed ordinary Cloud sessions through the same Worker/control
+channel. This review supports using the English live hard-stop as representative of the Mandarin
+lease/settlement mechanism, while leaving Mandarin ASR quality and Cloud quota refusal open.
