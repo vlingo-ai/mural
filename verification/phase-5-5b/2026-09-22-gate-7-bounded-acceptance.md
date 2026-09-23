@@ -112,7 +112,7 @@ units: two historical, pre-repair Web-only room re-joins account for at least 59
 minutes after their corresponding Mural sessions had closed. They are not evidence of continued
 OpenAI speech. All 16 Mural sessions were closed, and the two identified Worker-lease cases had
 settled reservations, but their `provider_usage_final=false` cost markers still require operator
-reconciliation.
+reconciliation or a clearly documented deferral; see the operator decision below.
 The idle container resource snapshot is not a peak-load measurement. Cloud rejection,
 latency/resource/error metrics, and a watch for renewed Web-only room duration remain acceptance
 work; Mandarin ASR accuracy is an explicitly accepted staging limitation, not a passed quality
@@ -123,3 +123,46 @@ The latest read-only wallet and ledger aggregate, including its accounting limit
 and no hold. Historical first-audio/interruption medians and worst values cannot be recovered
 from the current dashboard; a future instrumented, bounded live run would be needed for those
 measurements, subject to the remaining time and external OpenAI spend check.
+
+## 2026-09-23 operator follow-up decisions
+
+The operator authorized a generic, non-sensitive question to the LiveKit community about a
+low-impact real Cloud `CreateRoom`/`CreateDispatch` quota refusal. It was posted at
+[community topic 2106](https://community.livekit.io/t/safe-way-to-test-real-roomservice-quota-rejection-on-build-without-exhausting-shared-limits/2106)
+without project identifiers, credentials, or logs. There was no reply at the time of this record.
+The operator's conditional direction is to consider waiving the **real Cloud-only** exercise if
+there is no safe supported method or the cost/disruption is disproportionate. That decision is
+not yet applied: review the response or agree a reasonable no-answer interval first, then record
+the exception explicitly. The local 429-to-PostgreSQL settlement test remains valid but distinct.
+
+For the two historical `provider_usage_final=false` Worker-lease records, the operator prefers
+deferring invoice reconstruction and watching for recurrence rather than spending more time on
+old fault cases. Both are pre-repair records with settled minute reservations and no open wallet
+hold; one was the documented deliberate Worker hard-stop. Their exact final provider usage and
+whether the earlier reconnect bug caused either marker have **not** been established. Preserve
+the flags and records; do not rewrite them to `true` or call them reconciled. Investigate promptly
+if a new *ordinary* post-repair session has `provider_usage_final=false`, an unresolved reservation,
+or a material provider-bill-versus-ledger discrepancy. No new paid call is authorized solely to
+manufacture a recurrence check.
+
+Recommended latency evidence path, **not yet implemented or measured**:
+
+1. Add an opt-in staging Web diagnostic using `performance.now()` on the same browser clock.
+   Record Start click, first non-silent received Agent audio actually playable in the page,
+   first recovery signal, Connecting state, verified media-ready Active state, and first audible
+   post-recovery reply. `TrackSubscribed` alone is not first audible audio. Keep physical Wi-Fi
+   outage-to-detection delay separate from SDK recovery-to-ready delay because browser offline
+   and SDK failure detection can lag.
+2. For natural barge-in, record local microphone speech onset while Agent audio is active and
+   the point where remote audible energy stops. A bounded, calibrated local-only energy detector
+   should be checked for echo/noise false positives. Worker-side `RealtimeModelMetrics.ttft` and
+   Agent state events can help decompose provider/turn latency, but are not browser playback
+   latency; never subtract timestamps from different hosts without clock calibration.
+3. Retain only opaque session ID, event kind, relative milliseconds, result/failure and sample
+   count in an ephemeral test summary. Do not persist or upload audio, transcripts, room metadata,
+   or credentials. Unit-test event ordering, silence, reconnect failure, microphone/Agent loss,
+   and diagnostic cleanup before any staged Web/Worker release.
+4. After a separately budget-checked deployment, collect several bounded samples per language,
+   report median and worst **observed** values plus sample counts/failures, and capture concurrent
+   VPS CPU/RSS and project Cloud usage for the same window. The remaining 179,000 ms and the
+   unverified actual OpenAI invoice make an unplanned live sampling batch inappropriate.
