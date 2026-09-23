@@ -86,7 +86,9 @@ The later reconnect repair and quota-rejection API repair were deployed separate
 initial record. See [the dated reconnect and quota incident record](2026-09-23-reconnect-incident.md)
 for exact revisions, the fresh off-server encrypted backup, passing deployment verification, the
 one successful bounded English reconnect retest, and the reviewed language-independent Mandarin
-Worker hard-stop rationale. No actual LiveKit Cloud quota refusal has been forced or observed.
+Worker hard-stop rationale. A later non-billable local test joins LiveKit's 429 adapter to real
+PostgreSQL minute/helper settlement and passes, but no actual LiveKit Cloud quota refusal has been
+forced or observed.
 
 The 24-hour LiveKit project aggregate and Mural's 721,000 ms total charge use different accounting
 units: two historical, pre-repair Web-only room re-joins account for at least 59 cloud participant

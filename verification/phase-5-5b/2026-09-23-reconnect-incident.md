@@ -164,6 +164,19 @@ sanitized-log checks; `pg_isready` reported accepting connections; no active Mur
 The public API `/healthz` returned HTTP 200 with hosted voice enabled, guest minutes disabled,
 and live payments disabled. This is deployment verification, not Gate 7 acceptance.
 
+## Non-billable quota-refusal chain test
+
+A local test server returned a terminal HTTP 429 with a private body to the actual LiveKit SDK
+`CreateRoom` call. The LiveKit adapter, `HostedVoice.create()`, and a dedicated PostgreSQL test
+database then ran as one chain: the caller received only `provider_create_rejected` (HTTP 502)
+with provider status 429; one provider request occurred; the session closed with no provider room
+ID, cost, or funding exposure; the minute reservation settled with `used_ms=0` and wallet
+`reserved_ms=0`; the helper liability and post-close budget became zero. Repeating the same
+idempotency key did not call LiveKit again. Neither the error nor persisted session retained the
+private 429 body. The complete database-backed API suite passed 412/412 tests. This is a
+deterministic local integration test, **not** evidence that the LiveKit Cloud project actually
+reached a quota or returned 429; the literal Cloud-refusal Gate 7 item remains open.
+
 ## Historical Cloud room-duration discrepancy
 
 The LiveKit Build project Usage view for the preceding 24 hours displayed 17 room sessions,
