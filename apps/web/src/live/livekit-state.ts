@@ -17,3 +17,15 @@ export function agentMediaIsReady(
   }
   return false;
 }
+
+export function microphoneIsReady(
+  track: MediaStreamTrack | undefined,
+  publications: Iterable<{ source: string; isMuted: boolean; track?: { mediaStreamTrack: MediaStreamTrack } | undefined }>,
+): boolean {
+  if (!track || track.readyState !== 'live') return false;
+  for (const publication of publications) {
+    if (publication.source === 'microphone' && !publication.isMuted &&
+        publication.track?.mediaStreamTrack === track) return true;
+  }
+  return false;
+}

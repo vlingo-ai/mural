@@ -23,6 +23,9 @@ const cleanText = (value: unknown, bytes: number): value is string => typeof val
   !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value);
 export const isLiveKitRoomAbsent = (error: unknown): boolean => object(error) &&
   error.code === 'not_found' && error.status === 404;
+export const liveKitRoomOptions = (name: string) => ({
+  name, emptyTimeout: 60, departureTimeout: 60, maxParticipants: 2,
+});
 
 export class LiveKitLiveProvider implements LiveProvider {
   readonly clientTransport = 'livekit-room' as const;
@@ -60,7 +63,10 @@ export class LiveKitLiveProvider implements LiveProvider {
     const room = muralSessionID;
     let created = false;
     try {
-      await this.#rooms.createRoom({ name: room, emptyTimeout: 60, departureTimeout: 10, maxParticipants: 2 });
+      // A browser can take longer than ten seconds to detect a Wi-Fi loss and
+      // rejoin. Keep the room (and its agent) alive beyond the client's bounded
+      // recovery window; a permanently disconnected client still times out.
+      await this.#rooms.createRoom(liveKitRoomOptions(room));
       created = true;
       const metadata = JSON.stringify({
         version: '1.0', sessionID: muralSessionID, language,

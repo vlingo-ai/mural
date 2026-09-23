@@ -62,6 +62,7 @@ export default function App() {
     }
     if (event.type === 'mural.history.sync_failed') setError('The live conversation continues, but history sync needs a retry.');
     if (event.type === 'mural.live.agent_lost') setError('The voice service stopped unexpectedly. Start a new conversation to reconnect.');
+    if (event.type === 'mural.live.reconnect_failed') setError('The connection could not be restored. Start a new conversation.');
     if (event.type === 'session.closed') { setState('idle'); void refreshHistory(accountRef.current?.accountID); }
   }, stream => { if (audio.current) audio.current.srcObject = stream; }, setSessionID), [api]);
 
