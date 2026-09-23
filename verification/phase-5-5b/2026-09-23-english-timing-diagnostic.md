@@ -1,6 +1,8 @@
 # English Gate 7 browser timing diagnostic — 2026-09-23
 
-Status: **implemented and tested locally; not deployed or measured live**.
+Status: **deployed to staging for opt-in inspection; not measured live or Gate 7 accepted**.
+Deployment and rollback evidence is in
+[the rollout record](2026-09-23-english-timing-rollout.md).
 
 The Web diagnostic is off by default. On the staging hostname only, adding `?timing=1` exposes
 an in-memory panel; local development also permits it. Opening the panel does not create a room
@@ -43,9 +45,9 @@ sessions, and analyser cleanup. The LiveKit lifecycle test checks media-ready/re
 emission. All 34 Web unit tests, TypeScript/build, and both non-billable Playwright flows passed.
 No live room, provider request, or paid timing sample was made for this implementation.
 
-Next: review and merge the change, check active sessions and take a fresh encrypted backup,
-deploy only the Edge image, then verify the diagnostic stays hidden without the query flag and
-appears with it. Before a bounded English live measurement, recheck the account's remaining
+The change was merged, an encrypted backup was checked off-server, only Edge was deployed, and
+the public staging page was verified with and without the query flag. Before a bounded English
+live measurement, recheck the account's remaining
 minute allowance, external OpenAI spend, LiveKit usage, and absence of other active sessions.
 Collect multiple labeled English samples and report count, median, worst observed, failures,
 concurrent VPS CPU/RSS, Cloud participant/byte usage, and billed duration. Do not label this
