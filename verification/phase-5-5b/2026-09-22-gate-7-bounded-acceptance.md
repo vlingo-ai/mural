@@ -162,7 +162,23 @@ Recommended latency evidence path, **not yet implemented or measured**:
    count in an ephemeral test summary. Do not persist or upload audio, transcripts, room metadata,
    or credentials. Unit-test event ordering, silence, reconnect failure, microphone/Agent loss,
    and diagnostic cleanup before any staged Web/Worker release.
-4. After a separately budget-checked deployment, collect several bounded samples per language,
+4. After a separately budget-checked deployment, collect several bounded English samples,
    report median and worst **observed** values plus sample counts/failures, and capture concurrent
    VPS CPU/RSS and project Cloud usage for the same window. The remaining 179,000 ms and the
    unverified actual OpenAI invoice make an unplanned live sampling batch inappropriate.
+
+## 2026-09-23 English-only scope and community follow-up
+
+The operator has paused Mandarin development and testing for this Phase 5.5B staging acceptance.
+English is the only selectable Web language; Mandarin is shown as "coming later", like Cantonese,
+whose display name is now "粤语". Prior Mandarin evidence remains historical, not an English
+acceptance result or a claim that Mandarin ASR quality passed. The existing API/native `zh-CN`
+compatibility and saved conversation history are not removed; this is a Web staging selection and
+acceptance-scope change, not an API-wide block. Mandarin needs a separately defined quality rubric
+and acceptance before being offered again.
+
+The operator authorized three daily checks of the [LiveKit community topic](https://community.livekit.io/t/safe-way-to-test-real-roomservice-quota-rejection-on-build-without-exhausting-shared-limits/2106),
+with notification only for a substantive reply, then automatic cessation. A lack of reply after
+three days is **not** itself a Cloud quota refusal test or an automatic waiver; review the
+provider guidance or absence of a safe method before recording any explicit waiver. The real
+Cloud rejection criterion, English latency/resource metrics, and final budget audit remain open.

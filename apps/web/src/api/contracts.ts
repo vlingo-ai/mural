@@ -1,7 +1,7 @@
 export const knownLanguages = [
   { id: 'en', providerLocale: 'en', name: 'English', available: true },
-  { id: 'zh', providerLocale: 'zh-CN', name: '普通话', available: true },
-  { id: 'yue', providerLocale: 'yue-Hant-HK', name: '香港粵語', available: false },
+  { id: 'zh', providerLocale: 'zh-CN', name: '普通话', available: false },
+  { id: 'yue', providerLocale: 'yue-Hant-HK', name: '粤语', available: false },
 ] as const;
 
 export type AvailableLanguage = 'en' | 'zh';
