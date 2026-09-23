@@ -185,7 +185,7 @@ export default function App() {
         <button onClick={() => void runLiveTask('assessment')} disabled={!active || !latestUser || toolBusy}>Learning feedback</button></div><audio ref={audio} autoPlay />
     </section>
     {timing && <details className="panel timing-diagnostic"><summary>Staging timing diagnostic</summary>
-      <p>Opt-in browser measurements only. Audio frames are analyzed transiently, never recorded or uploaded; speech-onset timings require manual validation.</p>
+      <p>Opt-in browser measurements only. Local/remote energy transitions help explain missing interruption candidates; they are not proof of speech or playback. Audio frames are analyzed transiently, never recorded or uploaded. Timings require manual validation.</p>
       <pre>{JSON.stringify(timingReport ?? timing.report(), null, 2)}</pre></details>}
     <section className="workspace" aria-label="Learning tools and history">
       <div className="panel"><p className="eyebrow">Current topic</p><div className="typed"><input value={topic} onChange={event => setTopic(event.target.value)}

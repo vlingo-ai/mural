@@ -16,6 +16,7 @@ describe('opt-in browser timing recorder', () => {
     expect(recorder.report().firstAudioMs).toBe(120);
     expect(recorder.report().events).toEqual([
       { kind: 'start-click', ms: 0 }, { kind: 'initial-media-ready', ms: 50 },
+      { kind: 'remote-energy-onset', ms: 120 },
       { kind: 'first-audio', ms: 120 },
     ]);
   });
@@ -60,6 +61,50 @@ describe('opt-in browser timing recorder', () => {
     recorder.sampleAudio(0.03, 0, true);
     expect(recorder.report().interruptions).toEqual([{ onsetAtMs: 200,
       remoteStoppedMs: 320, latencyMs: 120 }]);
+    expect(recorder.report().events.map(event => event.kind)).toContain('local-energy-onset');
+    expect(recorder.report().events.map(event => event.kind)).toContain('remote-energy-silence');
+  });
+
+  it('cannot identify a new speech onset when speaker bleed keeps the local channel loud', () => {
+    let now = 0;
+    const recorder = new TimingRecorder(() => now);
+    recorder.start();
+    for (let sample = 0; sample < 5; sample++) recorder.sampleAudio(0.03, 0.03, true);
+    now = 200;
+    for (let sample = 0; sample < 5; sample++) recorder.sampleAudio(0.08, 0.03, true);
+    now = 400;
+    for (let sample = 0; sample < 3; sample++) recorder.sampleAudio(0.03, 0, true);
+    expect(recorder.report().firstAudioMs).toBe(0);
+    expect(recorder.report().interruptions).toEqual([]);
+    expect(recorder.report().events.filter(event => event.kind === 'local-energy-onset')).toHaveLength(1);
+  });
+
+  it('caps energy events without losing a later session-close event', () => {
+    const recorder = new TimingRecorder(() => 0);
+    recorder.start();
+    for (let segment = 0; segment < 70; segment++) {
+      recorder.sampleAudio(0, 0.03, true);
+      recorder.sampleAudio(0, 0.03, true);
+      for (let quiet = 0; quiet < 3; quiet++) recorder.sampleAudio(0, 0, true);
+    }
+    recorder.mark('closed');
+    expect(recorder.report().events.filter(event => event.kind.startsWith('remote-energy'))).toHaveLength(120);
+    expect(recorder.report().events.at(-1)?.kind).toBe('closed');
+  });
+
+  it('does not label speech beginning in a remote-audio gap as an interruption candidate', () => {
+    const recorder = new TimingRecorder(() => 0);
+    recorder.start();
+    for (let sample = 0; sample < 4; sample++) recorder.sampleAudio(0, 0.03, true);
+    for (let sample = 0; sample < 3; sample++) recorder.sampleAudio(0, 0, true);
+    recorder.sampleAudio(0.05, 0, true);
+    recorder.sampleAudio(0.05, 0, true);
+    expect(recorder.report().firstAudioMs).toBe(0);
+    expect(recorder.report().interruptions).toEqual([]);
+    expect(recorder.report().events.map(event => event.kind)).toEqual([
+      'start-click', 'remote-energy-onset', 'first-audio', 'remote-energy-silence',
+      'local-energy-onset',
+    ]);
   });
 
   it('resets evidence between sessions and leaves incomplete recoveries visibly incomplete', () => {

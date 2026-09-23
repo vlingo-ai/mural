@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-Hans">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mural 本机音频计时校验</title>
+<style>
+  body { max-width: 48rem; margin: 2rem auto; padding: 0 1rem; font: 16px/1.6 system-ui, sans-serif; }
+  button { font: inherit; padding: .5rem 1rem; margin-right: .5rem; }
+  pre { overflow: auto; padding: 1rem; background: #f3f4f6; }
+  #status { font-weight: 600; }
+</style>
+<h1>Mural 本机音频计时校验</h1>
+<p>此页面只在本机运行：不连接 Mural、LiveKit 或 OpenAI；不录音、不上传、
+不保存任何音频。它用一段短测试音模拟远端播放，并检测浏览器处理后的麦克风能量。
+测试音不等同于真实 Agent 语音，结果仅用于排查计时器漏记。</p>
+<p>保持与刚才相同的麦克风、扬声器和音量。开始后：前 2.5 秒保持安静；
+接着 4 秒有测试音时仍保持安静；最后 5 秒测试音继续播放时，清楚说两次“please slow down”。
+如果声音不舒适，请立即点停止。</p>
+<button id="start">开始本地校验（约 12 秒）</button><button id="stop" disabled>停止</button>
+<p id="status" role="status">尚未开始。</p>
+<pre id="result">无结果。</pre>
+<script type="module">
+const threshold = 0.012;
+const start = document.querySelector('#start');
+const stop = document.querySelector('#stop');
+const status = document.querySelector('#status');
+const result = document.querySelector('#result');
+let cleanup = () => {};
+
+function rms(analyser, samples) {
+  analyser.getFloatTimeDomainData(samples);
+  let total = 0;
+  for (const sample of samples) total += sample * sample;
+  return Math.sqrt(total / samples.length);
+}
+function summary(values) {
+  if (!values.length) return { samples: 0 };
+  const sorted = [...values].sort((a, b) => a - b);
+  return { samples: values.length,
+    localAboveThresholdPercent: Math.round(100 * values.filter(value => value >= threshold).length / values.length),
+    localRmsP95: Number(sorted[Math.floor(.95 * (sorted.length - 1))].toFixed(4)),
+    localRmsMax: Number(sorted.at(-1).toFixed(4)) };
+}
+function countCandidates(frames, candidateThreshold) {
+  let remoteLoud = false, localLoud = false, remoteAbove = 0, remoteBelow = 0;
+  let localAbove = 0, localBelow = 0, count = 0;
+  for (const frame of frames) {
+    const localHigh = frame.localRms >= candidateThreshold;
+    const remoteHigh = frame.phase !== 'quiet' && frame.remoteRms >= threshold;
+    localAbove = localHigh ? localAbove + 1 : 0;
+    localBelow = localHigh ? 0 : localBelow + 1;
+    remoteAbove = remoteHigh ? remoteAbove + 1 : 0;
+    remoteBelow = remoteHigh ? 0 : remoteBelow + 1;
+    if (!localLoud && localAbove >= 2) {
+      localLoud = true;
+      if (remoteLoud) count += 1;
+    } else if (localLoud && localBelow >= 4) localLoud = false;
+    if (!remoteLoud && remoteAbove >= 2) remoteLoud = true;
+    else if (remoteLoud && remoteBelow >= 3) remoteLoud = false;
+  }
+  return count;
+}
+
+start.addEventListener('click', async () => {
+  start.disabled = true;
+  stop.disabled = false;
+  result.textContent = '校验中；只有能量值留在此页面内存。';
+  status.textContent = '正在请求麦克风权限…';
+  let context, mic, timer, oscillator;
+  let finished = false;
+  cleanup = () => {
+    if (finished) return;
+    finished = true;
+    clearInterval(timer);
+    try { oscillator?.stop(); } catch { /* May not have started. */ }
+    mic?.getTracks().forEach(track => track.stop());
+    if (context) void context.close();
+    start.disabled = false;
+    stop.disabled = true;
+  };
+  try {
+    context = new AudioContext();
+    await context.resume();
+    mic = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true }, video: false,
+    });
+    if (finished) { mic.getTracks().forEach(track => track.stop()); return; }
+    const local = context.createAnalyser();
+    const remote = context.createAnalyser();
+    local.fftSize = remote.fftSize = 512;
+    const localSamples = new Float32Array(512);
+    const remoteSamples = new Float32Array(512);
+    const source = context.createMediaStreamSource(mic);
+    const mute = context.createGain();
+    mute.gain.value = 0;
+    source.connect(local).connect(mute).connect(context.destination);
+    oscillator = context.createOscillator();
+    oscillator.type = 'sine';
+    oscillator.frequency.value = 460;
+    const tone = context.createGain();
+    tone.gain.value = 0;
+    oscillator.connect(tone).connect(remote).connect(context.destination);
+    oscillator.start();
+    const samples = { quiet: [], speakerOnly: [], speakOverSpeaker: [] };
+    const remoteSamplesByPhase = { quiet: [], speakerOnly: [], speakOverSpeaker: [] };
+    const frames = [];
+    const began = performance.now();
+    let phase = '';
+    timer = setInterval(() => {
+      const elapsed = performance.now() - began;
+      const nextPhase = elapsed < 2500 ? 'quiet' : elapsed < 6500 ? 'speakerOnly'
+        : elapsed < 11500 ? 'speakOverSpeaker' : 'done';
+      if (nextPhase !== phase) {
+        phase = nextPhase;
+        tone.gain.value = phase === 'quiet' || phase === 'done' ? 0 : 0.12;
+        status.textContent = phase === 'quiet' ? '第 1 段：保持安静。'
+          : phase === 'speakerOnly' ? '第 2 段：测试音播放中，保持安静。'
+          : phase === 'speakOverSpeaker' ? '第 3 段：测试音播放中，说两次“please slow down”。'
+          : '校验已结束。';
+      }
+      if (phase === 'done') {
+        const report = {
+          note: '本机测试音，不是 LiveKit 或真实 Agent；数值只保存在页面内存。',
+          threshold, quiet: summary(samples.quiet),
+          speakerOnly: summary(samples.speakerOnly),
+          speakOverSpeaker: summary(samples.speakOverSpeaker),
+          audioContextState: context.state,
+          testToneRmsP95: summary(remoteSamplesByPhase.speakerOnly).localRmsP95,
+          testToneAboveThresholdPercent: summary(remoteSamplesByPhase.speakerOnly).localAboveThresholdPercent,
+          onsetCandidatesWhileTonePlayed: countCandidates(frames, threshold),
+          alternativeLocalThresholds: Object.fromEntries([0.001, 0.002, 0.003, 0.005, 0.012]
+            .map(value => [value, countCandidates(frames, value)])),
+          audibleToneRequiresYourConfirmation: true,
+        };
+        result.textContent = JSON.stringify(report, null, 2);
+        cleanup();
+        return;
+      }
+      const localRms = rms(local, localSamples);
+      const remoteRms = rms(remote, remoteSamples);
+      samples[phase].push(localRms);
+      remoteSamplesByPhase[phase].push(remoteRms);
+      frames.push({ phase, localRms, remoteRms });
+    }, 40);
+  } catch (error) {
+    status.textContent = `无法校验：${error instanceof Error ? error.message : String(error)}`;
+    cleanup();
+  }
+});
+stop.addEventListener('click', () => {
+  cleanup();
+  status.textContent = '已停止；本次没有可用结果。';
+  result.textContent = '无结果。';
+});
+</script>
+</html>
