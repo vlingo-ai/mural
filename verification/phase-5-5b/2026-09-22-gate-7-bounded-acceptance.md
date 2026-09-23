@@ -99,6 +99,13 @@ participants (past-7-day peak 2) and 10,000 API requests per minute (peak 5); no
 project-side RoomService test limit was exposed. A forced limit by saturating either shared
 resource would be outside this bounded acceptance. A provider-supported isolated rejection
 mechanism or an actual naturally occurring Cloud refusal is still required for the literal gate.
+LiveKit's published quota guidance says free Build projects share allowances and limits across
+the user's free projects, so creating another free project would not isolate a saturation test.
+It also describes a 1,000-requests-per-minute Server API limit; this differs from the 10,000
+requests-per-minute number displayed by this project's dashboard. Treat the project dashboard
+as the observed project setting and do not manufacture a refusal against either number. The
+safe next path is to obtain provider confirmation of an isolated, low-impact rejection method,
+or wait for a naturally occurring Cloud refusal while keeping the reservation/error audit ready.
 
 The 24-hour LiveKit project aggregate and Mural's 721,000 ms total charge use different accounting
 units: two historical, pre-repair Web-only room re-joins account for at least 59 cloud participant
@@ -111,3 +118,8 @@ latency/resource/error metrics, and a watch for renewed Web-only room duration r
 work; Mandarin ASR accuracy is an explicitly accepted staging limitation, not a passed quality
 check. Before any additional bounded live test, recheck the remaining trial allowance,
 Cloud project usage, and active sessions; do not repeat a fault case only to manufacture quota.
+The latest read-only wallet and ledger aggregate, including its accounting limits, is in the
+[incident continuation](2026-09-23-reconnect-incident.md). The wallet has 179,000 ms remaining
+and no hold. Historical first-audio/interruption medians and worst values cannot be recovered
+from the current dashboard; a future instrumented, bounded live run would be needed for those
+measurements, subject to the remaining time and external OpenAI spend check.

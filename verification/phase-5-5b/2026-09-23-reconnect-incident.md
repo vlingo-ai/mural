@@ -244,6 +244,15 @@ An **idle-only** `docker stats --no-stream` snapshot showed API 0.06% CPU / 33.4
 36.98 MiB. These values are not peak CPU/RSS during a live call and cannot satisfy that Gate 7
 measurement by themselves.
 
+The final read-only funding check joined the most recent English session to its trial wallet:
+`balance_ms=179000`, `reserved_ms=0`. Of the authorized 900,000 ms, 721,000 ms (12 min 1 s)
+has been charged and 179,000 ms (2 min 59 s) remains. A separate aggregate of those sessions
+reported `provider_cost_nano=600833336`; the settled helper-request aggregate reported
+`cost_nano=63000` and zero unresolved helpers. Their combined **Mural ledger estimate** is
+USD 0.600896336, not the OpenAI invoice or proof that the USD 2 lifetime cap has been verified
+externally. The two `provider_usage_final=false` Worker-lease cases noted above still need
+reconciliation. No additional billable session was started for these read-only checks.
+
 ## Mandarin Worker hard-stop review basis
 
 The 2026-09-22 English hard-stop is the live fault-injection evidence: Mural closed the session
