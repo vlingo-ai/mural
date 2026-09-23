@@ -7,7 +7,8 @@ import type Stripe from 'stripe';
 import { connectDatabase, transaction } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
 import { appendEntry } from '../src/ledger.js';
-import { LiveCreateFailure, LiveCreateRejectedError, OpenAILiveProvider } from '../src/live-provider.js';
+import { LiveCreateFailure, LiveCreateRejectedError, OpenAILiveProvider, type LiveProvider } from '../src/live-provider.js';
+import { LiveKitLiveProvider } from '../src/livekit/live-provider.js';
 import { Diagnostics, type DiagnosticRecord } from '../src/diagnostics.js';
 import { HostedVoice } from '../src/hosted-voice.js';
 import { applyStripeEvent } from '../src/payments.js';
@@ -24,7 +25,7 @@ async function until(predicate: () => Promise<boolean> | boolean) {
   while (!(await predicate())) { if (Date.now() > deadline) throw new Error('Timed out waiting for test condition'); await new Promise(resolve => setTimeout(resolve, 5)); }
 }
 async function fixture(cap = 2_000_000_000n, minuteAllowance?: number, helperBudget?: bigint, paid = false,
-  controlLeaseMilliseconds?: number) {
+  controlLeaseMilliseconds?: number, providerOverride?: LiveProvider) {
   const schema = `voice_test_${randomUUID().replaceAll('-', '')}`, url = new URL(databaseURL!);
   url.searchParams.set('options', `-c search_path=${schema}`);
   const db = connectDatabase(url.toString()); await db.query(`CREATE SCHEMA ${schema}`); await migrate(db);
@@ -73,7 +74,8 @@ async function fixture(cap = 2_000_000_000n, minuteAllowance?: number, helperBud
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address() as { port: number };
-  const provider = new OpenAILiveProvider('test-no-real-provider-key', { testOrigin: `http://127.0.0.1:${address.port}`, timeoutMilliseconds: 300, diagnostics: logger });
+  const provider: LiveProvider = providerOverride ?? new OpenAILiveProvider('test-no-real-provider-key',
+    { testOrigin: `http://127.0.0.1:${address.port}`, timeoutMilliseconds: 300, diagnostics: logger });
   if (controlLeaseMilliseconds !== undefined)
     Object.defineProperty(provider, 'controlLeaseMilliseconds', { value: controlLeaseMilliseconds });
   const helpers = helperBudget === undefined ? undefined : new HostedHelpers(db,
@@ -566,6 +568,51 @@ for (const mode of ['legacy', 'minutes', 'paid'] as const) {
     } finally { await f.cleanup(); }
   });
 }
+integration('a simulated LiveKit CreateRoom 429 releases the real database minute and helper holds', async () => {
+  let requests = 0;
+  const livekitServer = createServer((request, response) => {
+    requests++;
+    assert.equal(request.url, '/twirp/livekit.RoomService/CreateRoom');
+    response.writeHead(429, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ code: 'resource_exhausted', msg: 'private-provider-error' }));
+  });
+  await new Promise<void>(resolve => livekitServer.listen(0, '127.0.0.1', resolve));
+  let f: Awaited<ReturnType<typeof fixture>> | undefined;
+  try {
+    const address = livekitServer.address() as { port: number };
+    const provider = new LiveKitLiveProvider({ url: `ws://127.0.0.1:${address.port}`,
+      apiKey: 'test-key', apiSecret: 'test-secret', controlSecret: 'test-control-secret-with-at-least-thirty-two-bytes' });
+    f = await fixture(2_000_000_000n, 600_000, 50_000_000n, false, undefined, provider);
+    const before = await f.minutes();
+    await assert.rejects(f.controller.create(f.account, 'livekit-quota-rejection', '', 'en'), error => {
+      assert.equal((error as { code?: string }).code, 'provider_create_rejected');
+      assert.equal((error as { status?: number }).status, 502);
+      assert.equal((error as { providerStatus?: number }).providerStatus, 429);
+      assert.doesNotMatch(String(error), /private-provider-error/);
+      return true;
+    });
+    assert.equal(requests, 1);
+    assert.deepEqual(await f.minutes(), before);
+    const session = (await f.db.query('SELECT * FROM hosted_sessions')).rows[0];
+    assert.equal(session.state, 'closed');
+    assert.equal(session.provider_rejection_status, 429);
+    assert.equal(session.provider_session_id, null);
+    assert.equal(session.provider_cost_nano, '0');
+    assert.equal(session.funding_exposure_nano, '0');
+    assert.equal(JSON.stringify(session).includes('private-provider-error'), false);
+    const reservation = (await f.db.query('SELECT state,used_ms FROM minute_reservations')).rows[0];
+    assert.deepEqual(reservation, { state: 'settled', used_ms: '0' });
+    const helper = (await f.db.query('SELECT * FROM hosted_helper_sessions')).rows[0];
+    assert.equal(helper.liability_nano, '0');
+    assert.equal(helper.post_close_budget_nano, '0');
+    await assert.rejects(f.controller.create(f.account, 'livekit-quota-rejection', '', 'en'),
+      { code: 'live_request_already_created' });
+    assert.equal(requests, 1);
+  } finally {
+    await f?.cleanup();
+    await new Promise<void>(resolve => livekitServer.close(() => resolve()));
+  }
+});
 for (const failure of ['timeout-status', 'server-status', 'transport', 'malformed-success'] as const) {
   integration(`${failure} remains uncertain and keeps minute and helper holds`, async () => {
     const f = await fixture(2_000_000_000n, 600_000, 50_000_000n);
