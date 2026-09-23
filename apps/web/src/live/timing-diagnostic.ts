@@ -2,7 +2,8 @@
 // Analyser frames are transient and cleared on detach; nothing is persisted or uploaded.
 export type TimingKind = 'start-click' | 'initial-media-ready' | 'first-audio' |
   'browser-offline' | 'browser-online' | 'recovery-detected' | 'recovery-media-ready' |
-  'post-recovery-audio' | 'speech-onset-candidate' | 'remote-silence-after-onset' |
+  'post-recovery-audio' | 'local-energy-onset' | 'remote-energy-onset' |
+  'remote-energy-silence' | 'speech-onset-candidate' | 'remote-silence-after-onset' |
   'failed' | 'stop-requested' | 'closed' | 'audio-probe-unavailable';
 
 type TimingEvent = { kind: TimingKind; ms: number };
@@ -16,10 +17,15 @@ export type TimingReport = { version: 1; firstAudioMs: number | null;
   note: string };
 
 const RMS_THRESHOLD = 0.012;
+const ENERGY_EVENT_LIMIT = 120;
+const energyKinds = new Set<TimingKind>([
+  'local-energy-onset', 'remote-energy-onset', 'remote-energy-silence',
+]);
 
 export class TimingRecorder {
   private startAt?: number;
   private events: TimingEvent[] = [];
+  private energyEvents = 0;
   private firstAudio = false;
   private waitingForRecoveryAudio = false;
   private interruptionPending = false;
@@ -36,6 +42,7 @@ export class TimingRecorder {
   start(): void {
     this.startAt = this.now();
     this.events = [];
+    this.energyEvents = 0;
     this.firstAudio = false;
     this.waitingForRecoveryAudio = false;
     this.interruptionPending = false;
@@ -45,6 +52,10 @@ export class TimingRecorder {
 
   mark(kind: TimingKind): void {
     if (this.startAt === undefined || this.events.length >= 200) return;
+    if (energyKinds.has(kind)) {
+      if (this.energyEvents >= ENERGY_EVENT_LIMIT || this.events.length >= 160) return;
+      this.energyEvents += 1;
+    }
     if (kind === 'recovery-detected') {
       this.interruptionPending = false;
       this.waitingForRecoveryAudio = false;
@@ -71,6 +82,7 @@ export class TimingRecorder {
 
     if (!this.localLoud && this.localAbove >= 2) {
       this.localLoud = true;
+      this.mark('local-energy-onset');
       if (this.remoteLoud && !this.interruptionPending) {
         this.interruptionPending = true;
         this.mark('speech-onset-candidate');
@@ -79,6 +91,7 @@ export class TimingRecorder {
 
     if (!this.remoteLoud && this.remoteAbove >= 2) {
       this.remoteLoud = true;
+      this.mark('remote-energy-onset');
       if (!this.firstAudio) {
         this.firstAudio = true;
         this.mark('first-audio');
@@ -89,6 +102,7 @@ export class TimingRecorder {
       }
     } else if (this.remoteLoud && this.remoteBelow >= 3) {
       this.remoteLoud = false;
+      this.mark('remote-energy-silence');
       if (this.interruptionPending) {
         this.interruptionPending = false;
         this.mark('remote-silence-after-onset');
