@@ -19,3 +19,10 @@ condition = "AND"
 paths = ['''^verification/phase-5-5b/2026-09-22-gate-7-bounded-acceptance\.md$''']
 regexTarget = "secret"
 regexes = ['''^f41d4ac8b0cf5a1084077cbede58e69a807ca92f$''']
+
+[[rules.allowlists]]
+description = "Reviewed Mural Git revisions used as staging API image tags in the reconnect incident; not credentials."
+condition = "AND"
+paths = ['''^verification/phase-5-5b/2026-09-23-reconnect-incident\.md$''']
+regexTarget = "secret"
+regexes = ['''^(?:ad1659cc6f442d7a4db06534b4a75f1c92be9371|4bedf19783e5ccc819f362895d2f122a6307a9d9)$''']
