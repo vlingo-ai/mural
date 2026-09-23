@@ -182,3 +182,24 @@ with notification only for a substantive reply, then automatic cessation. A lack
 three days is **not** itself a Cloud quota refusal test or an automatic waiver; review the
 provider guidance or absence of a safe method before recording any explicit waiver. The real
 Cloud rejection criterion, English latency/resource metrics, and final budget audit remain open.
+
+## 2026-09-23 English timing continuation
+
+The opt-in browser timing diagnostic and its follow-up energy-gate events were merged and deployed
+to staging in Edge-only rollouts; see the
+[first timing rollout](2026-09-23-english-timing-rollout.md) and
+[energy-gate rollout](2026-09-23-english-energy-gates-rollout.md). One English live observation
+had audible first speech and captions, and the operator successfully interrupted the second
+Agent sentence; the Agent understood and slowed its reply. The single first-audio candidate was
+15,646 ms, but the interruption array was empty, so no latency median, worst value, or causal
+diagnosis is established. A non-billable local Mac speaker/microphone calibration detected two
+speech-onset candidates over an audible synthetic tone at the current threshold. No threshold
+change was justified. The follow-up timing events can help distinguish future missing local
+onsets from remote-audio gaps, but cannot reconstruct the earlier live run.
+
+The operator-side button race after the first live run created a second, quickly stopped Mural
+session. The two sessions charged 48,000 ms and the 15,000 ms minimum respectively; both closed
+with final provider usage and released reservations. The last checked wallet was 116,000 ms
+remaining, reserved 0, with no active sessions. Recheck these values and actual OpenAI spend
+before any further paid test. No paid call was made during the follow-up instrumentation rollout.
+The safe real LiveKit Cloud quota-refusal criterion remains open, so Gate 7 is still not accepted.
