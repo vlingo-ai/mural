@@ -49,8 +49,12 @@ export class LiveKitLiveProvider implements LiveProvider {
       throw new ServiceError('livekit_configuration_invalid', 503);
     const serviceURL = new URL(this.#url);
     serviceURL.protocol = serviceURL.protocol === 'wss:' ? 'https:' : 'http:';
-    this.#rooms = new RoomServiceClient(serviceURL.origin, config.apiKey, config.apiSecret);
-    this.#dispatches = new AgentDispatchClient(serviceURL.origin, config.apiKey, config.apiSecret);
+    // Keep control operations bounded; our durable cleanup owns retries. SDK
+    // region failover must not hide unbounded/multiple create attempts.
+    this.#rooms = new RoomServiceClient(serviceURL.origin, config.apiKey, config.apiSecret,
+      { requestTimeout: 5, failover: false });
+    this.#dispatches = new AgentDispatchClient(serviceURL.origin, config.apiKey, config.apiSecret,
+      { requestTimeout: 5, failover: false });
     this.#apiKey = config.apiKey;
     this.#apiSecret = config.apiSecret;
     this.#controlSecret = config.controlSecret;
@@ -90,10 +94,11 @@ export class LiveKitLiveProvider implements LiveProvider {
         try { await this.#rooms.deleteRoom(room); roomAbsent = true; }
         catch (cleanupError) { roomAbsent = isLiveKitRoomAbsent(cleanupError); }
       }
-      // A terminal CreateRoom 4xx proves no room was made. A dispatch 429 is
-      // also safely rejected only after the already-created room is confirmed
-      // absent. Ambiguous results and failed cleanup retain their funding hold.
-      if (error instanceof ServerError && error.status >= 400 && error.status < 500 && error.status !== 408 &&
+      // A CreateRoom conflict can mean the named room already exists. Never
+      // release its hold as if absence were proven. A dispatch 429 is safely
+      // rejected only after the already-created room is confirmed absent.
+      if (error instanceof ServerError && error.status >= 400 && error.status < 500 &&
+          error.status !== 408 && error.status !== 409 &&
           (!created || (error.status === 429 && roomAbsent)))
         throw new LiveCreateRejectedError(error.status);
       throw new LiveCreateFailure('transport', undefined,

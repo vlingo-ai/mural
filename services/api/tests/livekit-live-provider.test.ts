@@ -69,14 +69,32 @@ test('room departure grace exceeds the bounded browser reconnect window', () => 
   });
 });
 
-test('terminal LiveKit CreateRoom 429 is a known rejection, but timeout remains uncertain', async () => {
+test('B1: DeleteRoom 503 is retryable work; exact 404 alone confirms absence', async () => {
   const originalFetch = globalThis.fetch;
   try {
-    for (const status of [429, 408]) {
+    for (const [status, code] of [[503, 'unavailable'], [404, 'permission_denied'], [404, 'not_found']] as const) {
+      let calls = 0;
+      globalThis.fetch = async () => {
+        calls++;
+        return new Response(JSON.stringify({ code, msg: 'sanitized test failure' }), {
+          status, headers: { 'content-type': 'application/json' },
+        });
+      };
+      if (code === 'not_found') await provider().hangup(sessionID);
+      else await assert.rejects(provider().hangup(sessionID));
+      assert.equal(calls, 1, 'durable cleanup owns retries, not SDK regional failover');
+    }
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('CreateRoom 429 is a known rejection; timeout and room conflict remain uncertain', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const status of [429, 408, 409]) {
       let requests = 0;
       globalThis.fetch = async () => {
         requests++;
-        return new Response(JSON.stringify({ code: 'resource_exhausted', msg: 'private provider details' }), {
+        return new Response(JSON.stringify({ code: status === 409 ? 'already_exists' : 'resource_exhausted', msg: 'private provider details' }), {
           status, headers: { 'content-type': 'application/json' },
         });
       };
@@ -91,7 +109,7 @@ test('terminal LiveKit CreateRoom 429 is a known rejection, but timeout remains 
         assert.doesNotMatch(String(error), /private provider details/);
         return true;
       });
-      assert.equal(requests, 1, 'a known rejection or timeout must not be retried');
+      assert.equal(requests, 1, 'a known rejection or uncertain result must not be retried');
     }
   } finally {
     globalThis.fetch = originalFetch;

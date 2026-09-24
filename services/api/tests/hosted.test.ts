@@ -15,11 +15,150 @@ import { applyStripeEvent } from '../src/payments.js';
 import { appendMinuteEntry } from '../src/minutes.js';
 import { MinutePurchases, type VerifiedMinutePurchase } from '../src/minute-purchases.js';
 import { HostedHelpers } from '../src/hosted-helpers.js';
+import type { VoiceUsage } from '../src/live-provider.js';
 import { digest, signOut, authenticate } from '../src/auth.js';
 
 const databaseURL = process.env.TEST_DATABASE_URL;
 if (databaseURL && !new URL(databaseURL).pathname.endsWith('_test')) throw new Error('Dedicated test database required.');
 const integration = (name: string, fn: () => Promise<void>) => test(name, { skip: !databaseURL && 'Set TEST_DATABASE_URL.' }, fn);
+
+function cleanupProvider() {
+  let usage: ((event: VoiceUsage) => void) | undefined;
+  const state = { hangups: 0, failDelete: true, failCreate: false, room: '',
+    beforeCreate: async (_id: string) => {} };
+  const provider: LiveProvider = {
+    clientTransport: 'livekit-room', controlLeaseMilliseconds: 30_000,
+    async create(_sdp, _language, _context, id) {
+      state.room = id!;
+      await state.beforeCreate(id!);
+      if (state.failCreate) throw new LiveCreateFailure('transport');
+      return { sessionID: id!, transport: { type: 'livekit-room', url: 'ws://127.0.0.1:7880', token: 'fake' } };
+    },
+    async attach(_id, onUsage) { usage = onUsage; return { closeSession() {}, disconnect() { usage = undefined; } }; },
+    async hangup(id) {
+      assert.equal(id, state.room); state.hangups++;
+      if (state.failDelete) throw new Error('private cloud failure must not leak');
+    },
+  };
+  return { provider, state, send: (event: VoiceUsage) => { assert.ok(usage); usage(event); } };
+}
+
+integration('B1: control grant waits for persistence and never exceeds the funded deadline', async () => {
+  const fake = cleanupProvider(), f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
+  try {
+    const live = await f.controller.create(f.account, 'lease-grant-key', '', 'en');
+    f.advance(10_000);
+    fake.send({ type: 'session.usage.updated', usage: { seconds: 5 } });
+    assert.equal(await f.controller.controlLeaseMilliseconds(live.sessionID), 30_000);
+    assert.equal((await f.controller.status(f.account, live.sessionID)).observedMilliseconds, 5_000);
+    await f.db.query('UPDATE hosted_sessions SET deadline=$2 WHERE id=$1', [live.sessionID, new Date(f.now + 1234)]);
+    assert.equal(await f.controller.controlLeaseMilliseconds(live.sessionID), 1234);
+    await f.controller.requestClose(live.sessionID, 'user_requested');
+    fake.send({ type: 'session.usage.updated', usage: { seconds: 6 } });
+    assert.equal(await f.controller.controlLeaseMilliseconds(live.sessionID), 0);
+  } finally { await f.cleanup(); }
+});
+
+integration('B1: cleanup confirmation DB failure survives restart and repeats deletion safely', async () => {
+  const fake = cleanupProvider(), f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
+  try {
+    fake.state.failDelete = false;
+    const live = await f.controller.create(f.account, 'cleanup-db-failure-key', '', 'en');
+    fake.send({ type: 'session.closed', usage: { seconds: 20 } });
+    await until(async () => (await f.controller.status(f.account, live.sessionID)).state === 'closed');
+    await f.db.query(`CREATE FUNCTION reject_cleanup_confirmation() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.state='confirmed' THEN RAISE EXCEPTION 'test confirmation failure'; END IF; RETURN NEW; END $$`);
+    await f.db.query(`CREATE TRIGGER reject_cleanup_confirmation BEFORE UPDATE ON hosted_resource_cleanup
+      FOR EACH ROW EXECUTE FUNCTION reject_cleanup_confirmation()`);
+    await assert.rejects(f.controller.tick(), /test confirmation failure/);
+    assert.equal(fake.state.hangups, 1);
+    await f.db.query('DROP TRIGGER reject_cleanup_confirmation ON hosted_resource_cleanup');
+    await f.restart(); f.advance(60_001);
+    await f.controller.tick();
+    assert.equal(fake.state.hangups, 2);
+    assert.equal((await f.db.query('SELECT state FROM hosted_resource_cleanup')).rows[0].state, 'confirmed');
+    assert.deepEqual(await f.minutes(), { balance_ms: '70000', reserved_ms: '0' });
+  } finally { await f.cleanup(); }
+});
+
+integration('B1: closed final session cleanup retries across restart without charging twice', async () => {
+  const fake = cleanupProvider(), f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
+  try {
+    fake.state.beforeCreate = async id => {
+      const row = (await f.db.query('SELECT resource_id,state FROM hosted_resource_cleanup WHERE session_id=$1', [id])).rows[0];
+      assert.deepEqual(row, { resource_id: id, state: 'armed' });
+    };
+    const live = await f.controller.create(f.account, 'cleanup-final-key', '', 'en');
+    await f.controller.tick(); assert.equal(fake.state.hangups, 0, 'active room is not cleanup work');
+    fake.send({ type: 'session.closed', usage: { seconds: 20 } });
+    await until(async () => (await f.controller.status(f.account, live.sessionID)).state === 'closed');
+    const settled = await f.minutes();
+    assert.deepEqual(settled, { balance_ms: '70000', reserved_ms: '0' });
+    await f.controller.tick();
+    assert.equal(fake.state.hangups, 1);
+    let row = (await f.db.query('SELECT state,attempts,confirmed_at FROM hosted_resource_cleanup WHERE session_id=$1', [live.sessionID])).rows[0];
+    assert.deepEqual(row, { state: 'pending', attempts: 1, confirmed_at: null });
+    await f.controller.tick(); assert.equal(fake.state.hangups, 1, 'backoff persists');
+    await f.restart();
+    f.advance(5_001); fake.state.failDelete = false;
+    await f.controller.tick();
+    row = (await f.db.query('SELECT state,attempts FROM hosted_resource_cleanup WHERE session_id=$1', [live.sessionID])).rows[0];
+    assert.deepEqual(row, { state: 'confirmed', attempts: 2 });
+    await f.controller.tick(); assert.equal(fake.state.hangups, 2);
+    assert.deepEqual(await f.minutes(), settled);
+    assert.doesNotMatch(JSON.stringify(f.lifecycle), /private cloud/);
+  } finally { await f.cleanup(); }
+});
+
+integration('B1: lease expiry settles once while failed deletion remains durable cleanup work', async () => {
+  const fake = cleanupProvider(), f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
+  try {
+    const live = await f.controller.create(f.account, 'cleanup-lease-key', '', 'en');
+    fake.send({ type: 'session.usage.updated', usage: { seconds: 17 } });
+    await until(async () => (await f.controller.status(f.account, live.sessionID)).observedMilliseconds === 17_000);
+    f.advance(30_001); await f.controller.tick();
+    const row = (await f.db.query('SELECT state,provider_usage_final FROM hosted_sessions WHERE id=$1', [live.sessionID])).rows[0];
+    assert.deepEqual(row, { state: 'closed', provider_usage_final: false });
+    assert.deepEqual(await f.minutes(), { balance_ms: '73000', reserved_ms: '0' });
+    const calls = fake.state.hangups;
+    f.advance(5_001); await f.controller.tick();
+    assert.equal(fake.state.hangups, calls + 1);
+    assert.deepEqual(await f.minutes(), { balance_ms: '73000', reserved_ms: '0' });
+    assert.equal((await f.db.query('SELECT state FROM hosted_resource_cleanup WHERE session_id=$1', [live.sessionID])).rows[0].state, 'pending');
+  } finally { await f.cleanup(); }
+});
+
+integration('B1: ambiguous create retains known room cleanup and funding hold after restart', async () => {
+  const fake = cleanupProvider(); fake.state.failCreate = true;
+  const f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
+  try {
+    await assert.rejects(f.controller.create(f.account, 'cleanup-uncertain-key', '', 'en'), /provider_session_unconfirmed/);
+    await f.restart(); fake.state.failDelete = false;
+    await f.controller.tick();
+    assert.equal(fake.state.hangups, 1);
+    assert.equal((await f.db.query('SELECT state FROM hosted_resource_cleanup')).rows[0].state, 'pending');
+    assert.deepEqual(await f.minutes(), { balance_ms: '90000', reserved_ms: '90000' },
+      'resource deletion is not evidence of zero provider usage');
+    f.advance(60_001); await f.controller.tick();
+    assert.equal(fake.state.hangups, 2, 'unknown late CreateRoom requires continuing cleanup');
+  } finally { await f.cleanup(); }
+});
+
+integration('B1: close racing a create cannot confirm deletion before the create finishes', async () => {
+  const fake = cleanupProvider(), f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
+  try {
+    fake.state.beforeCreate = async id => {
+      await f.controller.requestClose(id, 'user_requested');
+      await f.controller.tick();
+      assert.equal(fake.state.hangups, 0);
+      assert.equal((await f.db.query('SELECT state FROM hosted_resource_cleanup WHERE session_id=$1', [id])).rows[0].state, 'armed');
+    };
+    await assert.rejects(f.controller.create(f.account, 'cleanup-racing-key', '', 'en'), /provider_session_unconfirmed/);
+    fake.state.failDelete = false;
+    await f.controller.tick();
+    assert.equal((await f.db.query('SELECT state FROM hosted_resource_cleanup')).rows[0].state, 'confirmed');
+  } finally { await f.cleanup(); }
+});
 async function until(predicate: () => Promise<boolean> | boolean) {
   const deadline = Date.now() + 3_000;
   while (!(await predicate())) { if (Date.now() > deadline) throw new Error('Timed out waiting for test condition'); await new Promise(resolve => setTimeout(resolve, 5)); }
