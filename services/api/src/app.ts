@@ -409,6 +409,8 @@ export function createApp(services: Services) {
     if (!services.hosted) throw new ServiceError('livekit_control_unavailable', 404);
     const id = uuid((request.params as { id: string }).id);
     const event = await services.hosted.acceptTrustedEvent(id, request.headers.authorization, request.body);
+    if (event.type === 'session.usage.updated')
+      return { accepted: true, leaseMilliseconds: await services.hosted.controlLeaseMilliseconds(id) };
     if (event.type !== 'session.delegation.created') return { accepted: true };
     if (!services.hostedHelpers) throw new ServiceError('hosted_helpers_not_ready', 503);
     const owner = (await db.query('SELECT account_id,language FROM hosted_sessions WHERE id=$1 AND state<>\'closed\'', [id])).rows[0];

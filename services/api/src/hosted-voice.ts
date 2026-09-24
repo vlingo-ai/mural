@@ -11,6 +11,7 @@ import { LiveCreateFailure, LiveCreateRejectedError, supportsLanguage, parseLive
 import { appendMinuteEntry, lockMinuteWallet } from './minutes.js';
 import { recoverMinutePurchaseShortfalls } from './minute-purchases.js';
 import { hostedHelperExposure, type HostedHelpers } from './hosted-helpers.js';
+import { ResourceCleanup } from './resource-cleanup.js';
 
 const voiceCost = (milliseconds: number) => cost({ milliseconds, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, searchCalls: 0 }).voice;
 const HOLD = voiceCost(TRIAL_MS);
@@ -43,12 +44,15 @@ export class HostedVoice {
   private readonly now: () => number;
   private readonly grace: number;
   private readonly diagnostics: Diagnostics;
+  private readonly resourceCleanup: ResourceCleanup;
+  private readonly inFlightCreates = new Set<string>();
   constructor(private readonly db: Database, private readonly provider: LiveProvider, private readonly config: HostedConfig) {
     if (config.publicMinuteAccess ? config.billingUnit!=='milliseconds' :
       config.lifetimeFundingCapNano < HOLD || config.lifetimeFundingCapNano > 25_000_000_000n || !config.accountAllowlist.size)
       throw new ServiceError('invalid_hosted_funding_configuration', 503);
     this.diagnostics = config.diagnostics ?? new Diagnostics();
     this.now = config.now ?? Date.now; this.grace = config.closeGraceMilliseconds ?? 5_000;
+    this.resourceCleanup = new ResourceCleanup(db, provider, this.diagnostics, this.now);
     if (!Number.isSafeInteger(this.grace) || this.grace<0 || this.grace>60_000)
       throw new ServiceError('invalid_hosted_close_configuration',503);
     if (config.publicPaidAccess && (!config.publicMinuteAccess || !config.helpers?.paidFundingPolicy?.enabled || !config.helpers.closeCashBudget))
@@ -174,7 +178,11 @@ export class HostedVoice {
       throw new ServiceError('live_session_cancelled', 409);
     let created: Awaited<ReturnType<LiveProvider['create']>> | undefined;
     let startupStage = 'provider_create';
+    this.inFlightCreates.add(id);
     try {
+      // Durable resource identity precedes the external side effect. Cleanup is
+      // separate from the funding hold, including an ambiguous create response.
+      await this.resourceCleanup.arm(id);
       created = await this.provider.create(sdp, language, teachingContext, id);
       if (minutes || paid) deadline = new Date(this.now() + reservedMilliseconds);
       startupStage = 'persist_provider_session';
@@ -209,6 +217,8 @@ export class HostedVoice {
       if (!created && error instanceof LiveCreateRejectedError) {
         try {
           await this.settleRejectedCreate(id, account, error);
+          // LiveKit rejected-create contract proves the room is absent.
+          if (this.clientTransport === 'livekit-room') await this.resourceCleanup.confirmAbsent(id);
         } catch {
           this.reportStartupFailure({ category: 'rejection_settlement_failed' });
           // Database failure leaves the original reservation intact for reconciliation.
@@ -221,6 +231,8 @@ export class HostedVoice {
         WHERE id=$1 AND state<>'closed'`, [id]).catch(() => {});
       // Never guess a final bill or release this hold before a trusted final event/reconciliation.
       throw new ServiceError('provider_session_unconfirmed', 502);
+    } finally {
+      this.inFlightCreates.delete(id);
     }
   }
   async acceptTrustedEvent(id: string, authorization: string | undefined, body: unknown):
@@ -229,6 +241,17 @@ export class HostedVoice {
     const event = this.provider.acceptTrustedEvent(id, authorization, body);
     if (event.type === 'session.provider.rejected') await this.settleRuntimeRejection(id, event);
     return event;
+  }
+  async controlLeaseMilliseconds(id: string): Promise<number> {
+    // A successful HTTP response alone is not permission to keep a provider alive.
+    // Wait for the cumulative heartbeat to persist, then grant only active time.
+    await this.slots.get(id)?.queue;
+    const row = (await this.db.query(`SELECT provider_lease_expires_at,deadline FROM hosted_sessions
+      WHERE id=$1 AND state='active' AND close_requested_at IS NULL`, [id])).rows[0];
+    if (!row?.provider_lease_expires_at || !row.deadline) return 0;
+    return Math.max(0, Math.min(this.provider.controlLeaseMilliseconds ?? 0,
+      new Date(row.provider_lease_expires_at).getTime() - this.now(),
+      new Date(row.deadline).getTime() - this.now()));
   }
   private reportStartupFailure(diagnostic: { category: string; providerStatus?: number; requestID?: string }) {
     try { this.config.onStartupFailure?.(diagnostic); } catch { /* Diagnostics cannot change accounting. */ }
@@ -514,6 +537,9 @@ export class HostedVoice {
           await this.db.query("UPDATE hosted_sessions SET state='incomplete' WHERE id=$1 AND state<>'closed'", [row.id]);
         }
       }
+      // Includes already-settled sessions; retrying external deletion never reopens
+      // a reservation or changes the last trusted usage/charge.
+      await this.resourceCleanup.run(this.inFlightCreates);
     } finally { this.ticking = false; }
   }
   private async emergencyClose() {
