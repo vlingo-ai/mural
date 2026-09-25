@@ -1,4 +1,5 @@
 import type { AccountProfile, AuthChallenge, AuthExchange, ConversationDetail, ConversationSummary, LiveCapabilities, LiveSessionResult, ProviderLocale } from './contracts';
+import type { LiveSessionStatusDTO } from '../../../../shared/contracts/generated/live';
 
 type Fetch = typeof globalThis.fetch;
 type ErrorBody = { error?: { code?: string } };
@@ -39,6 +40,11 @@ export class MuralAPI {
 
   liveCapabilities(): Promise<LiveCapabilities> { return this.get('/v1/live/capabilities'); }
 
+  liveSessionStatus(sessionID: string): Promise<LiveSessionStatusDTO> {
+    return this.sendRequest(`/v1/live/sessions/${encodeURIComponent(sessionID)}`, 'GET',
+      undefined, undefined, true, AbortSignal.timeout(5_000));
+  }
+
   async createModelTask<T>(input: unknown, idempotencyKey: string): Promise<T> {
     return this.request('/v1/model-tasks', input, idempotencyKey);
   }
@@ -54,8 +60,9 @@ export class MuralAPI {
   appendConversationEvent(sessionID: string, event: { eventID: string; speaker: 'user' | 'assistant'; text: string; source: 'live' | 'typed' }): Promise<{ accepted: true; duplicate: boolean }> {
     return this.request(`/v1/conversations/${encodeURIComponent(sessionID)}/events`, event);
   }
-  async closeLiveSession(sessionID: string): Promise<void> {
-    await this.request(`/v1/live/sessions/${encodeURIComponent(sessionID)}/close`, {});
+  closeLiveSession(sessionID: string): Promise<LiveSessionStatusDTO> {
+    return this.sendRequest(`/v1/live/sessions/${encodeURIComponent(sessionID)}/close`, 'POST',
+      {}, undefined, true, AbortSignal.timeout(5_000));
   }
 
   private async get<T>(path: string): Promise<T> { return this.sendRequest(path, 'GET'); }
@@ -64,13 +71,13 @@ export class MuralAPI {
     return this.sendRequest(path, 'POST', body, idempotencyKey);
   }
 
-  private async sendRequest<T>(path: string, method: 'GET' | 'POST', body?: unknown, idempotencyKey?: string, authenticated = true): Promise<T> {
+  private async sendRequest<T>(path: string, method: 'GET' | 'POST', body?: unknown, idempotencyKey?: string, authenticated = true, signal?: AbortSignal): Promise<T> {
     const token = this.accessToken();
     if (authenticated && !token) throw new MuralAPIError('sign_in_required', 401);
     const url = new URL(path, this.origin);
     if (url.origin !== this.origin.origin) throw new Error('Cross-origin API request rejected.');
     const response = await this.send.call(globalThis, url, {
-      method, redirect: 'error', cache: 'no-store', credentials: 'omit',
+      method, redirect: 'error', cache: 'no-store', credentials: 'omit', signal,
       headers: {
         accept: 'application/json', ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
         ...(authenticated ? { authorization: `Bearer ${token}` } : {}),

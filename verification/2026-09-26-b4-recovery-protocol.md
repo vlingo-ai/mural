@@ -54,3 +54,26 @@ Stop 后迟到麦克风不再保持采集。合并/发布前须再次展示这�
 共享 reducer 尚未接 runtime；新 Room 前服务端状态核查、close 确认、其他 await 竞态仍待办。
 本轮仅保存本地候选；未开 PR、未合并、未部署、未执行付费测试，B4 不签结。
 新增复用规则：媒体权限异步结果必须先验证所有权再赋值；过期结果须主动释放媒体资源。
+
+## 第三轮：恢复状态门禁与关闭确认
+
+Web API 新增现有 GET session status 的调用，采用 B3 生成的状态 DTO；状态/关闭请求
+有 5 秒 AbortSignal 上限。Room 后备重建前核对 sessionID、active、有效且未过期 deadline；
+401/403/404 终止恢复，临时查询失败在原恢复窗口内重试，不把失败查询视为授权。
+查询及旧 Room disconnect 之后检查 generation，Stop 后迟到响应不能再次加入。
+这只是重建前快照，不声称消除检查和重入间的服务端竞态或实现完整控制租约。
+
+Stop 立即停本地音轨并关闭传输，移除原 1 秒即 idle 的定时器。收到同会话 closed 才 idle；
+失败/非终态保持 closing，提示本地已停但服务端尚未确认，按钮为 Retry closing。
+重复点击在请求进行中不重复提交；请求完成仍未确认可显式重试。旧数据通道回调不再覆盖 Stop。
+UI 变化已向用户说明；服务端已有 status/close 契约，无新增迁移或服务端代码需求，
+部署前仍须核对实际 staging 版本兼容性。
+
+验证：Web **63/63 PASS**、类型检查 PASS；运行时代码生产构建 PASS、mock E2E **2/2 PASS**。
+覆盖服务端非 active 状态、无效/过期 deadline、Stop 后状态迟到、关闭失败重试、
+HTTP 成功但 closing 非终态、鉴权 GET 路径与超时配置。原有 bundle/Node 警告保留。
+未调用真实供应商、未部署、未跑本轮 API 全套或真实 SDK 媒体；没有新豁免。
+
+复用规则：关闭 HTTP 成功不等于 closed；本地停音与服务端关闭分别验证。
+未完成：共享模型正式接入、初始/SDK 恢复控制截止协调、旧 WebRTC 创建等剩余 await
+竞态、完整 close/状态错误矩阵及实际 staging 发布。B4 不签结。

@@ -1,6 +1,7 @@
 import type { TranscriptEvent } from '../api/contracts';
 import { providerLocale, type AvailableLanguage } from '../api/contracts';
 import type { MuralAPI } from '../api/mural';
+import { MuralAPIError } from '../api/mural';
 import type { Room, TranscriptionSegment } from 'livekit-client';
 import { observeBrowserOffline } from './browser-connectivity';
 import { retryHistoryWrite } from './history-sync';
@@ -34,6 +35,7 @@ export class LiveConnection {
   private liveKitRecoveryUntil?: number;
   private liveKitAgentDepartureTimer?: number;
   private stopObservingOffline?: () => void;
+  private closingRequest?: Promise<void>;
 
   constructor(
     private readonly api: MuralAPI,
@@ -96,6 +98,7 @@ export class LiveConnection {
       this.channel = channel;
       channel.onopen = () => this.onState('connecting');
       channel.onmessage = ({ data }) => {
+        if (this.closed || this.channel !== channel) return;
         if (typeof data !== 'string' || data.length > 262_144) return;
         try {
           const event = JSON.parse(data) as Record<string, unknown>;
@@ -277,16 +280,34 @@ export class LiveConnection {
       if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
       this.liveKitReadyTimer = undefined;
       const recovery = (async () => {
+        const sessionID = this.sessionID!;
+        // A retained room token is not authority to rejoin a closed product session.
+        const status = await this.api.liveSessionStatus(sessionID);
+        if (!current() || !this.liveKitReconnecting) return;
+        const deadline = typeof status.deadline === 'string' ? Date.parse(status.deadline) : NaN;
+        if (status.sessionID !== sessionID || status.state !== 'active' ||
+            !Number.isFinite(deadline) || deadline <= Date.now()) {
+          this.failLiveKitAgent('reconnect_failed');
+          return;
+        }
         const previous = this.room;
         this.room = undefined;
         this.remote.getTracks().forEach(track => this.remote.removeTrack(track));
         await previous?.disconnect(false);
+        if (!current() || deadline <= Date.now()) {
+          if (current()) this.failLiveKitAgent('reconnect_failed');
+          return;
+        }
         const room = await openRoom();
         if (!current() || !room) return;
         if (mediaReady(room)) finishRecovery(room);
         else this.armLiveKitReadyTimeout(true, recoverRoom);
-      })().catch(() => {
+      })().catch((error: unknown) => {
         if (!current()) return;
+        if (error instanceof MuralAPIError && [401, 403, 404].includes(error.status)) {
+          this.failLiveKitAgent('reconnect_failed');
+          return;
+        }
         if (this.liveKitReconnecting && Date.now() < (this.liveKitRecoveryUntil ?? 0))
           scheduleRecovery(MURAL_RECOVERY_RETRY_MS);
         else this.failLiveKitAgent('reconnect_failed');
@@ -407,6 +428,7 @@ export class LiveConnection {
   }
 
   close(): void {
+    if (this.closingRequest) return;
     this.onTiming('stop-requested');
     this.onState('closing');
     if (this.channel?.readyState === 'open') this.channel.send(JSON.stringify({ type: 'session.close', event_id: crypto.randomUUID() }));
@@ -418,11 +440,28 @@ export class LiveConnection {
     if (this.room) void this.room.disconnect(false);
     this.local?.getTracks().forEach(track => track.stop());
     this.local = undefined;
-    if (this.sessionID) void this.api.closeLiveSession(this.sessionID).catch(() => {});
-    globalThis.setTimeout(() => { if (this.generation === generation) this.disconnect(); }, 1_000);
+    this.channel?.close();
+    this.peer?.close();
+    const sessionID = this.sessionID;
+    if (!sessionID) { this.disconnect(); return; }
+    const request = this.api.closeLiveSession(sessionID).then(status => {
+      if (generation !== this.generation) return;
+      if (status.sessionID !== sessionID || status.state !== 'closed') {
+        this.onEvent({ type: 'mural.live.close_pending' });
+        return;
+      }
+      this.disconnect();
+      this.onEvent({ type: 'session.closed' });
+    }).catch(() => {
+      if (generation === this.generation) this.onEvent({ type: 'mural.live.close_pending' });
+    }).finally(() => {
+      if (this.closingRequest === request) this.closingRequest = undefined;
+    });
+    this.closingRequest = request;
   }
 
   disconnect(): void {
+    this.closingRequest = undefined;
     const shouldCloseSession = !this.closed && this.sessionID;
     this.closed = true;
     this.generation++;
