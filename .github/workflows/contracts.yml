@@ -23,3 +23,4 @@ jobs:
       - run: python3 -m unittest discover -s scripts/tests -t .
       - run: python3 scripts/export_android_content.py --check
       - run: python3 scripts/check_cross_platform.py
+      - run: python3 scripts/generate_live_dtos.py --check

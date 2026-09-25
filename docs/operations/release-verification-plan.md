@@ -296,6 +296,7 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-25：B3 首批 DTO 生成 | [第五轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第五轮首批-dto-生成与漂移检查) | const 无 type 首跑失败，修正后生成/漂移及 TS 检查 PASS，Python 69/69 PASS；原生编译 NOT_RUN，未接客户端 | 生成必须确定性、CI 检查漂移、未知形状失败；生成成功不等于三端运行时/编解码通过；完整 DTO 待办 |
 | 2026-09-25：B3 helper 路由校验 | [第四轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第四轮helper-路由序列化校验) | 类型检查、11/11 PASS，0 skip；实际路由/认证 DB、假 helper，补既有错误响应重试字段。无部署/付费 | CONTRACT-01 覆盖 JSON/SSE 成功、流中失败和流前限流；契约描述既有重试语义，不新增自动重试；DTO/完整 CI 待办 |
 | 2026-09-25：B3 helper JSON/SSE 声明 | [第三轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第三轮helper-jsonsse-声明) | 类型检查、6/6 契约测试 PASS；请求 fixture 联查实际 parser，SSE 为合成事件，路由集成待办。无部署/付费 | 区分流前 HTTP 错误、流后事件错误，SSE wire string 与帧对象 schema 分开；运行时字节/递归限制不得冒称已由 schema 完整表达 |
 | 2026-09-25：B3 实际路由契约回归 | [B3 第二轮](../../verification/2026-09-25-b3-contract-alignment.md#第二轮实际路由与数据库契约回归) | 类型检查、新用例 1/1 PASS；关联回归 58 PASS、1 SKIP（B2 跨仓），0 FAIL。真实路由 inject + 隔离 DB + 假 provider；无部署/付费 | CONTRACT-01 补实际序列化响应验证，区分 inject/socket/公网；helper/SSE、DTO 与全量 CI 待办，B3 未完成 |

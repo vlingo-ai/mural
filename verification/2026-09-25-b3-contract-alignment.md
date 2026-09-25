@@ -101,4 +101,17 @@ helper service 为假实现。校验 JSON、SSE delta/completed、部分输出�
 类型检查 PASS；hosted-http、contracts、gateway-contract-profile 三文件合计
 11/11 PASS，0 FAIL、0 SKIP。测试后停止专用 PostgreSQL；无真实 Cloud/模型调用。
 本轮不代表实际 HostedHelpers 计费端到端或 socket/媒体测试；DTO 与全量 CI 仍待完成。
+
+## 第五轮：首批 DTO 生成与漂移检查
+
+新增无第三方依赖 Python 生成器与 Contracts CI --check。首批只选择四个已审查的
+primitive object：两种 transport、capabilities、helper usage，生成 TS/Swift/Kotlin。
+文件位于 shared/contracts/generated，未接入客户端运行时，不启用任何原生能力。
+使用所选 schema 内容摘要，不使用时间戳；遇到未支持字段形状失败而非降级为任意类型。
+
+首跑因 const 字段无显式 type 被拒绝；补明确的 string/bool const 类型推导后通过。
+生成/漂移检查 PASS；Python 全套 69/69 PASS；生成 TS 单独 tsc --noEmit PASS。
+Swift/Kotlin 编译与编解码 NOT_RUN；两端 enum/const 暂为基础类型，不能声称运行时约束等价。
+复杂联合类型、完整 DTO、共享 round-trip fixtures、客户端接入及 PR CI 尚待完成。
+无运行时修改、部署或付费调用。B3 未完成。
 复用规则：成功、流中失败与流前限流错误均需契约断言，重试字段缺失不能解释为允许重试。

@@ -41,3 +41,7 @@ npm run check:gateway-contract -- /absolute/path/to/model-gateway/contracts lega
 
 Unknown profiles fail closed. These checks inspect contract declarations, not a running Gateway.
 LiveKit Worker control events remain a separate internal authenticated protocol, not public DTOs.
+
+First DTO candidates and explicit limitations are under [generated/](generated/README.md).
+Generation/checking is implemented for four primitive object schemas only; full DTO generation
+and runtime client adoption are not complete.
