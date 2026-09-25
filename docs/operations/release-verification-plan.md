@@ -296,6 +296,7 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-25：B3 实际路由契约回归 | [B3 第二轮](../../verification/2026-09-25-b3-contract-alignment.md#第二轮实际路由与数据库契约回归) | 类型检查、新用例 1/1 PASS；关联回归 58 PASS、1 SKIP（B2 跨仓），0 FAIL。真实路由 inject + 隔离 DB + 假 provider；无部署/付费 | CONTRACT-01 补实际序列化响应验证，区分 inject/socket/公网；helper/SSE、DTO 与全量 CI 待办，B3 未完成 |
 | 2026-09-25：B3 迁移后复测 | [整理及复测记录](../../verification/2026-09-25-worktree-convention.md#mural-历史工作树核查与整理) | 正式 B3 目录类型检查、5/5 契约测试 PASS，0 skip；复用本机缓存，非 clean install；HTTP/DTO 待办 | 已复查，无新增业务规则；跨磁盘迁移使用复制比对及 repair，旧副本禁用 Git 入口，迁移后重新验证 |
 | 2026-09-25：旧 Mural 工作树整理 | [逐项核查](../../verification/2026-09-25-worktree-convention.md#mural-历史工作树核查与整理)；main `9b2f485` | 103 文件中 96 与主线一致，7 项差异分类；B1/B2 两提交补丁等价。私有清单原处保留并锁定；两临时工作树移至规范目录，无删除。文档差异检查 PASS | 未跟踪文件须按磁盘内容比较，不能仅凭 git diff 判定删除；保留私有独有资料与历史版本，活动开发回到 B3 |
 | 2026-09-25：两仓工作树规范 | [目录规范](../repository-layout.md#local-worktree-convention-2026-09-25)、[核查记录](../../verification/2026-09-25-worktree-convention.md) | 只读核实 Gateway 主 clone 在 DeepTutor、分支 main 且有未提交文档；Worker 同仓。文档差异检查 PASS，无运行时测试、迁移、清理或部署 | 两仓分别以原 clone 为锚点，同级任务工作树；临时目录不作长期开发入口；遗留目录独立审计 |

@@ -50,7 +50,7 @@ node --import tsx --test tests/contracts.test.ts tests/gateway-contract-profile.
 
 ## 限制及后续
 
-1. 当前 JSON-schema 是合成 fixture 验证，实际 HTTP + 隔离 DB 响应校验待补。
+1. 第一轮为合成 fixture；第二轮已补实际路由与隔离 DB 校验（见下），非公网部署验证。
 2. helper JSON/SSE 尚未纳入；内部 Worker 控制协议不能混入公开 bearer API。
 3. UTF-8 字节上限、非空白文本和业务条件不能仅靠 JSON 字符长度证明，须保留运行时测试。
 4. 三端 DTO 生成尚未实施；不启用原生功能或重型平台发布测试。
@@ -58,3 +58,20 @@ node --import tsx --test tests/contracts.test.ts tests/gateway-contract-profile.
 
 复用规则已归集到[发布上线测试与验证方案](../docs/operations/release-verification-plan.md)
 的 CONTRACT-01 与迭代表；[总计划](../docs/web-ios-model-gateway-plan.md)保留 B3 未完成。
+
+## 第二轮：实际路由与数据库契约回归
+
+在正式 B3 工作树新增 hosted.test.ts 用例，通过 Fastify inject 调用实际路由处理器，
+使用隔离 PostgreSQL schema、真实认证与 HostedVoice、假 LiveKit 或本地 WebRTC provider。
+这不是公网/socket 层 API 测试，也不是 Cloud/媒体验收。
+覆盖两种 transport 的 capabilities（匿名/登录）、current 空/非空、创建、状态、关闭，
+验证公开响应不泄露 providerSessionID，并拒绝旧嵌套 transport 请求。
+测试 fixture 仅增加暴露既有 helper 实例，不改应用运行时。
+
+执行结果：类型检查 PASS；定向新增用例 1/1 PASS、0 skip；
+hosted.test.ts、contracts.test.ts、gateway-contract-profile.test.ts 关联回归合计
+59 项，58 PASS、0 FAIL、1 SKIP。跳过项为 B2 跨仓 Worker 子进程用例，
+未配置其 Python 环境，本轮不冒称重新验证该链路。无真实 provider 调用。
+测试后停止专用本地 PostgreSQL。helper/SSE、DTO 生成和全量候选 CI 仍待办。
+复用发现：契约回归须从实际路由序列化后的响应断言，不能仅比较手写对象；
+明确 inject、socket、公网三个验证层级，保留跳过项。
