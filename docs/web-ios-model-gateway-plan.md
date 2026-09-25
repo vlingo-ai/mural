@@ -125,6 +125,7 @@ Gate 7 收尾可以独立签结，不要求先完成 B1–B7；反过来，开�
   2026-09-25：API 419 项及 409 边界补测、Worker 26 项与两仓 CI 通过；[API PR #38](https://github.com/vlingo-ai/mural/pull/38) 与 [Worker PR #16](https://github.com/vlingo-ai/model-gateway/pull/16) 已合并。迁移 028、API→Worker 兼容部署及 staging 非计费核对通过，见[分次证据与保留限制](../verification/2026-09-24-b1-resource-cleanup.md)。故障注入证据来自非计费测试；未执行新增真实媒体/模型调用、Cloud 故障注入、完整 DB 恢复或回滚演练，这些不冒充 B1 已验证结果，也不意味着 Gate 7 签结。
 - [ ] B2：control 成功响应在 DB 提交后；usage/final 持久去重、重试/补偿；模拟提交前/后崩溃，证明不丢 final、不双扣。
   2026-09-25 第六轮本地非计费回归通过：加密持久队列、重放进程、晚到/冲突 final 不可变证据、乱序高水位、积压门禁，以及**实际 Mural API HTTP/隔离 PostgreSQL + 独立 Worker Python 子进程**故障演练均已在候选代码；LiveKit provider 部分为假实现，仍缺候选 Linux 镜像/权限与 staging 部署验证，**未合并、未部署、不勾完成**。见[B2 分次证据](../verification/2026-09-25-b2-control-receipts.md)。
+  第九轮审查补充公平重放：前 100 条永久失败不能饿死后续可交付记录，分页游标必须回绕；Worker 候选本地 38/38 与更新后的 PR CI 通过。永久 4xx 仍需人工对账，此修复不改变 B2 的未完成状态。
 - [ ] B3：OpenAPI 对齐现有 LiveKit/旧 WebRTC 请求响应；拆分 Gateway 必需契约与旧 Live 残留。契约先修正，再生成三端 DTO。
 - [ ] B4：统一恢复状态和事件 fixtures；覆盖信令断而媒体通、麦克风重发、迟到事件、Stop 竞态和控制过期。
 - [ ] B5：真实本地 LiveKit、真实 SDK、合成音频/假 Agent 的非计费集成；mocked Room 和旧 WebRTC Playwright 不能替代。
