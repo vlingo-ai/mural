@@ -3,11 +3,21 @@
 ## 范围与状态
 
 基线 Mural `9b2f485902b9d8a724b1cc0f28757625cee1d0c8`，分支
-`codex/b3-contract-alignment`。当前为未提交本地候选，B3 未完成。
+`codex/b3-contract-alignment`。第一轮已保存本地检查点 `7aaca36`，B3 未完成。
 未更改 API/Worker 运行时、UI、语言范围、计费规则或 staging 配置。
 本轮无需部署：修改限于契约、开发检查工具、测试及文档；没有新付费测试。
 
 ## 第一轮实现
+
+### 工作目录迁移
+
+用户确认后，B3 已从临时 B2 审查目录迁入 Kingston/DeepTutor 下的
+`mural-b3-contract-alignment` 持久工作树。11 个变更文件逐文件比较一致；
+迁移后分支为 `codex/b3-contract-alignment`。旧工作树保留在 `7aaca36` 的 detached HEAD，
+不再用于继续开发，尚未删除。忽略的依赖/构建缓存未复制；后续在新目录安装依赖。
+本次仅验证 Git/文件迁移一致性，未重跑应用测试、推送、合并或部署。
+复用规则：临时审查目录不得作为后续开发与正式文档的长期入口；
+先保存检查点、校验内容，再转移分支，清理旧目录另行执行。
 
 - 对照 `app.ts`、`hosted-voice.ts`、`live-provider.ts` 修正 Live 请求顶层 SDP、
   WebRTC/LiveKit transport、创建响应不含 state、账本可选字段和状态响应。
