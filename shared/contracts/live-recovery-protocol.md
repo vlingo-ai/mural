@@ -1,7 +1,8 @@
-# Live recovery reference protocol v1 — B4 candidate
+# Live recovery reference protocol v1 — B4
 
-Status: B4 local Web candidate adopts the reducer for LiveKit activation, recovery, Room replacement
-and Stop; NOT deployed. iOS/Android adapters are not implemented.
+Status: B4 Web adopts the reducer for LiveKit activation, recovery, Room replacement
+and Stop; deployed to staging at `8fdfa62`, with non-billable smoke checks passed.
+iOS/Android adapters are not implemented; real SDK/media acceptance remains B5.
 The shared reducer is in `apps/web/src/live/recovery-protocol.ts`.
 Language-independent examples are in [live-recovery-traces.json](live-recovery-traces.json).
 

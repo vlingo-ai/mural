@@ -156,3 +156,48 @@ API 类型/生产构建 PASS，全套 **428/428 PASS、0 skip**，启用 B2 私�
 云端 API 为 427 PASS / 1 SKIP / 0 FAIL；B2 私有跨仓用例在本地全套执行，CI 未运行。
 结论仅覆盖 `4408893`；随后证据归集提交的自身 CI 须另行核对，不自动沿用。
 未合并、未部署、无付费测试。
+
+## 第八轮：授权合并与 staging 部署
+
+最终候选 `4544afb` 的全部适用 CI PASS（Checks run `36163754771`），用户授权后
+PR #44 于 2026-09-25 16:59:27 UTC 合并为 `8fdfa620e299f2852fc248210e28b4847052b12f`。
+操作员在 VPS 执行 sudo 步骤，助手读取终端核对；没有索取密码或导出私有配置。
+
+- 加密备份 `postgres-20260925T170036Z.sql.gz.age`；VPS/Mac SHA-256 均为
+  `ac633cab9cb77fe52f830012aeab7999f9b592e2837a276f52e4f1b853272b8c`。
+  Mac 解密/gzip PASS 由用户提供；完整数据库恢复演练未执行。
+- 回滚配置保存在 root-only `/root/mural-before-b4-20260926.25zgd4`；旧 API/Edge
+  分别加 `rollback-before-b4-20260926` 标签。原 B2 和旧 Edge 发布目录保留。
+- 独立源码 `/home/vlingo-admin/releases/mural-b4-8fdfa62` 固定合并版本，构建前工作树干净。
+  B2 私有配置复制到新目录；API/Edge/Gateway 的 Compose 声明环境变量与运行值逐项相同。
+- API 本机镜像 ID `sha256:dd19b57a7b46dfeac8bc050ca30810d132ff743a1c0de9cab3ae0fedecf8c175`；
+  Edge 本机镜像 ID `sha256:ed31f79439bb565283077bffca434f342e8142168a7b1df2010a5a56f685b4b4`。
+  两者 revision 标签均为合并版本；这些是 VPS 本机构建标识，不是 registry 发布证据。
+- 发布目录 `deploy/phase-5-5b/b4-images.yaml` 锁定上述镜像。后续操作须同时指定
+  `compose.yaml` 与该覆盖文件，不能仅用保留了旧镜像配置的 `.env` 执行 up。
+- 部署前数据库非 closed 会话为 0，LiveKit listRooms 为 0；按 API→Edge 执行
+  `up --no-deps --no-build --pull never --wait`，无迁移，Worker/replay/Gateway/数据库未重建。
+- API healthy，内部 health HTTP 200。直接内部查询返回 503 `trusted_proxy_required`，
+  是可信代理边界而不是本次路由故障；改由正式 HTTPS 入口检查，未认证查询为 401。
+- Edge 切换后 `verify.sh ./.env` PASS：公网 TLS/HTTP、Gateway 禁用音频能力、容器状态、
+  有限日志模式检查，以及 `durable_control_pending=0`。输出运行镜像与候选一致。
+- 一次组合会话检查没有可见结果，未据此放行；拆分执行取得明确成功标记和房间数后才部署。
+
+部署后明确复查：API 与 Edge 的 revision 均为 `8fdfa620e299f2852fc248210e28b4847052b12f`，
+运行 image ID 与上文一致，均 running、restart count 0。
+Mac Chrome 页面显示已登录、Idle，英语可选，普通话/粤语 coming later，历史列表及详情可见。
+这仅证明页面可见状态，不替代新增 `/v1/live/requests/:id` 的登录态线上查询证据；
+浏览器检查未启动通话，未导出 token 或历史正文。
+
+后续只读核验：Chrome Network 中历史 GET 为 200、预检为 204。操作员在已登录
+staging 页面执行一次随机 UUID 查询，助手读取 Console 的 `B4_LOOKUP_CHECK`：
+`status=200, unknownRequestIsNull=true, pass=true`，页面仍 Idle。登录态新接口的
+未知请求分支上线 smoke PASS；不代表线上已重测 owner 隔离或 closed 分支，后两者仍以
+本地隔离测试为证据。未创建会话，未调用付费模型，未输出认证信息。
+
+签结范围：B4 Web 实现、隔离测试、CI、API→Edge staging 部署和非计费 smoke 已完成。
+本次文档归集不改运行时，无需再次部署；文档 PR/CI 状态由其实际记录单独证明。
+复用规则：鉴权拒绝、登录态未知请求、owner 隔离及 closed 查询
+分别记录测试环境，不用一个成功的 smoke 覆盖其他分支。
+真实媒体与恢复体验未执行，B5 本地真实 SDK 集成仍待办；健康检查不是媒体证明。
+用户决定 GPT-6 Luna 升级作为 B4 之后独立小迭代，本次模型、费率与历史账目不变。
