@@ -296,6 +296,7 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-25：两仓工作树规范 | [目录规范](../repository-layout.md#local-worktree-convention-2026-09-25)、[核查记录](../../verification/2026-09-25-worktree-convention.md) | 只读核实 Gateway 主 clone 在 DeepTutor、分支 main 且有未提交文档；Worker 同仓。文档差异检查 PASS，无运行时测试、迁移、清理或部署 | 两仓分别以原 clone 为锚点，同级任务工作树；临时目录不作长期开发入口；遗留目录独立审计 |
 | 2026-09-25：B3 目录归属更正 | [迁移证据](../../verification/2026-09-25-b3-contract-alignment.md#工作目录迁移)；迁移前后 `12cd1a8` | 核对 common-dir 后，从错误的 DeepTutor 位置移动到 MyProj/vlingo-ai 下；HEAD 一致且工作树干净，其他工作树未改。未重跑应用测试、未部署 | 迁移前必须核对主仓库和项目目录归属，不能沿用历史查找路径；使用 Git worktree move 同步注册信息 |
 | 2026-09-25：B3 工作树迁移 | [迁移证据](../../verification/2026-09-25-b3-contract-alignment.md#工作目录迁移)；检查点 `7aaca36` | 11 个变更文件逐一比较一致，持久 B3 工作树已接管分支；旧目录保留。仅文件/Git 核对，应用测试未重跑，未推送、合并或部署 | 临时审查目录不作为长期开发入口；迁移前提交检查点，校验后转移分支，缓存不视作源代码；B3 仍未完成 |
 | 2026-09-25：B3 第一轮契约对齐 | [B3 本地证据](../../verification/2026-09-25-b3-contract-alignment.md)；基线 `9b2f485`、未提交候选 | 类型检查、5/5 契约测试 PASS；真实 Gateway 两种 profile 检查 PASS。无运行时修改、部署或付费调用；HTTP 集成、helper/SSE、DTO 与 PR CI 待办，B3 未完成 | 新增 CONTRACT-01；格式与形状均验证，历史兼容字段不代表新增权限；默认必需契约与旧协议兼容检查分开 |
