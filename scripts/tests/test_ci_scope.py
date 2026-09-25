@@ -1,4 +1,9 @@
+import json
+import os
+from pathlib import Path
+import textwrap
 import unittest
+from unittest.mock import patch
 
 from scripts.ci_scope import select
 
@@ -66,6 +71,33 @@ class CIScopeTests(unittest.TestCase):
         for stage, requested in (("unknown", "active"), ("web", "unknown")):
             with self.assertRaises(ValueError):
                 select(stage, [], requested)
+
+    def test_actual_workflow_gates_fail_closed(self):
+        root = Path(__file__).resolve().parents[2]
+        workflows = {
+            "checks.yml": {"web": "web", "swift-core": "swift", "server": "server", "phase-5-5b-deployment": "deployment"},
+            "android.yml": {"release-files": "android_release", "android": "android", "emulator": "android"},
+        }
+        cases = [(True, None, "success", True), (False, None, "success", True)]
+        cases += [(True, result, "success", False) for result in ("failure", "cancelled", "skipped")]
+        cases += [(False, None, result, False) for result in ("failure", "cancelled", "skipped")]
+        cases += [(False, "success", "success", False)]
+        for filename, mapping in workflows.items():
+            source = (root / ".github/workflows" / filename).read_text()
+            source = source.split("python3 - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
+            code = compile(textwrap.dedent(source), filename, "exec")
+            for selected, job_result, scope_result, expected in cases:
+                with self.subTest(workflow=filename, selected=selected, job=job_result, scope=scope_result):
+                    jobs = {"scope": {"result": scope_result, "outputs": {v: str(selected).lower() for v in mapping.values()}}}
+                    jobs.update({k: {"result": "success" if selected else "skipped"} for k in mapping})
+                    if job_result:
+                        jobs[next(iter(mapping))]["result"] = job_result
+                    with patch.dict(os.environ, {"RESULTS": json.dumps(jobs)}):
+                        if expected:
+                            exec(code, {})
+                        else:
+                            with self.assertRaises(AssertionError):
+                                exec(code, {})
 
 
 if __name__ == "__main__":

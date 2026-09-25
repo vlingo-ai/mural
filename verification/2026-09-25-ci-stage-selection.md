@@ -29,13 +29,21 @@ Full manual all-platform verification requires both Checks and Android workflow 
 
 ## Validation and state
 
-- Classifier unit tests: 12/12 PASS (stage matrix, docs, API/shared, manual overrides, invalid input).
-- Python scripts suite: 66/66 PASS; content export and cross-platform static contract checks PASS.
+- Classifier/gate tests: 13/13 PASS (stage matrix, docs, API/shared, manual overrides, invalid input,
+  plus 18 scenarios executing the actual workflow gate code: selected success, intentional skip,
+  failed/cancelled/missing required job, scope failure/cancellation and unexpected execution).
+- Python scripts suite: 67/67 PASS; content export and cross-platform static contract checks PASS.
 - All six workflow YAML files parse successfully; `git diff --check` PASS.
 - Read-only GitHub inspection: main branch protection absent (404); repository rulesets list empty.
   No branch protection settings changed. Aggregate gates are implemented for review and future protection.
-- Candidate Actions: pending below; YAML parsing alone does not establish Actions execution success.
-- Implementation is a candidate until pushed/CI reviewed; application deployment is NOT_APPLICABLE.
+- Candidate `8008773`: [Checks 36114538968](https://github.com/vlingo-ai/mural/actions/runs/36114538968)
+  PASS (Web, server, deployment and checks-gate); Swift core SKIPPED.
+  [Android 36114538864](https://github.com/vlingo-ai/mural/actions/runs/36114538864) PASS (scope and
+  android-gate only); build, release-files and emulator matrix SKIPPED without device startup.
+  [Contracts](https://github.com/vlingo-ai/mural/actions/runs/36114538563) and
+  [Secret scan](https://github.com/vlingo-ai/mural/actions/runs/36114538608) PASS.
+- Follow-up persists the 18 gate scenarios as regression tests and records the successful candidate;
+  its own Actions result must be checked before merge. Application deployment is NOT_APPLICABLE.
 - Native simulator/runtime testing this iteration: NOT_APPLICABLE under the new stage decision.
 - Review outcome: reusable rule added to the [release verification plan](../docs/operations/release-verification-plan.md)
   and [project baseline](../docs/web-ios-model-gateway-plan.md), with stage-transition/full release
