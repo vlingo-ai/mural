@@ -1,6 +1,6 @@
 # B2 分次证据：控制回执与最终用量（2026-09-25）
 
-状态：**第二轮本地实现与非计费测试通过；B2 尚未完成、未合并、未发布镜像、未迁移或部署。**
+状态：**六轮本地实现与非计费验证通过，候选分支已提交为草稿 PR；B2 尚未完成、未合并、未发布镜像、未迁移或部署。** 下文各轮的“未提交”是其当时状态，不代表截至本记录末尾的状态。
 范围服从[项目 B2 基准](../docs/web-ios-model-gateway-plan.md)；不改变英语 staging Gate 7 的独立状态。
 
 ## 本轮代码范围
@@ -68,3 +68,11 @@ Worker 现在要求 `acknowledgedMilliseconds` **等于**本次报告毫秒值�
 复用规则：USAGE-01 的跨仓自动化报告必须列出该可选用例**实际执行**而非跳过，并记录两仓 revision、隔离 DB 与 Worker Python 来源。后续 CI 若要自动运行，需要获得对私有 Worker 仓库的受限只读访问；现阶段不可声称 CI 已实现，也不得把个人凭据长期放入 CI。
 
 本轮可复用规则：**控制通道 2xx 只有在数据库提交后、回执包含可校验的持久观察值时才代表 ACK；进程内重试与跨进程最终交付应分别验收。** 对应[发布上线测试与验证方案](../docs/operations/release-verification-plan.md)的 USAGE-01 与迭代归集表。
+
+## 第七轮增量：候选分支与审查入口（2026-09-25）
+
+- Mural 从已合并 B1 的 `main` 建立独立候选 `codex/b2-durable-control`，提交 `59c8d7b`（API/迁移/测试）与 `8e78e41`（运行手册与本证据初版），开立[草稿 PR #39](https://github.com/vlingo-ai/mural/pull/39)。对 `main` 为 2 个提交、11 个文件；未把原文档 worktree 的大量未提交改动混入代码 PR。
+- Worker 从其 `main` 建立 `codex/b2-control-receipts`，提交 `4f2e290`，开立[草稿 PR #18](https://github.com/vlingo-ai/model-gateway/pull/18)。对 `main` 为 1 个提交、11 个文件。两 PR 均标记不应在互相兼容性审查及文档基准对齐前合并，也不授权发布镜像或部署。
+- 本轮只验证 GitHub 比较页的目标仓库、基线、变更范围和草稿状态；创建 PR 没有重新运行应用测试。最新本地非计费测试仍为上一轮 API 423/423（可选跨仓用例实际运行）和 Worker 37/37。PR CI 的最终结论、正式代码审查、候选镜像、真实 Linux 卷/权限、迁移及 staging 核对均待办。
+
+本轮复用审查：没有新增测试用例规则；继续要求发布报告同时列出两仓不可变 revision、PR/CI 状态与实际部署 digest，不能把草稿 PR 或本地 PASS 写成已合并、已部署或已验收。必维护的[发布上线测试与验证方案](../docs/operations/release-verification-plan.md)已登记本轮；其文档基准仍需经独立受控 PR 对齐主线。
