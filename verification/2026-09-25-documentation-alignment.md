@@ -9,6 +9,7 @@
 - 对 100 份候选 Markdown 的 533 个相对文件链接进行本地检查，缺失目标 0；`git diff --cached --check`、Shell `bash -n` 与 Python AST 解析均 PASS。首次 PR 密钥扫描将 B1 证据中同一个旧 API Git 提交号的两次引用误判为通用 API Key；确认其为回滚镜像标签后，仅对该文件和该精确值添加白名单。本地复现 CI 所用 gitleaks 8.30.1、扫描完整 Git 历史，结果为 0 项泄露；PR 复跑仍待核对。旧归档及 B1/B2 历史证据仍含本机工作副本路径，但不含备份内容或恢复密钥。
 - Mural B2 草稿 PR #39 与 Worker 草稿 PR #18 的 CI 通过属于代码候选证据，不表示本批文档已合并，也不表示 B2 已部署或 live 验收。本轮不发起付费测试。
 - 使用 `git merge-tree --write-tree` 模拟本文档候选与 Mural B2 PR #39 合并，结果无文本冲突；发现两边各有一段 B2 部署说明，遂从文档候选移除重复段落。复测后的合并树只保留一个 B2 段落，且保留私有 Agent dispatch metadata 的安全说明。模拟合并不等于已合并或已部署。
+- [文档 PR #40](https://github.com/vlingo-ai/mural/pull/40) 的一次 Android `emulator (0/4)` 检查未通过：设备测试预期 20 项，只收到 6 项后模拟器从 adb 消失；一项 CaptionParityTest 被报告失败但失败体为空。下载的诊断未见 OOM 记录；文档改动没有触及 Android 运行代码，仍不能据此断言失败与改动无关。该 CI 门禁保持失败，须重跑并核对完整结果，不能以其他 job 通过代替。
 
 ## 沉淀与限制
 
