@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch --env-file=.env src/main.ts",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node --env-file-if-exists=.env dist/src/main.js",
     "migrate": "tsx --env-file=.env src/migrate.ts",
     "dev:bootstrap": "tsx src/dev-bootstrap.ts",
@@ -29,6 +29,8 @@
     "@types/node": "^22.19.0",
     "@types/pg": "^8.15.0",
     "@types/ws": "^8.18.1",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "tsx": "4.23.13",
     "typescript": "7.0.2"
   }

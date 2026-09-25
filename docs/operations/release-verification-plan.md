@@ -132,6 +132,7 @@ PR、候选发布、上线后是三种运行模式；完整故障矩阵在隔离
 | HISTORY-01 | 最终 turn 发送失败、浏览器刷新、断网前/中/后 turn、重复修订 | 持久去重、cursor 补取、无越权；计数/合成 fixture 摘要匹配 |
 | RELEASE-01 | 错镜像、unhealthy、Worker 未注册、日志读取失败、空分母 | 非零退出；UNKNOWN 不伪装 PASS；部署停止或进入回滚决策 |
 | RESTORE-01 | 损坏备份、错误密钥、缺运行权限、旧 schema | 校验失败阻止发布；隔离恢复完整性与迁移兼容被真实测试 |
+| CONTRACT-01 | 当前/旧 transport、缺字段、额外私有字段、错误格式、未知 Gateway profile | 创建与状态响应分别验证；null 与缺失不混同；Responses 默认检查不依赖旧 Live，显式 legacy 检查仍拒绝缺项；fixture 通过不等于真实 HTTP 或 DTO 已验证 |
 
 真实 Cloud 拒绝不允许通过耗尽共享额度、购买容量或影响别人来实现；有供应商支持的隔离办法才另行批准。
 自动测试应验证非计费保障本身：无真实 key、模型出口禁用、只允许本地假服务；跑完真实供应商请求数为零。
@@ -293,8 +294,29 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 
 ### 迭代归集表
 
+B3 镜像构建复用规则：仓库全量类型检查与受限 Docker 上下文构建须分别通过；测试依赖不得隐式进入生产构建。
+
+B3 `0c1dc5a` 云端复验全部适用检查 PASS（[run](https://github.com/vlingo-ai/mural/actions/runs/36156951956)）。
+API 为 427 PASS / 1 SKIP / 0 FAIL，B2 跨仓项在本地执行而非 CI；原生重型检查按阶段跳过。
+PR #43 未合并、未部署，证据归集提交的最新 CI 需另行核对，不将前一提交结论自动移用。
+
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-25：B3 授权上传与构建修正 | [第九轮](../../verification/2026-09-25-b3-contract-alignment.md#第九轮授权上传与镜像构建边界修正)、[PR #43](https://github.com/vlingo-ai/mural/pull/43) | 授权后已上传；首轮镜像构建 FAIL（跨目录测试依赖），拆分生产构建后本地 check/build PASS，云端复验待完成；无合并/部署 | 完整测试类型检查保留，生产构建仅编译 src；CI 镜像构建不等于部署 |
+| 2026-09-25：B3 候选上传受阻 | [权限边界](../../verification/2026-09-25-b3-contract-alignment.md#发布权限边界) | 本地验证完成；push 被安全审批拒绝，需明确上传授权。无远端 PR/CI/合并，保存本地候选；无部署 | 不以本地完成替代发布签结，不绕过上传审批；等待明确目标仓库/分支授权 |
+| 2026-09-25：B3 完整 Live DTO 本地候选 | [第八轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第八轮完整-live-dto-候选与本地验证) | API clean-install/构建及 428/428 PASS（修正首跑 Worker 路径 FAIL）；Web 37/37、mock E2E 2/2；Python 72/72；独立原生编解码实际执行。PR/CI 待办，无部署/付费 | 三端共用 fixture 检查 presence/null、联合分派、费用字符串；native codec 非完整 schema validator；生成 Live DTO 不等于全 API SDK 或客户端采用 |
+| 2026-09-25：B3 原生 transport codec | [第七轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第七轮原生-transport-联合编解码) | 生成/漂移、Python 72/72、独立 Swift 编译及往返/拒绝 PASS；Kotlin 工具不可用，编译 NOT_RUN；未接应用 | discriminator 扩展必须阻断旧生成器并复核；同模块 codec 测试不能替代跨模块/应用验收，不为轻量 DTO 任务启动原生重型构建 |
+| 2026-09-25：B3 TS 联合类型 | [第六轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第六轮typescript-完整-live-wire-类型) | 首次共享 .ts 导致 rootDir FAIL；改 .d.ts 后生成/漂移、Python 71/71、API 类型正反例 PASS。原生扩展与客户端接入未完成 | DTO 生成需验证必需 nullable 与可选字段差异、联合类型收窄、未知类型拒绝；声明产物不扩张运行时构建边界 |
+| 2026-09-25：B3 首批 DTO 生成 | [第五轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第五轮首批-dto-生成与漂移检查) | const 无 type 首跑失败，修正后生成/漂移及 TS 检查 PASS，Python 69/69 PASS；原生编译 NOT_RUN，未接客户端 | 生成必须确定性、CI 检查漂移、未知形状失败；生成成功不等于三端运行时/编解码通过；完整 DTO 待办 |
+| 2026-09-25：B3 helper 路由校验 | [第四轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第四轮helper-路由序列化校验) | 类型检查、11/11 PASS，0 skip；实际路由/认证 DB、假 helper，补既有错误响应重试字段。无部署/付费 | CONTRACT-01 覆盖 JSON/SSE 成功、流中失败和流前限流；契约描述既有重试语义，不新增自动重试；DTO/完整 CI 待办 |
+| 2026-09-25：B3 helper JSON/SSE 声明 | [第三轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第三轮helper-jsonsse-声明) | 类型检查、6/6 契约测试 PASS；请求 fixture 联查实际 parser，SSE 为合成事件，路由集成待办。无部署/付费 | 区分流前 HTTP 错误、流后事件错误，SSE wire string 与帧对象 schema 分开；运行时字节/递归限制不得冒称已由 schema 完整表达 |
+| 2026-09-25：B3 实际路由契约回归 | [B3 第二轮](../../verification/2026-09-25-b3-contract-alignment.md#第二轮实际路由与数据库契约回归) | 类型检查、新用例 1/1 PASS；关联回归 58 PASS、1 SKIP（B2 跨仓），0 FAIL。真实路由 inject + 隔离 DB + 假 provider；无部署/付费 | CONTRACT-01 补实际序列化响应验证，区分 inject/socket/公网；helper/SSE、DTO 与全量 CI 待办，B3 未完成 |
+| 2026-09-25：B3 迁移后复测 | [整理及复测记录](../../verification/2026-09-25-worktree-convention.md#mural-历史工作树核查与整理) | 正式 B3 目录类型检查、5/5 契约测试 PASS，0 skip；复用本机缓存，非 clean install；HTTP/DTO 待办 | 已复查，无新增业务规则；跨磁盘迁移使用复制比对及 repair，旧副本禁用 Git 入口，迁移后重新验证 |
+| 2026-09-25：旧 Mural 工作树整理 | [逐项核查](../../verification/2026-09-25-worktree-convention.md#mural-历史工作树核查与整理)；main `9b2f485` | 103 文件中 96 与主线一致，7 项差异分类；B1/B2 两提交补丁等价。私有清单原处保留并锁定；两临时工作树移至规范目录，无删除。文档差异检查 PASS | 未跟踪文件须按磁盘内容比较，不能仅凭 git diff 判定删除；保留私有独有资料与历史版本，活动开发回到 B3 |
+| 2026-09-25：两仓工作树规范 | [目录规范](../repository-layout.md#local-worktree-convention-2026-09-25)、[核查记录](../../verification/2026-09-25-worktree-convention.md) | 只读核实 Gateway 主 clone 在 DeepTutor、分支 main 且有未提交文档；Worker 同仓。文档差异检查 PASS，无运行时测试、迁移、清理或部署 | 两仓分别以原 clone 为锚点，同级任务工作树；临时目录不作长期开发入口；遗留目录独立审计 |
+| 2026-09-25：B3 目录归属更正 | [迁移证据](../../verification/2026-09-25-b3-contract-alignment.md#工作目录迁移)；迁移前后 `12cd1a8` | 核对 common-dir 后，从错误的 DeepTutor 位置移动到 MyProj/vlingo-ai 下；HEAD 一致且工作树干净，其他工作树未改。未重跑应用测试、未部署 | 迁移前必须核对主仓库和项目目录归属，不能沿用历史查找路径；使用 Git worktree move 同步注册信息 |
+| 2026-09-25：B3 工作树迁移 | [迁移证据](../../verification/2026-09-25-b3-contract-alignment.md#工作目录迁移)；检查点 `7aaca36` | 11 个变更文件逐一比较一致，持久 B3 工作树已接管分支；旧目录保留。仅文件/Git 核对，应用测试未重跑，未推送、合并或部署 | 临时审查目录不作为长期开发入口；迁移前提交检查点，校验后转移分支，缓存不视作源代码；B3 仍未完成 |
+| 2026-09-25：B3 第一轮契约对齐 | [B3 本地证据](../../verification/2026-09-25-b3-contract-alignment.md)；基线 `9b2f485`、未提交候选 | 类型检查、5/5 契约测试 PASS；真实 Gateway 两种 profile 检查 PASS。无运行时修改、部署或付费调用；HTTP 集成、helper/SSE、DTO 与 PR CI 待办，B3 未完成 | 新增 CONTRACT-01；格式与形状均验证，历史兼容字段不代表新增权限；默认必需契约与旧协议兼容检查分开 |
 | 2026-09-25：B2 第十二轮 VPS 部署 | [B2 部署证据](../../verification/2026-09-25-b2-control-receipts.md)；API `a81c3ba`、Worker `5c6a2d3` | 异机备份校验、迁移 029、API→Worker/replay、版本/运行状态及 verify PASS；注册记录 1，复查重启 0、待投递队列 0。文档提交/评审及签结待办；无新付费测试，恢复/回滚演练 NOT_RUN | 多目录发布须记录组件实际 Compose 路径，旧部署目录不得误用于全量 up；B7/A2 收敛部署入口。健康/空队列不冒充真实媒体和故障恢复验收 |
 | 2026-09-25：B2 第十一轮合并及镜像准备 | [B2 发布标识](../../verification/2026-09-25-b2-control-receipts.md)；API `a81c3ba`、Worker `5c6a2d3` | 两仓最终候选 CI PASS；Worker 镜像及 Linux 卷检查 PASS；最新跨仓定向复测 1/1、0 skip。Worker digest 已发布；VPS 仍为 B1，sudo 需操作员，未备份/迁移/部署 B2 | 已复查，无额外规则变更；沿用第十轮 ACK 唯一性与卷权限规则，区分源码合并/镜像发布/线上运行；B2 未完成 |
 | 2026-09-25：B2 第十轮回执删除重插竞态 | [B2 证据第十轮](../../verification/2026-09-25-b2-control-receipts.md)；Worker `12cb69f` / `bee12ec`，API `623c9f9` | 旧实现回归 FAIL，持久版本计数修复后 Worker 40/40、lint/format PASS；API 阶段 CI PASS。新增两容器非 root/持久卷检查，本机无 Docker，执行状态见 Worker CI；VPS 仅只读核对，无迁移或部署，B2 未完成 | USAGE-01 增加跨删除重插/重启的 ACK 唯一性；新增生产等效 Linux 卷权限与跨容器测试；不扩大费用或用户计费范围 |

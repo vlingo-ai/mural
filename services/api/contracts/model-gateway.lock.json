@@ -3,14 +3,11 @@
   "protocolVersion": "1.0",
   "requiredHTTPPaths": [
     "/v1/capabilities",
-    "/v1/live/sessions",
     "/v1/responses"
   ],
   "requiredSchemas": [
     "GatewayResponse",
     "GatewayResponseRequest",
-    "LiveSessionCreateRequest",
-    "LiveSessionResponse",
     "ModelGatewayCapabilities",
     "ResponseSource",
     "TokenUsage"
@@ -22,8 +19,16 @@
     "cache_write_input_tokens",
     "web_search_calls"
   ],
-  "requiredSidebandSchemas": [
-    "events/live-client-commands.v1.schema.json",
-    "events/live-server-events.v1.schema.json"
-  ]
+  "requiredSidebandSchemas": [],
+  "profiles": {
+    "responses": {},
+    "legacy-live": {
+      "requiredHTTPPaths": ["/v1/live/sessions"],
+      "requiredSchemas": ["LiveSessionCreateRequest", "LiveSessionResponse"],
+      "requiredSidebandSchemas": [
+        "events/live-client-commands.v1.schema.json",
+        "events/live-server-events.v1.schema.json"
+      ]
+    }
+  }
 }

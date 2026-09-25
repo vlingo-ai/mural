@@ -11,9 +11,16 @@ product contract rather than a model-provider contract.
 - Additive optional fields are compatible within version 1. Breaking changes require a
   new version or a coordinated client migration.
 
-Status on 2026-09-23: the checked-in OpenAPI has known drift from the deployed API.
-It still requires the legacy WebRTC transport shape and does not cover the current LiveKit create
-request/response correctly. Do not generate production clients assuming parity.
+Status on 2026-09-25: B3 is in progress. Live creation now describes the existing top-level
+optional `sdp`, server-selected WebRTC/LiveKit transport, billing fields, capabilities and nullable
+current-session response. JSON-schema fixtures cover both transports and reject stale shapes.
+Actual Live route/isolated-database response validation is now covered. Helper JSON/SSE declarations
+and synthetic event fixtures are added; actual helper route serialization/Accept negotiation is
+validated with a fake helper and isolated authentication DB. This is not full helper/provider
+integration. The reviewed Live DTO graph is generated for all three languages with shared
+round-trip fixtures; runtime client adoption is deferred. Do not assume full API parity.
+The deprecated `instructions` field documents existing compatibility only; new clients must not
+treat it as new prompt authority. API language compatibility does not enable deferred UI languages.
 The [accepted plan](../../docs/web-ios-model-gateway-plan.md) requires runtime/contract tests first,
 then compatible DTO generation and shared JSON recovery fixtures for TS/Swift/Kotlin.
 New protocol/ownership/execution fields in the design are not yet published endpoints.
@@ -25,3 +32,17 @@ contract. Check an actual Gateway checkout from `services/api/` with:
 ```bash
 npm run check:gateway-contract -- /absolute/path/to/model-gateway/contracts
 ```
+
+The default `responses` profile checks shared protocol, Responses and usage requirements without
+requiring obsolete Gateway Live endpoints or sideband files. Explicitly check legacy compatibility with:
+
+```bash
+npm run check:gateway-contract -- /absolute/path/to/model-gateway/contracts legacy-live
+```
+
+Unknown profiles fail closed. These checks inspect contract declarations, not a running Gateway.
+LiveKit Worker control events remain a separate internal authenticated protocol, not public DTOs.
+
+First DTO candidates and explicit limitations are under [generated/](generated/README.md).
+Generation/checking covers the selected Live request/response graph, including native unions
+and field presence. See its README for excluded legacy inputs and runtime adoption boundaries.

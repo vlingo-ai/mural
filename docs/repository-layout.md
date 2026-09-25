@@ -21,6 +21,31 @@ The upstream marketing website remains a separate author's project, not this for
 Model Gateway and its isolated `workers/livekit-gpt-live/` project live in the separate
 `vlingo-ai/model-gateway` repository. Worker/plugin dependencies are not merged into the Gateway process.
 
+## Local worktree convention (2026-09-25)
+
+User-approved layout for both repositories:
+
+```text
+/Volumes/Kingston/MyProj/vlingo-ai/
+  mural/                         # primary clone; intended main checkout
+  mural-<task>/                  # branch codex/<task>
+/Volumes/Kingston/DeepTutor/
+  model-gateway/                 # main; includes workers/livekit-gpt-live/
+  model-gateway-<task>/           # branch codex/<task>; Gateway and/or Worker work
+```
+
+Worker is part of the Gateway repository, not a third clone. Each task worktree contains
+the repository; Worker commands run in its Worker subdirectory. Retain the existing two
+project roots. A primary clone is not inherently on main: verify before switching.
+Mural's primary clone currently remains on an older feature branch.
+
+Use one named task per worktree. OS temporary directories are for reproducible test artifacts,
+not ongoing development or the only copy of unpublished changes. Before migration, check the
+common Git directory, branch, dirty/untracked files and destination; save a checkpoint, use
+`git worktree move`, then verify content and registration. Before cleanup, audit unique commits,
+unpublished files, ignored private data and retained evidence. Clean status or prunable registration
+alone does not authorize deletion. Existing temporary/Codex-managed worktrees need a separate audit.
+
 Run repository scripts from the root. Run Gradle from `apps/android/` and server commands from `services/api/`. Swift commands use `--package-path apps/ios`. Open `apps/ios/Mural.xcodeproj` in Xcode. The [build guide](build-and-test.md) gives the commands.
 
 Language definitions currently originate in `apps/ios/Core/Languages/`. The exporter generates Android's language content from those definitions. Teaching logic runs natively in Swift and Kotlin; the compatibility checker and shared fixtures detect differences in prompts, thresholds and archive fields. They do not prove equivalent speech quality or native behavior. A future web client should consume a versioned language-content package rather than parse either app's source at runtime.

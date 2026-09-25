@@ -23,6 +23,8 @@ import { HostedHelpers } from '../src/hosted-helpers.js';
 import type { VoiceUsage } from '../src/live-provider.js';
 import { digest, signOut, authenticate } from '../src/auth.js';
 import { createApp } from '../src/app.js';
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 
 const execFileAsync = promisify(execFile);
 
@@ -50,6 +52,46 @@ function cleanupProvider() {
   };
   return { provider, state, send: (event: VoiceUsage) => { assert.ok(usage); usage(event); } };
 }
+
+integration('B3: actual API route responses match Live schemas for both transports', async () => {
+  const require = createRequire(import.meta.url);
+  const Ajv = require('ajv/dist/2020.js').default;
+  const ajv = new Ajv({ strict: false }); require('ajv-formats')(ajv);
+  const contract = JSON.parse(await readFile(new URL('../../../shared/contracts/mural-api.openapi.json', import.meta.url), 'utf8'));
+  const validators = Object.fromEntries(['LiveSession', 'LiveSessionStatus', 'CurrentLiveSession', 'LiveCapabilities'].map(name =>
+    [name, ajv.compile({ $ref: `#/components/schemas/${name}`, components: contract.components })]));
+  for (const transport of ['webrtc', 'livekit-room'] as const) {
+    const fake = cleanupProvider(); fake.state.failDelete = false;
+    const f = await fixture(2_000_000_000n, 90_000, 1_000_000n, false, undefined,
+      transport === 'livekit-room' ? fake.provider : undefined);
+    const app = createApp({ db: f.db, auth: {}, hosted: f.controller, hostedHelpers: f.helpers });
+    try {
+      const token = randomBytes(32).toString('base64url');
+      await f.db.query("INSERT INTO auth_sessions(id,account_id,token_hash,expires_at) VALUES($1,$2,$3,now()+interval '1 hour')",
+        [randomUUID(), f.account, digest(token)]);
+      const headers = { authorization: `Bearer ${token}`, 'idempotency-key': `b3-contract-${transport}` };
+      const check = (name: string, response: { statusCode: number; json(): any }) => {
+        assert.equal(response.statusCode, 200);
+        const body = response.json();
+        assert.equal(validators[name]!(body), true, JSON.stringify(validators[name]!.errors));
+        return body;
+      };
+      check('LiveCapabilities', await app.inject({ method: 'GET', url: '/v1/live/capabilities' }));
+      check('LiveCapabilities', await app.inject({ method: 'GET', url: '/v1/live/capabilities', headers }));
+      assert.equal(check('CurrentLiveSession', await app.inject({ method: 'GET', url: '/v1/live/sessions/current', headers })).session, null);
+      const live = check('LiveSession', await app.inject({ method: 'POST', url: '/v1/live/sessions', headers,
+        payload: { language: 'en', requestedMilliseconds: 60_000, ...(transport === 'webrtc' ? { sdp: 'v=0\r\nfixture' } : {}) } }));
+      assert.equal(live.transport.type, transport);
+      assert.equal(live.providerSessionID, undefined);
+      check('LiveSessionStatus', await app.inject({ method: 'GET', url: `/v1/live/sessions/${live.sessionID}`, headers }));
+      assert.equal(check('CurrentLiveSession', await app.inject({ method: 'GET', url: '/v1/live/sessions/current', headers })).session.sessionID, live.sessionID);
+      const invalid = await app.inject({ method: 'POST', url: '/v1/live/sessions', headers,
+        payload: { language: 'en', transport: { type: 'webrtc', sdp: 'v=0' } } });
+      assert.equal(invalid.statusCode, 400);
+      check('LiveSessionStatus', await app.inject({ method: 'POST', url: `/v1/live/sessions/${live.sessionID}/close`, headers, payload: {} }));
+    } finally { await app.close(); await f.cleanup(); }
+  }
+});
 
 integration('B1: control grant waits for persistence and never exceeds the funded deadline', async () => {
   const fake = cleanupProvider(), f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
@@ -373,7 +415,7 @@ async function fixture(cap = 2_000_000_000n, minuteAllowance?: number, helperBud
     billingUnit: minuteAllowance === undefined ? 'nanoUSD' : 'milliseconds',
     helpers: helperAdmission, now: () => now, closeGraceMilliseconds: 20 });
   await controller.start();
-  return { db, account, payloads, diagnostics, lifecycle, provider, get controller() { return controller; },
+  return { db, account, payloads, diagnostics, lifecycle, provider, helpers, get controller() { return controller; },
     get creates() { return creates; }, get hangups() { return hangups; }, get closes() { return closes; },
     set closeReplies(value: boolean) { respondToClose = value; }, set seconds(value: number) { seconds = value; },
     set rejectCreate(value: boolean) { rejectCreate = value; },

@@ -7,6 +7,8 @@ import { migrate } from '../src/migrate.js';
 import { digest } from '../src/auth.js';
 import { parseHostedHelperInput } from '../src/hosted-helpers.js';
 import { HelperSessionLimitError, ServiceError } from '../src/errors.js';
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 
 test('hosted HTTP routes advertise no usable conversation path without both configured services', async () => {
   const db = { query: async () => { throw new Error('No database access expected.'); } } as unknown as Database;
@@ -161,6 +163,20 @@ test('hosted HTTP authenticates guest ownership, recovers uncertain sessions and
   const app = createApp({ db, auth: {}, hosted, hostedHelpers });
   const headers = { authorization: `Bearer ${token}` }, otherHeaders = { authorization: `Bearer ${otherToken}` };
   const body = { requestID: randomUUID(), purpose: 'meaning', instructions: 'Translate into English.', input: 'Buenos días.' };
+  const require = createRequire(import.meta.url), Ajv = require('ajv/dist/2020.js').default;
+  const ajv = new Ajv({ strict: false }); require('ajv-formats')(ajv);
+  const contract = JSON.parse(await readFile(new URL('../../../shared/contracts/mural-api.openapi.json', import.meta.url), 'utf8'));
+  const compile = (name: string) => ajv.compile({ $ref: `#/components/schemas/${name}`, components: contract.components });
+  const resultSchema = compile('HostedHelperResult'), eventSchema = compile('HostedHelperStreamEvent');
+  const errorSchema = compile('ErrorResponse');
+  const checkStream = (body: string) => {
+    const frames = body.trim().split('\n\n');
+    assert.ok(frames.length > 0);
+    for (const frame of frames) {
+      assert.ok(frame.startsWith('data: '));
+      assert.equal(eventSchema(JSON.parse(frame.slice(6))), true, JSON.stringify(eventSchema.errors));
+    }
+  };
   try {
     assert.deepEqual((await app.inject({ url: '/v1/live/capabilities', headers })).json(), { hostedMinutes: true, experimental: true });
     assert.deepEqual((await app.inject({ url: '/v1/live/capabilities', headers: otherHeaders })).json(), { hostedMinutes: false, experimental: true });
@@ -186,30 +202,36 @@ test('hosted HTTP authenticates guest ownership, recovers uncertain sessions and
     assert.equal((await app.inject({ method: 'POST', url: endpoint, headers, payload: { ...body, input: 'x'.repeat(65_536) } })).statusCode, 413);
     const translated = await app.inject({ method: 'POST', url: endpoint, headers, payload: body });
     assert.equal(translated.statusCode, 200); assert.equal(translated.json().text, 'Good morning.');
+    assert.equal(resultSchema(translated.json()), true, JSON.stringify(resultSchema.errors));
     assert.equal(calls.filter(call => call.startsWith('helper:')).length, 1);
     const streamHeaders = { ...headers, accept: 'text/event-stream' };
     const streamed = await app.inject({ method: 'POST', url: endpoint, headers: streamHeaders, payload: body });
     assert.equal(streamed.statusCode, 200); assert.match(String(streamed.headers['content-type']), /^text\/event-stream/);
     const events = streamed.body.trim().split('\n\n').map(line => JSON.parse(line.slice(6)));
+    checkStream(streamed.body);
     assert.deepEqual(events.slice(0, 2), [{ type: 'mural.meaning.delta', delta: 'Good' }, { type: 'mural.meaning.delta', delta: ' morning.' }]);
     assert.equal(events[2].type, 'mural.meaning.completed'); assert.equal(events[2].result.text, 'Good morning.');
     for (const accept of ['Text/Event-Stream', 'application/json, TEXT/EVENT-STREAM;Q=0.5', 'text/event-stream;q=1.000']) {
       const negotiated = await app.inject({ method: 'POST', url: endpoint, headers: { ...headers, accept }, payload: body });
       assert.equal(negotiated.statusCode, 200); assert.match(String(negotiated.headers['content-type']), /^text\/event-stream/);
       assert.match(negotiated.body, /mural.meaning.completed/);
+      checkStream(negotiated.body);
     }
     for (const accept of ['text/event-stream;q=0', 'text/event-stream;Q=0.000, application/json', 'text/event-stream;q=2', 'text/event-stream;q=invalid', 'application/json', '*/*']) {
       const negotiated = await app.inject({ method: 'POST', url: endpoint, headers: { ...headers, accept }, payload: body });
       assert.equal(negotiated.statusCode, 200); assert.match(String(negotiated.headers['content-type']), /^application\/json/);
       assert.equal(negotiated.json().text, 'Good morning.');
+      assert.equal(resultSchema(negotiated.json()), true, JSON.stringify(resultSchema.errors));
     }
     failAfterPartial = true;
     const interrupted = await app.inject({ method: 'POST', url: endpoint, headers: streamHeaders, payload: body });
     assert.match(interrupted.body, /mural.meaning.error/); assert.doesNotMatch(interrupted.body, /mural.meaning.completed/);
+    checkStream(interrupted.body);
     failAfterPartial = false;
     helperFailure = new HelperSessionLimitError(10_001);
     const streamDenied = await app.inject({ method: 'POST', url: endpoint, headers: streamHeaders, payload: body });
     assert.equal(streamDenied.statusCode, 429); assert.equal(streamDenied.json().error.retryable, true);
+    assert.equal(errorSchema(streamDenied.json()), true, JSON.stringify(errorSchema.errors));
     const waiting = await app.inject({ method: 'POST', url: endpoint, headers, payload: body });
     assert.equal(waiting.statusCode, 429); assert.equal(waiting.headers['retry-after'], '11');
     assert.deepEqual(waiting.json(), { error: { code: 'helper_session_limit', retryable: true, retryAfterMilliseconds: 10_001 } });
@@ -217,6 +239,7 @@ test('hosted HTTP authenticates guest ownership, recovers uncertain sessions and
     const exhausted = await app.inject({ method: 'POST', url: endpoint, headers, payload: body });
     assert.equal(exhausted.statusCode, 429); assert.equal(exhausted.headers['retry-after'], undefined);
     assert.deepEqual(exhausted.json(), { error: { code: 'helper_session_limit', retryable: false } });
+    assert.equal(errorSchema(exhausted.json()), true, JSON.stringify(errorSchema.errors));
     for (const [code, status] of [['helper_response_uncertain', 502], ['helper_request_already_attempted', 409],
       ['helper_concurrency_limit', 429], ['helper_budget_exhausted', 429], ['rate_limit', 429]] as const) {
       helperFailure = Object.assign(new ServiceError(code, status), { retryable: true, retryAfterMilliseconds: 1000 });
