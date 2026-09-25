@@ -141,6 +141,7 @@ Gate 7 收尾可以独立签结，不要求先完成 B1–B7；反过来，开�
   - 2026-09-25 第一轮：本地候选已修正 Live 创建、状态、capabilities/current 的 schema，并拆分 Responses/legacy-live 检查；定向测试通过。实际 HTTP 契约回归、helper JSON/SSE 和 DTO 生成待办，尚未提交或合并；[证据](../verification/2026-09-25-b3-contract-alignment.md)。
   - 最新候选：上述为首轮历史状态。已补实际路由/隔离 DB、helper JSON/SSE、三端 Live wire DTO 及共享编解码检查；API 全量 428/428、Web 37/37 + mock E2E 2/2 通过。生成范围为 Live 请求/响应，不是全 API SDK；原生应用接入留对应平台阶段。本轮无运行时变更，无需部署；PR/CI/审查待完成，B3 暂不勾选。
 - [ ] B4：统一恢复状态和事件 fixtures；覆盖信令断而媒体通、麦克风重发、迟到事件、Stop 竞态和控制过期。
+  - 第四轮最新：共享 reducer 已接 LiveKit Active/恢复/Stop 门禁；产品截止转单调时钟且重连不延期。Web 65/65、类型/构建、mock E2E 2/2 PASS。未部署；SDK-only 状态协调、迟到准入关闭可见性和旧 WebRTC 竞态仍待办。
   - 第三轮：后备 Room 重建前查询服务端 active/有效截止；Stop 待 closed 才 idle，失败可 Retry closing。Web 63/63、类型/构建及 mock E2E 2/2 PASS；共享模型正式接入、其他异步竞态和发布验收待办，未部署。下列较早轮次状态保留作历史。
   - 第二轮本地候选：signal-only 不固定 5 秒重建 Room；Stop/新会话后的迟到媒体授权停轨且不覆盖新流。Web 52/52、mock E2E 2/2、类型/构建 PASS。共享模型尚未接入，状态查询/close 确认及发布待办；未部署。
   - 2026-09-26 已启动：规范同级工作树 `mural-b4-recovery-protocol`；新增[恢复参考协议](../shared/contracts/live-recovery-protocol.md)、共享轨迹与隔离 Web reducer。尚未接入 LiveConnection，未改变线上 UI；Web 适配、集成测试和发布验收待办，不勾完成。

@@ -1,4 +1,4 @@
-// B4 reference reducer. Not yet wired into LiveConnection; no SDK/network effects.
+// Shared recovery reducer; SDK/network effects remain in the platform adapter.
 export type RecoveryPhase = 'connecting' | 'active' | 'recovering' | 'closing' | 'closed' | 'failed';
 export interface RecoveryState {
   generation: number;
@@ -14,7 +14,8 @@ export type RecoveryEvent = {
   generation: number;
   roomEpoch: number;
   at: number; // Local monotonic milliseconds, never server UTC.
-} & (
+} & RecoveryUpdate;
+export type RecoveryUpdate = (
   | { kind: 'signal'; connected: boolean }
   | { kind: 'media'; microphone: boolean; agentAudio: boolean }
   | { kind: 'control'; validUntil: number }

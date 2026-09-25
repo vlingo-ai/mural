@@ -1,7 +1,8 @@
 # Live recovery reference protocol v1 — B4 candidate
 
-Status: reference model and shared traces only; NOT adopted by Web/iOS/Android runtime.
-The Web reducer is isolated in `apps/web/src/live/recovery-protocol.ts`.
+Status: B4 local Web candidate adopts the reducer for LiveKit activation, recovery, Room replacement
+and Stop; NOT deployed. iOS/Android adapters are not implemented.
+The shared reducer is in `apps/web/src/live/recovery-protocol.ts`.
 Language-independent examples are in [live-recovery-traces.json](live-recovery-traces.json).
 
 ## Boundaries
@@ -26,13 +27,16 @@ Language-independent examples are in [live-recovery-traces.json](live-recovery-t
   a generation; a new Start creates a new reducer instance.
 - Control expiry and confirmed Agent loss terminate recovery. The model's `controlUntil` is a
   proposed local conservative deadline, NOT a new server field and NOT the Worker private lease.
-  Before runtime adoption, define its derivation from authenticated session status/deadline,
-  request latency and local monotonic time. Never invent a successful grant when status is unknown.
+  Web converts the existing authenticated create deadline against wall/monotonic times captured
+  before the request; response transit consumes the remaining duration. It never extends this
+  deadline on reconnect. This assumes a reasonably synchronized client wall clock; it is NOT
+  a server-clock proof. Server/Worker enforce the actual authority independently. Status is checked
+  before fallback Room replacement; SDK-only restoration still needs full status reconciliation.
   A response arriving after expiry cannot revive the same model.
 
 ## Implementation sequence / still required
 
-1. Reference model and common traces (this candidate).
+1. Reference model and common traces (implemented and locally tested).
 2. Web adapter adoption: query existing status, distinguish signal-only reconnect from media loss,
    preserve SDK recovery first, guard every async getUserMedia/create/connect/publish completion,
    cancel timers on Stop, handle close failure visibly without falsely claiming settlement.
@@ -44,4 +48,4 @@ Language-independent examples are in [live-recovery-traces.json](live-recovery-t
 5. Native adapters consume these traces in Phase 6 / Android phase; no native runtime change here.
    Real local SDK/media tests are B5, not satisfied by this pure reducer.
 
-No new recovery deadline, API endpoint, model route, billing policy or paid test is enabled by this file.
+No new API endpoint, model route, billing policy or paid test is enabled by this file.

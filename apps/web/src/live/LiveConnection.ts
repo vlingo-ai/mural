@@ -9,6 +9,7 @@ import { MuralReconnectPolicy, MURAL_MEDIA_READY_MS, MURAL_RECOVERY_FALLBACK_MS,
   MURAL_RECOVERY_RETRY_MS, MURAL_RECOVERY_WINDOW_MS } from './livekit-reconnect';
 import { agentDisconnectIsTerminal, agentMediaIsReady, microphoneIsReady } from './livekit-state';
 import type { TimingKind } from './timing-diagnostic';
+import { initialRecoveryState, reduceRecovery, type RecoveryState, type RecoveryUpdate } from './recovery-protocol';
 
 export type LiveState = 'idle' | 'requesting-microphone' | 'connecting' | 'active' | 'closing' | 'failed';
 
@@ -36,6 +37,27 @@ export class LiveConnection {
   private liveKitAgentDepartureTimer?: number;
   private stopObservingOffline?: () => void;
   private closingRequest?: Promise<void>;
+  private recoveryState?: RecoveryState;
+  private controlTimer?: number;
+
+  private reduceRecovery(update: RecoveryUpdate): void {
+    if (!this.recoveryState) return;
+    this.recoveryState = reduceRecovery(this.recoveryState, { ...update,
+      generation: this.recoveryState.generation, roomEpoch: this.recoveryState.roomEpoch,
+      at: performance.now() });
+  }
+
+  private protocolMediaReady(): boolean {
+    this.reduceRecovery({ kind: 'signal', connected: true });
+    this.reduceRecovery({ kind: 'media', microphone: true, agentAudio: true });
+    if (this.recoveryState?.phase === 'failed') this.failLiveKitAgent('reconnect_failed');
+    return this.recoveryState?.phase === 'active';
+  }
+
+  private clearControlTimer(): void {
+    if (this.controlTimer !== undefined) globalThis.clearTimeout(this.controlTimer);
+    this.controlTimer = undefined;
+  }
 
   constructor(
     private readonly api: MuralAPI,
@@ -142,6 +164,8 @@ export class LiveConnection {
   private async connectLiveKit(language: AvailableLanguage, generation: number): Promise<void> {
     const { DisconnectReason, LocalAudioTrack, Room: LiveKitRoom, RoomEvent, Track } = await import('livekit-client');
     if (this.closed || generation !== this.generation) return;
+    const requestedAt = performance.now();
+    const requestedWallTime = Date.now();
     const result = await this.api.createLiveSession({ language: providerLocale(language),
       requestedMilliseconds: 15 * 60_000 }, crypto.randomUUID());
     if (this.closed || generation !== this.generation) {
@@ -152,6 +176,21 @@ export class LiveConnection {
     this.onSession(result.sessionID);
     if (result.transport.type !== 'livekit-room') throw new Error('Mural returned an unexpected live transport.');
     const transport = result.transport;
+    this.recoveryState = initialRecoveryState(generation);
+    // Convert the existing product deadline once, never extend it on a reconnect.
+    // Server/Worker remain the authority; the browser timer is an extra local bound.
+    const controlUntil = requestedAt + Date.parse(result.deadline) - requestedWallTime;
+    this.reduceRecovery({ kind: 'control', validUntil: controlUntil });
+    if (this.recoveryState.phase === 'failed') {
+      this.failLiveKitAgent('reconnect_failed');
+      return;
+    }
+    this.controlTimer = globalThis.setTimeout(() => {
+      if (!this.closed && generation === this.generation) {
+        this.reduceRecovery({ kind: 'expired' });
+        this.failLiveKitAgent('reconnect_failed');
+      }
+    }, Math.max(0, controlUntil - performance.now()));
     let replacementRequired = false;
     const current = (): boolean => !this.closed && generation === this.generation;
     const mediaReady = (room: Room): boolean => room.state === 'connected' && navigator.onLine !== false &&
@@ -160,6 +199,7 @@ export class LiveConnection {
     const finishRecovery = (room: Room): void => {
       if (!current() || this.room !== room || !mediaReady(room) ||
           (this.liveKitReady && !this.liveKitReconnecting)) return;
+      if (!this.protocolMediaReady()) return;
       this.liveKitReady = true;
       this.liveKitReconnecting = false;
       replacementRequired = false;
@@ -179,6 +219,7 @@ export class LiveConnection {
     const beginRecovery = (allowReplacement = true): void => {
       if (!current() || !this.sessionID) return;
       replacementRequired ||= allowReplacement;
+      this.reduceRecovery({ kind: 'signal', connected: false });
       const firstDetection = !this.liveKitReconnecting;
       this.liveKitReconnecting = true;
       this.liveKitReady = false;
@@ -298,6 +339,7 @@ export class LiveConnection {
           if (current()) this.failLiveKitAgent('reconnect_failed');
           return;
         }
+        this.reduceRecovery({ kind: 'room-replaced' });
         const room = await openRoom();
         if (!current() || !room) return;
         if (mediaReady(room)) finishRecovery(room);
@@ -348,6 +390,7 @@ export class LiveConnection {
         !agentMediaIsReady(this.liveKitAgentIdentity, this.room.remoteParticipants.values()) ||
         !microphoneIsReady(this.local?.getAudioTracks()[0],
           this.room.localParticipant.audioTrackPublications.values())) return;
+    if (!this.protocolMediaReady()) return;
     this.liveKitReady = true;
     if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
     this.liveKitReadyTimer = undefined;
@@ -367,6 +410,8 @@ export class LiveConnection {
 
   private failLiveKitAgent(reason: 'agent_lost' | 'reconnect_failed' = 'agent_lost'): void {
     if (this.closed) return;
+    this.reduceRecovery({ kind: 'agent-lost' });
+    this.clearControlTimer();
     this.closed = true;
     this.generation++;
     this.clearLiveKitRecoveryTimers();
@@ -429,6 +474,8 @@ export class LiveConnection {
 
   close(): void {
     if (this.closingRequest) return;
+    this.reduceRecovery({ kind: 'stop' });
+    this.clearControlTimer();
     this.onTiming('stop-requested');
     this.onState('closing');
     if (this.channel?.readyState === 'open') this.channel.send(JSON.stringify({ type: 'session.close', event_id: crypto.randomUUID() }));
@@ -461,6 +508,8 @@ export class LiveConnection {
   }
 
   disconnect(): void {
+    this.clearControlTimer();
+    this.recoveryState = undefined;
     this.closingRequest = undefined;
     const shouldCloseSession = !this.closed && this.sessionID;
     this.closed = true;
