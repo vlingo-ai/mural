@@ -12,21 +12,22 @@ const provider = () => new LiveKitLiveProvider({
 const authorization = () => `Bearer ${createHmac('sha256', secret)
   .update('mural-livekit-control-v1\0').update(sessionID).digest('base64url')}`;
 
-test('LiveKit trusted control accepts cumulative usage only after attach', async () => {
+test('LiveKit trusted control parses usage without acknowledging it before persistence', async () => {
   const livekit = provider();
   const usage: unknown[] = [];
   const sideband = await livekit.attach(sessionID, event => usage.push(event), () => assert.fail('unexpected loss'));
   assert.deepEqual(livekit.acceptTrustedEvent(sessionID, authorization(),
     { type: 'session.usage.updated', seconds: 12.5 }),
   { type: 'session.usage.updated', usage: { seconds: 12.5 } });
-  assert.deepEqual(usage, [{ type: 'session.usage.updated', usage: { seconds: 12.5 } }]);
+  assert.deepEqual(usage, [], 'the provider parser must not deliver or acknowledge usage');
   assert.deepEqual(livekit.acceptTrustedEvent(sessionID, authorization(),
     { type: 'session.heartbeat', seconds: 13 }),
   { type: 'session.usage.updated', usage: { seconds: 13 } });
-  assert.deepEqual(usage.at(-1), { type: 'session.usage.updated', usage: { seconds: 13 } });
+  assert.deepEqual(usage, []);
   sideband.disconnect();
-  assert.throws(() => livekit.acceptTrustedEvent(sessionID, authorization(),
-    { type: 'session.closed', seconds: 12.5 }), /livekit_session_not_attached/);
+  assert.deepEqual(livekit.acceptTrustedEvent(sessionID, authorization(),
+    { type: 'session.closed', seconds: 12.5 }),
+  { type: 'session.closed', usage: { seconds: 12.5 } });
 });
 
 test('LiveKit trusted control authenticates and bounds delegations', () => {
