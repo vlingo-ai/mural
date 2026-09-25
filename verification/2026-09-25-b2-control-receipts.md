@@ -1,6 +1,6 @@
 # B2 分次证据：控制回执与最终用量（2026-09-25）
 
-状态：**六轮本地实现与非计费验证通过，候选分支已提交为草稿 PR；B2 尚未完成、未合并、未发布镜像、未迁移或部署。** 下文各轮的“未提交”是其当时状态，不代表截至本记录末尾的状态。
+状态：**六轮本地实现与非计费验证通过，候选分支已提交为草稿 PR；B2 尚未完成、未合并、未发布镜像、未迁移或部署。** 下文各轮的“未提交”是其当时状态，不代表截至本记录末尾的状态；PR CI 进展另见第八轮。
 范围服从[项目 B2 基准](../docs/web-ios-model-gateway-plan.md)；不改变英语 staging Gate 7 的独立状态。
 
 ## 本轮代码范围
@@ -76,3 +76,11 @@ Worker 现在要求 `acknowledgedMilliseconds` **等于**本次报告毫秒值�
 - 本轮只验证 GitHub 比较页的目标仓库、基线、变更范围和草稿状态；创建 PR 没有重新运行应用测试。最新本地非计费测试仍为上一轮 API 423/423（可选跨仓用例实际运行）和 Worker 37/37。PR CI 的最终结论、正式代码审查、候选镜像、真实 Linux 卷/权限、迁移及 staging 核对均待办。
 
 本轮复用审查：没有新增测试用例规则；继续要求发布报告同时列出两仓不可变 revision、PR/CI 状态与实际部署 digest，不能把草稿 PR 或本地 PASS 写成已合并、已部署或已验收。必维护的[发布上线测试与验证方案](../docs/operations/release-verification-plan.md)已登记本轮；其文档基准仍需经独立受控 PR 对齐主线。
+
+## 第八轮增量：PR CI 失败、修正及重新验证（2026-09-25）
+
+- Worker [草稿 PR #18](https://github.com/vlingo-ai/model-gateway/pull/18) 首次 CI [run 36104391324](https://github.com/vlingo-ai/model-gateway/actions/runs/36104391324) 的 `livekit-worker` 因 7 个文件不符 `ruff format --check` 而失败，另外两个 job 通过。仅做机械格式化，提交 `672aeb6`；本地格式检查、lint、非计费 37/37 测试通过。最初受限沙箱的 2 个 localhost socket 测试失败为绑定权限限制，获准在本机复测后 37/37 通过。[新 run 36104762272](https://github.com/vlingo-ai/model-gateway/actions/runs/36104762272) 的 `gateway`、`responses-image`、`livekit-worker` 均 PASS。
+- Mural [草稿 PR #39](https://github.com/vlingo-ai/mural/pull/39) 首次 CI [run 36104518437](https://github.com/vlingo-ai/mural/actions/runs/36104518437) 的 `phase-5-5b-deployment` 因候选 Compose 所需 `WORKER_OUTBOX_HOST_DIR` 未列在 `.env.example` 而失败。示例文件现增补无秘密的目录及 `WORKER_OUTBOX_KEY` 占位值，提交 `93622be`；本地 shell 语法和补丁检查 PASS。本机没有 Docker，未本地运行 Compose config。[run 36104846953](https://github.com/vlingo-ai/mural/actions/runs/36104846953) 的部署脚本、Web、Swift core、密钥扫描、契约检查 PASS，但 `server` 测试 #269 失败：PR 分支遗漏了与 B2 解析/持久化职责分离相应的旧断言更新。已在 `2c56b8c` 修正该测试：解析 `usage`/`heartbeat` 不应直接调用旧监听回调，断开后仍可解析可信 `session.closed`。本地 `npm run check` 与该文件 8/8 非计费测试 PASS；`tsx` CLI 在受限沙箱创建本地 IPC 管道被拒，改用 `node --import tsx --test` 执行。新 [run 36105390306](https://github.com/vlingo-ai/mural/actions/runs/36105390306) 的 Web、Swift core、API `server`、部署脚本均 PASS；同一提交的契约检查 [run 36105390353](https://github.com/vlingo-ai/mural/actions/runs/36105390353) 与密钥扫描 [run 36105390269](https://github.com/vlingo-ai/mural/actions/runs/36105390269) PASS。后续证据文档提交仍需重新确认 PR checks。
+- 这些 CI 运行不执行可选跨仓 API/Worker HTTP 组合用例；该用例实际执行的证据仍是第六轮隔离 PostgreSQL 的 423/423 本地结果。CI 成功不代表真实 Linux 卷/UID、迁移 029、供应商链路、VPS 部署或线上验收已通过。
+
+复用规则：候选 PR 前按目标 CI 精确运行 formatter、锁定依赖测试及 Compose config；新增必填变量同时更新无秘密的 `.env.example`。涉及控制事件投递时，须同步检查解析器单测和持久化回执测试，避免 PR 准备时遗漏只在原工作树出现的测试改动。若本机缺 Docker，明确标为 NOT_RUN 并以 PR CI 的实际结果补证。该规则已提升至[发布上线测试与验证方案](../docs/operations/release-verification-plan.md)，后续仍需审查、文档主线对齐与受控部署。**B2 未完成。**
