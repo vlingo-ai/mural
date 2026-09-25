@@ -51,7 +51,7 @@ node --import tsx --test tests/contracts.test.ts tests/gateway-contract-profile.
 ## 限制及后续
 
 1. 第一轮为合成 fixture；第二轮已补实际路由与隔离 DB 校验（见下），非公网部署验证。
-2. helper JSON/SSE 尚未纳入；内部 Worker 控制协议不能混入公开 bearer API。
+2. helper JSON/SSE 已在第三轮补声明和 fixture；实际 helper 路由 schema 验证待补。内部 Worker 控制协议不能混入公开 bearer API。
 3. UTF-8 字节上限、非空白文本和业务条件不能仅靠 JSON 字符长度证明，须保留运行时测试。
 4. 三端 DTO 生成尚未实施；不启用原生功能或重型平台发布测试。
 5. 全量 API、Web、PR CI、审查与合并尚待后续候选验证；不沿用 B2 CI 为 B3 证明。
@@ -75,3 +75,17 @@ hosted.test.ts、contracts.test.ts、gateway-contract-profile.test.ts 关联回�
 测试后停止专用本地 PostgreSQL。helper/SSE、DTO 生成和全量候选 CI 仍待办。
 复用发现：契约回归须从实际路由序列化后的响应断言，不能仅比较手写对象；
 明确 inject、socket、公网三个验证层级，保留跳过项。
+
+## 第三轮：helper JSON/SSE 声明
+
+补 `/v1/live/sessions/{sessionID}/helpers`，默认 JSON 与显式 Accept SSE 分开描述。
+requestID 为应用去重身份；assessment 需要 schema、其他 purpose 不得带 schema，
+search=true 只允许 delegation/topic。instructions 是现有兼容输入，不新增权限。
+记录字节上限、schema 深度/节点与文本校验由运行时执行；OpenAPI 不是该递归子集的完整验证器。
+SSE 的 wire body 为字符串，每帧 JSON 对象另定义 delta/completed/error union；
+流前 HTTP 错误、流后错误事件及断线不能盲目重试均明确。
+
+类型检查 PASS，契约与 Gateway profile 测试 6/6 PASS、0 skip。
+请求拒绝 fixture 同时调用真实 parseHostedHelperInput；事件仍为合成 fixture，
+尚未验证实际 helper HTTP/SSE 响应与 schema 一致。未改运行时、未部署、无付费调用。
+下一步补 helper 路由集成、三端 DTO 生成和候选完整验证，B3 未完成。

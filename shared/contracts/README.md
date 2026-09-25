@@ -14,8 +14,9 @@ product contract rather than a model-provider contract.
 Status on 2026-09-25: B3 is in progress. Live creation now describes the existing top-level
 optional `sdp`, server-selected WebRTC/LiveKit transport, billing fields, capabilities and nullable
 current-session response. JSON-schema fixtures cover both transports and reject stale shapes.
-This is not yet full runtime parity: actual HTTP response validation, helper JSON/SSE coverage
-and compatible DTO generation remain pending. Do not generate production clients assuming parity.
+Actual Live route/isolated-database response validation is now covered. Helper JSON/SSE declarations
+and synthetic event fixtures are added, but helper route/schema integration and compatible DTO
+generation remain pending. Do not generate production clients assuming full parity.
 The deprecated `instructions` field documents existing compatibility only; new clients must not
 treat it as new prompt authority. API language compatibility does not enable deferred UI languages.
 The [accepted plan](../../docs/web-ios-model-gateway-plan.md) requires runtime/contract tests first,

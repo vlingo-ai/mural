@@ -295,6 +295,51 @@
           }
         }
       }
+    },
+    "/v1/live/sessions/{sessionID}/helpers": {
+      "post": {
+        "operationId": "requestHostedHelper",
+        "summary": "Existing funded helper compatibility endpoint",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostedHelperRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON by default. Explicit Accept: text/event-stream with positive valid q opts into SSE. Each data frame is a HostedHelperStreamEvent JSON object. Completed or error terminates the stream; disconnect is not permission to retry the funded request. Admission failures before first frame remain HTTP errors.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedHelperResult"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "SSE data: JSON followed by a blank line; no event ID/resume guarantee."
+                },
+                "x-event-schema": {
+                  "$ref": "#/components/schemas/HostedHelperStreamEvent"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1527,6 +1572,244 @@
             ]
           }
         }
+      },
+      "HostedHelperRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requestID",
+          "purpose",
+          "instructions",
+          "input"
+        ],
+        "properties": {
+          "requestID": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[89aAbB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "meaning",
+              "assessment",
+              "lookup",
+              "delegation",
+              "typed_reply",
+              "topic",
+              "help"
+            ]
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384,
+            "description": "Legacy compatibility input; UTF-8 byte limit 16384. Not new client prompt authority."
+          },
+          "input": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24576,
+            "description": "Nonblank valid text, UTF-8 byte limit 24576; control characters rejected."
+          },
+          "schema": {
+            "type": "object",
+            "description": "Assessment only, required for assessment. Runtime validates a restricted inline schema: root object, no references, depth <=8, nodes <=400, serialized UTF-8 <=12288 bytes. This declaration is not a complete validator for that subset."
+          },
+          "search": {
+            "type": "boolean"
+          }
+        },
+        "description": "Existing compatibility endpoint. Whole serialized request <=65536 UTF-8 bytes; instructions/input must be nonblank valid Unicode without prohibited controls. requestID is the application deduplication identity; do not restart uncertain funded requests.",
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "purpose": {
+                  "const": "assessment"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "schema"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "schema"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "search": {
+                  "const": true
+                }
+              },
+              "required": [
+                "search"
+              ]
+            },
+            "then": {
+              "properties": {
+                "purpose": {
+                  "enum": [
+                    "delegation",
+                    "topic"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "HostedHelperUsage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputTokens",
+          "cachedInputTokens",
+          "cacheWriteTokens",
+          "outputTokens",
+          "searchCalls"
+        ],
+        "properties": {
+          "inputTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000
+          },
+          "cachedInputTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000
+          },
+          "cacheWriteTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000
+          },
+          "searchCalls": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000
+          }
+        }
+      },
+      "HostedHelperResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requestID",
+          "text",
+          "sources",
+          "usage",
+          "costNanoUSD",
+          "rateVersion"
+        ],
+        "properties": {
+          "requestID": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "text": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title",
+                "url"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/HostedHelperUsage"
+          },
+          "costNanoUSD": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "rateVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "HostedHelperStreamEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "delta"
+            ],
+            "properties": {
+              "type": {
+                "const": "mural.meaning.delta"
+              },
+              "delta": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "result"
+            ],
+            "properties": {
+              "type": {
+                "const": "mural.meaning.completed"
+              },
+              "result": {
+                "$ref": "#/components/schemas/HostedHelperResult"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "code",
+              "reference"
+            ],
+            "properties": {
+              "type": {
+                "const": "mural.meaning.error"
+              },
+              "code": {
+                "type": "string"
+              },
+              "reference": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       }
     }
   }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { createRequire } from 'node:module';
+import { parseHostedHelperInput } from '../src/hosted-helpers.js';
 
 const contractURL = new URL('../../../shared/contracts/mural-api.openapi.json', import.meta.url);
 const loadContract = async () => JSON.parse(await readFile(contractURL, 'utf8')) as Record<string, any>;
@@ -19,6 +20,7 @@ test('public contract freezes the Web/iOS/Android product boundary', async () =>
     '/v1/live/sessions/current',
     '/v1/live/sessions/{sessionID}',
     '/v1/live/sessions/{sessionID}/close',
+    '/v1/live/sessions/{sessionID}/helpers',
     '/v1/model-tasks',
   ]);
 
@@ -61,6 +63,33 @@ test('public contract freezes the Web/iOS/Android product boundary', async () =>
     'topicSearch',
     'translation',
   ]);
+});
+
+test('helper JSON and SSE schemas preserve compatibility and purpose constraints', async () => {
+  const contract = await loadContract(), require = createRequire(import.meta.url);
+  const Ajv = require('ajv/dist/2020.js').default, ajv = new Ajv({ strict: false });
+  require('ajv-formats')(ajv);
+  const compile = (name: string) => ajv.compile({ $ref: `#/components/schemas/${name}`, components: contract.components });
+  const request = compile('HostedHelperRequest'), event = compile('HostedHelperStreamEvent');
+  const input = { requestID: '00000000-0000-4000-8000-000000000001', purpose: 'meaning', instructions: 'Translate.', input: 'Hello.' };
+  assert.equal(request(input), true); assert.doesNotThrow(() => parseHostedHelperInput(input));
+  for (const invalid of [{ ...input, search: true }, { ...input, purpose: 'assessment' },
+    { ...input, schema: {} }, { ...input, provider: 'custom' }]) {
+    assert.equal(request(invalid), false);
+    assert.throws(() => parseHostedHelperInput(invalid));
+  }
+  const result = { requestID: input.requestID, text: 'Synthetic.', sources: [],
+    usage: { inputTokens: 1, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 1, searchCalls: 0 },
+    costNanoUSD: '1400', rateVersion: 'fixture' };
+  assert.equal(compile('HostedHelperResult')(result), true);
+  for (const value of [{ type: 'mural.meaning.delta', delta: 'Synthetic.' },
+    { type: 'mural.meaning.completed', result }, { type: 'mural.meaning.error', code: 'helper_response_uncertain', reference: 'fixture' }])
+    assert.equal(event(value), true, JSON.stringify(event.errors));
+  assert.equal(event({ type: 'mural.meaning.completed' }), false);
+  assert.equal(event({ type: 'unknown', delta: '' }), false);
+  const content = contract.paths['/v1/live/sessions/{sessionID}/helpers'].post.responses['200'].content;
+  assert.equal(content['text/event-stream'].schema.type, 'string');
+  assert.equal(content['application/json'].schema.$ref, '#/components/schemas/HostedHelperResult');
 });
 
 test('public contract cannot accept provider configuration; prompt compatibility is explicitly deprecated', async () => {
