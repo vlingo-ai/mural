@@ -1,6 +1,42 @@
 # B2 分次证据：控制回执与最终用量（2026-09-25）
 
-状态：**两仓 B2 PR 已合并，Worker 固定摘要镜像已发布；尚未在 VPS 构建 API、应用迁移 029 或部署，B2 尚未完成。** 下文各轮状态是当时快照；最新发布准备见第十一轮。
+状态：**B2 按开发、隔离故障测试及 staging 非计费部署范围签结；API、Worker 与 replay 已部署，迁移 029、部署后验证及运行复查 PASS。** 下文各轮状态是当时快照；最新部署证据见第十二轮。不代表本轮真实媒体或 staging 故障注入验收通过。
+
+## 第十二轮：VPS 部署及非计费验证
+
+2026-09-25，操作员在 VPS 执行命令，助手核对终端输出；Mac 解密结果由操作员提供。
+
+- 数据库备份 `postgres-20260925T091344Z.sql.gz.age` 已复制到 Mac；两端 SHA-256
+  `0ff48d8e1f3452e46716684944d1df36a639cb2b1783b938903fcf5f4c33352f` 一致，age 解密与 gzip 校验 PASS。完整恢复演练 NOT_RUN。
+- 旧 API/Worker/Edge 已添加 `rollback-before-b2-20260925` 标签；旧 `.env` 和 `compose.yaml`
+  保存在 VPS root-only `/root/mural-before-b2-20260925.CK9SYQ`，不提交内容。
+- 原目录 HEAD `a8d9e60` 干净，保留不动。独立目录 `/home/vlingo-admin/releases/mural-b2-a81c3ba`
+  固定 API 源码 `a81c3ba2ee1f722495c1c20db566928121fc0b5a`；本机构建及运行 image ID 均为
+  `sha256:891500ef35fcab2b690ce6d7380c120bf45879c9264e9b75d61d1e937e38cbdc`。这不是 registry 发布证据。
+- Worker/replay 固定 GHCR digest 和运行 ID 均为
+  `sha256:8e9f070289f60086b5df4066c548657b85c43da8b4111958c37158ef153c3f3d`。
+  临时 Mac 凭据经 SSH/FIFO 用于拉取，内存目录清理后独立检查 PASS；永久 Docker 登录未改。
+- 队列目录 `/var/lib/vlingo-speaking-live/worker-outbox` 为 UID/GID 10001、0700；候选配置独立生成 32-byte base64 key，不输出或提交密钥。后续必须保留该 key 与队列。
+- `preflight.sh ./.env` PASS；迁移前 DB 无非 closed 会话，LiveKit `listRooms()` 为 0。
+  迁移前最新 028，执行后 `Mural schema ready.`；独立核对 029 登记、新表存在、immutable trigger 状态 O。
+- 按 API → Worker/replay 顺序部署。API 版本标签正确、healthy；Worker/replay 均 running、restart=0。
+  数据库、Gateway、Edge 未重建。`verify.sh ./.env` 输出 `durable_control_pending=0` 和 PASS，
+  包含公网 TLS/HTTP、Gateway 关闭音频能力与有限日志模式扫描。
+- 后续核对：新 Worker 最近 300 行日志检出 1 条注册记录（证明曾注册，不证明持续 Cloud 可达）；
+  API/Worker/replay 再次均为 running、restart=0，队列再次为 0。包含新队列密钥的候选配置
+  以 root-only `b2.env` 单独保留在上述回滚目录，未覆盖旧 `.env`。
+- 限制：脚本 PASS 不证明真实媒体正常，也不是完整日志安全审计；无新增付费会话，
+  staging 故障注入、数据库恢复和实际回滚演练 NOT_RUN。供应商未产生 final 或落盘前崩溃仍不可保证最终用量完整，不能将未知值补成零或追扣用户。
+- 复盘：多目录部署需按组件记录实际 Compose 路径，禁止后续误用旧目录执行全量 up；
+  B7/A2 应补受控部署入口及自动化发布清单，当前仍由操作员分步执行。
+
+文档收尾：本轮仅更新部署证据、总计划、runbook 与发布验证方案，不改变运行时代码或 UI，
+无需再次部署。文档评审保留“实际部署/非计费核验通过”与“真实媒体未测试”的区别；
+四份改动文档的 77 个相对链接、代码围栏及 `git diff --check` PASS；此轮未重跑应用测试。
+[文档 PR #42](https://github.com/vlingo-ai/mural/pull/42) 首轮契约、密钥扫描及两条范围/汇总门禁 PASS；重型平台任务按文档范围 SKIPPED，不算应用测试 PASS。最终修订仍需自身 CI 通过后合并。
+原回滚目录中的 Compose 含相对路径，不应直接在 `/root` 目录执行全量恢复，回滚需显式核对
+project directory、项目名、镜像和服务范围，并保留 B2 队列及其密钥。
+
 范围服从[项目 B2 基准](../docs/web-ios-model-gateway-plan.md)；不改变英语 staging Gate 7 的独立状态。
 
 ## 本轮代码范围

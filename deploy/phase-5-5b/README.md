@@ -29,9 +29,17 @@ validation environment, not Phase 5.5C product release infrastructure.
 No deployment has occurred merely because this bundle exists or `docker compose config` passes.
 Mark a gate complete only after recording its evidence in `verification/phase-5-5b/`.
 
-## B2 durable-control candidate (not deployed)
+## B2 durable-control deployment
 
-This candidate requires migration 029 before a new Worker image is started. Configure a distinct
+2026-09-25: API `a81c3ba` and the paired Worker/replay were deployed from
+`/home/vlingo-admin/releases/mural-b2-a81c3ba/deploy/phase-5-5b`; migration 029 and
+non-billable verification passed. One startup registration record, zero restarts and an
+empty durable queue were subsequently verified; documentation sign-off remains pending in the
+[dated evidence](../../verification/2026-09-25-b2-control-receipts.md).
+The previous deployment directory remains retained; do not run a full-stack `up` from it,
+which could revert B2 services. Database/Gateway/Edge were not recreated.
+
+For subsequent deployments, apply migration 029 before a new Worker image is started. Configure a distinct
 `WORKER_OUTBOX_KEY` (base64 encoding of 32 random bytes) and an absolute, pre-created
 `WORKER_OUTBOX_HOST_DIR` owned by UID 10001 with mode 0700. The Worker and
 `agent-worker-replay` share the directory; the replay service has no OpenAI or LiveKit keys.
@@ -40,8 +48,8 @@ Retain the key and encrypted outbox across image rollbacks until every report is
 Before deployment, check active sessions, preserve previous images/configuration, and take the
 encrypted backup. Apply migration 029, deploy the API before the Worker, then start the replay
 service. Run `preflight.sh` and `verify.sh`; the latter requires the replay container to run and
-its durable queue to be empty, printing only a count. **Do not run this candidate against the
-current staging `.env` until the B2 review and release gates are complete.** See the
+its durable queue to be empty, printing only a count. **Do not use the retained B1 `.env`
+with the B2 Compose file: it lacks the required outbox settings.** See the
 [dated B2 evidence](../../verification/2026-09-25-b2-control-receipts.md). No real provider test or
 deployment follows merely from local checks passing.
 
