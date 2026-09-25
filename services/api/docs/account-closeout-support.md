@@ -1,5 +1,9 @@
 # Manual refund and account-deletion support
 
+<!-- baseline-scope:2026-09-23 -->
+> 兼容功能参考：本文件的原生账户、商业能力和历史部署状态不构成当前 vLingo staging 的启用批准。按最新基准与 staging runbook 核对实际版本；upstream 域名、OAuth/商店身份和定价不可直接复用。Web 托管历史存于服务端，不能套用原生“仅本地”隐私描述。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 Users can ask `hi@hackmamba.io` to delete their Mural account. Support must verify the account, resolve its financial obligations and then remove identifying account data. This is a manual request path; it does not waive refund rights, prove that an unpaid-looking order cannot charge later, or authorize forfeiting prepaid value. Google permits a customer-service email as part of an accessible external deletion path; the linked page must clearly identify Mural and explain how to make the request. An in-app path is also required. [Google account-deletion requirements](https://support.google.com/googleplay/android-developer/answer/13327111?hl=en)
 
 ## Inspect a verified support case

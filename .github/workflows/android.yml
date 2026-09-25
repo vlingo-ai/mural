@@ -2,17 +2,27 @@ name: Android
 on:
   push:
     branches: [main]
-    paths: ['apps/android/**', 'shared/fixtures/**', 'release/android/**', 'scripts/export_android_content.py', 'scripts/check_android_release.py', 'scripts/tests/test_check_android_release.py', '.github/workflows/android.yml']
   pull_request:
-    paths: ['apps/android/**', 'shared/fixtures/**', 'release/android/**', 'scripts/export_android_content.py', 'scripts/check_android_release.py', 'scripts/tests/test_check_android_release.py', '.github/workflows/android.yml']
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to verify (active follows ci-stage.json)
+        type: choice
+        default: active
+        options: [active, android, all]
 permissions:
   contents: read
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  scope:
+    uses: ./.github/workflows/ci-scope.yml
+    with:
+      platform: ${{ inputs.platform || 'active' }}
   release-files:
+    needs: scope
+    if: needs.scope.outputs.android_release == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -31,6 +41,8 @@ jobs:
           retention-days: 14
 
   android:
+    needs: scope
+    if: needs.scope.outputs.android == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -68,7 +80,27 @@ jobs:
           path: apps/android/app/build/reports/
           retention-days: 14
 
+  android-gate:
+    if: always()
+    needs: [scope, release-files, android, emulator]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require selected Android checks to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          jobs = json.loads(os.environ['RESULTS'])
+          assert jobs['scope']['result'] == 'success', 'CI scope failed'
+          for job, output in [('release-files', 'android_release'), ('android', 'android'), ('emulator', 'android')]:
+              expected = 'success' if jobs['scope']['outputs'][output] == 'true' else 'skipped'
+              assert jobs[job]['result'] == expected, f'{job}: {jobs[job]["result"]}, expected {expected}'
+          PY
+
   emulator:
+    needs: scope
+    if: needs.scope.outputs.android == 'true'
     name: emulator (${{ matrix.shard }}/${{ strategy.job-total }})
     strategy:
       fail-fast: false

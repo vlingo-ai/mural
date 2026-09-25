@@ -1,5 +1,25 @@
 # Mural agent instructions
 
+## Maintain the release verification plan after every iteration
+
+On September 24, 2026, the user designated `docs/operations/release-verification-plan.md` as one of
+this project's highest-priority mandatory living documents. Read it when planning development
+verification. After each iteration's testing and verification, update it before reporting the
+iteration complete, including when tests fail, are blocked, or reveal no new reusable rule.
+
+- Preserve detailed, dated, sanitized evidence under `verification/`; link it from the plan's
+  iteration register with the scope/revision, results, limitations, lessons and automation changes.
+- Promote reusable findings into the relevant test cases, gates, procedures or automation backlog.
+  If no rule changes are needed, explicitly record that review outcome rather than skipping the update.
+- Keep implemented, locally tested, deployed and live-accepted states distinct. Do not mark planned
+  automation as implemented or carry one release's waiver into later releases without approval.
+- Update affected runbooks/templates and include the plan/evidence references in the PR and handover.
+  Keep secrets, raw conversation content and private backups out of documentation.
+
+This documentation obligation does not authorize paid tests, deployment, new feature activation or
+changes to the accepted development priorities. Product scope remains in the project baseline;
+deployment safety remains governed by the runbook and the instructions below.
+
 ## Ship UI and server changes together
 
 When changing Mural's UI or native apps, check whether the experience depends on server changes: API contracts, error responses, prompts, capabilities, configuration, migrations or runtime permissions.

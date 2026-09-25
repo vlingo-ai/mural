@@ -1,6 +1,11 @@
 # Conversation minutes
 
-Mural's planned minute packs grant conversation time. A 30-minute pack grants 1,800 seconds of connected conversation, independent of model token counts. Pauses within an active conversation count; ending the conversation stops the clock. Normal meanings and teaching assessments belong in the pack price, with bounded helper usage. Final pack prices and live sales remain pending cost verification.
+Under the [accepted baseline](web-ios-model-gateway-plan.md), current staging uses operator-funded
+minute entitlements, not a new commercial pack. Fixed-minute sales are historical compatibility;
+existing AI-value commerce is separate and no new price/payment activation is approved here.
+User entitlements, provider cost and LiveKit/infrastructure invoices are separate accounting concerns.
+Future token-based providers require execution-specific usage and price snapshots, not reuse of
+the present GPT duration formula. Ending local playback does not itself prove external billing stopped.
 
 Provider costs and user time have different ledgers. The existing money ledger records financial amounts. The minute ledger records time grants, reservations, settlement and release using integer milliseconds. Model price changes must not change time already purchased. The old sandbox dollar-credit endpoints remain temporarily for compatibility; they are not the consumer minute purchase implementation.
 
@@ -28,6 +33,8 @@ Gifts and purchases have no automatic expiration in the current design. Purchase
 
 The new `/v1/minutes` endpoint reports a guest or member's time balance. `/v1/guest/minutes` starts or resumes a verified trial; `/v1/minutes/link-guest` transfers its remainder after sign-in. `/v1/minutes/welcome` verifies an account-bound eligibility proof before granting a signup-first offer. The server's pricing response explicitly reports minute purchases as unavailable until real pack checkout and settlement are implemented.
 
-These controls are a backend foundation. Hosted voice still uses the restricted experimental controller and has not yet been switched to minute reservations. Verified Android attestation, client integration, paid pack fulfillment/refunds, helper budgets and the consumer minute UI must be connected before production activation.
+The restricted staging controller already uses minute reservations and bounded helper funding.
+That does not establish public trial/payment readiness. Attestation, native migration, channel
+verification, privacy and commercial activation remain separately gated; fixed-minute sales stay off.
 
 See [how to manage free minutes](manage-free-minutes.md) for operator commands.

@@ -1,5 +1,9 @@
 # Play listing assets
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/upstream 原生发布参考：以下清单、定价草稿、身份、域名和已完成状态只适用于其注明的版本，不是 vLingo 当前发布批准。新三端版本须重新审查隐私、数据流、签名、商店材料及实测结果。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 Prepared on 14 September 2026. The six phone images show the actual Android interface at 1080 × 1920 pixels and 420 dpi, with English controls, Spanish from Spain and English meanings. They use the separate `chat.mural.android.uitest` app and explicitly synthetic conversation/vocabulary fixtures. No microphone, provider, account or purchase requests were made.
 
 The capture build includes the compact Talk and onboarding layout fixes and is newer than the named September 13 debug preview. [Evidence](../evidence/play-assets-2026-09-14.json) records APK, fixture, source and image hashes. It does not identify these images as a capture of a Play-signed release. Compare or regenerate them after the final candidate changes.

@@ -4,13 +4,18 @@ A learner can be comfortable in one language and new to another. Mural therefore
 
 Language-specific content lives in `apps/ios/Core/Languages/`. Each module defines its greeting, regional speech guidance, writing conventions, lemma rules, six teaching stages and cultural theme overrides.
 
-The product target is English, Mandarin and Hong Kong Cantonese. After the availability split is implemented, new conversations will expose English and Mandarin. Cantonese remains planned until its Hong Kong Traditional Chinese content and human voice-quality gate pass. The existing Norwegian, Spanish, French, German, Italian and Portuguese modules will be hidden from new selection but retained for historical decoding. This target-language policy is independent of interface localization and meaning-subtitle languages. Until that migration lands, the current registry and UI still expose all eight implemented modules.
+The [accepted baseline](web-ios-model-gateway-plan.md) targets English, Mandarin and Cantonese,
+but currently develops and tests English alone. Web offers English and marks Mandarin/Cantonese
+coming later. The Cantonese display name is “粤语”, while its locale remains `yue-Hant-HK`.
+The known/available split already exists in native registries; native/API Mandarin compatibility
+remains until a separately tested migration. Eight retained modules do not imply eight available
+product choices. Preserve all historical decoding. Interface/subtitle language is a separate setting.
 
 | Storage ID | Learning target | Locale | Target availability |
 | --- | --- | --- | --- |
-| `en` | International English | `en-US` | Available |
-| `zh` | Standard Mandarin, Simplified Chinese | `zh-CN` | Available |
-| `yue` | Hong Kong Cantonese, Traditional Chinese | `yue-Hant-HK` | Planned, gated |
+| `en` | International English | `en` (legacy `en-US` retained) | Current development and staging |
+| `zh` | Standard Mandarin, Simplified Chinese | `zh-CN` | Coming later; native/API compatibility retained |
+| `yue` | Cantonese, Traditional Chinese | `yue-Hant-HK` | Coming later; not enabled |
 | `nb` | Norwegian Bokmål, Eastern Norwegian speech | `nb-NO` | Historical decoding |
 | `es` | Spanish from Spain | `es-ES` | Historical decoding |
 | `fr` | French from France | `fr-FR` | Historical decoding |
@@ -34,13 +39,18 @@ Pinyin appears separately below selectable Chinese text, with a Show/Hide contro
 
 Hong Kong Cantonese is a separate language module, not a Mandarin variety. Its stable storage ID is `yue`, its first product locale is `yue-Hant-HK`, and its own output uses Hong Kong Traditional Chinese. It must keep separate progress, vocabulary, assessment prompts, speech guidance and fixtures. Mandarin pinyin is never reused for Cantonese; if pronunciation annotation ships, it uses reviewed Jyutping. Because the provider does not publish a Cantonese quality guarantee for `gpt-live-1`, Cantonese stays unavailable until competent Hong Kong Cantonese speakers approve continuous speech, interruption handling, transcription, code-switching and conservative corrections.
 
-These are compiled modules. Adding one ships with an app update; there is no remote module download or extra service. Every new language needs a proficient-speaker teaching and pronunciation review. The Android contribution is not integrated in this checkout, so there is no Android generated catalog to update here.
+Native modules are compiled and exported into Android's generated catalog. Web has its own
+selection gate; future shared capability policy must distinguish model support from product release.
+Every reopened/new language needs its own quality review; Mandarin work is currently paused.
 
 See [how to add a language](add-language.md) for the implementation steps.
 
 ## Two native cores, one contract
 
-The Android client is a separate Kotlin/Compose app, not a shared build. `scripts/export_android_content.py` generates Android's language content (`Languages.kt`) from the Swift known-language modules, so retained archive modules reach both platforms without being written twice. Availability is exported separately and must match the Web/iOS product list.
+The Android client is a separate Kotlin/Compose app, not a shared build. `scripts/export_android_content.py`
+generates Android content (`Languages.kt`) from Swift known-language modules. Native availability
+is exported separately. Web currently applies an English-only gate; the future shared capability
+policy must be implemented explicitly rather than claiming those selectors already match.
 
 Everything else in the learning core is ported by hand, so `scripts/check_cross_platform.py` checks that the two ports stay in agreement: the teaching prompts sent to the model, a fixed table of shared numeric constants (recall spacing, evidence thresholds, session limits), and the required fields of the JSON backup archive. Golden fixtures under `shared/fixtures/cross-platform/` are read by both `swift test` and the Android unit tests, so a behavior change can be verified identically on both cores.
 

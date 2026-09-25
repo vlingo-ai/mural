@@ -1,5 +1,9 @@
 # Signed Android candidate — 14 September 2026
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/upstream 原生发布参考：以下清单、定价草稿、身份、域名和已完成状态只适用于其注明的版本，不是 vLingo 当前发布批准。新三端版本须重新审查隐私、数据流、签名、商店材料及实测结果。
+> 当前范围和后续顺序见[项目开发基准](../../docs/web-ios-model-gateway-plan.md)。
+
 `Mural-Android-release-2026-09-14.aab` is ready for internal Play testing in the sibling `Hej/deliverables` directory. This audit did not upload it. The package is `chat.mural.android`, version 0.1 (code 1), with minimum API 26 and target API 36. Paid checkout remains disabled.
 
 - **SHA-256:** `cb327af6edbecbf3b2212cdfc12d978c763a6517a5505bccddb35a5f82d50d20`

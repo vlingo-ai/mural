@@ -1,5 +1,9 @@
 # Why paid minutes are estimates
 
+<!-- baseline-scope:2026-09-23 -->
+> 兼容功能参考：本文件的原生账户、商业能力和历史部署状态不构成当前 vLingo staging 的启用批准。按最新基准与 staging runbook 核对实际版本；upstream 域名、OAuth/商店身份和定价不可直接复用。Web 托管历史存于服务端，不能套用原生“仅本地”隐私描述。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 Mural's approved pricing formula uses exact AI cost, a 15% Mural service fee, and separately quoted payment costs and buffer. Purchased balances fund actual provider charges; the app shows estimated conversation minutes. A purchase does not guarantee a fixed duration. The $5.99 offer was not approved.
 
 Voice has a duration-based cost. Meanings, corrections, assessments and topic searches add usage that varies between conversations. Under exact-usage pricing, a currency balance allows Mural to charge for actual provider usage while keeping unused value available for later conversations. Purchased value adds to the existing balance; it does not replace remaining free time. Free and gifted minutes remain duration entitlements and are spent before paid value.

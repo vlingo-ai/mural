@@ -4,6 +4,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to verify (active follows ci-stage.json)
+        type: choice
+        default: active
+        options: [active, web, ios, android, all]
 
 permissions:
   contents: read
@@ -13,7 +19,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    uses: ./.github/workflows/ci-scope.yml
+    with:
+      platform: ${{ inputs.platform || 'active' }}
   web:
+    needs: scope
+    if: needs.scope.outputs.web == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -34,6 +46,8 @@ jobs:
       - run: npm run test:e2e
 
   swift-core:
+    needs: scope
+    if: needs.scope.outputs.swift == 'true'
     runs-on: macos-15
     timeout-minutes: 15
     steps:
@@ -43,6 +57,8 @@ jobs:
       - run: swift test --package-path apps/ios
 
   server:
+    needs: scope
+    if: needs.scope.outputs.server == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
@@ -75,6 +91,8 @@ jobs:
       - run: npm test
 
   phase-5-5b-deployment:
+    needs: scope
+    if: needs.scope.outputs.deployment == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
@@ -113,3 +131,21 @@ jobs:
       - run: docker compose --env-file deploy/phase-5-5b/.env.example -f deploy/phase-5-5b/compose.yaml config --quiet
       - run: docker build --file services/api/Dockerfile --tag vlingo-speaking-live-api:ci services/api
       - run: docker build --file deploy/phase-5-5b/web.Dockerfile --tag vlingo-speaking-live-web:ci .
+
+  checks-gate:
+    if: always()
+    needs: [scope, web, swift-core, server, phase-5-5b-deployment]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require selected checks to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          jobs = json.loads(os.environ['RESULTS'])
+          assert jobs['scope']['result'] == 'success', 'CI scope failed'
+          for job, output in [('web', 'web'), ('swift-core', 'swift'), ('server', 'server'), ('phase-5-5b-deployment', 'deployment')]:
+              expected = 'success' if jobs['scope']['outputs'][output] == 'true' else 'skipped'
+              assert jobs[job]['result'] == expected, f'{job}: {jobs[job]["result"]}, expected {expected}'
+          PY

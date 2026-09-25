@@ -1,5 +1,11 @@
 # Configure Android accounts
 
+Scope: existing Android integration, not a completed LiveKit migration.
+The [baseline](web-ios-model-gateway-plan.md) requires future fork builds to own their package,
+signing certificate and OAuth project. The implemented `GOOGLE_ANDROID_CLIENT_IDS` list and
+`GOOGLE_ANDROID_SERVER_CLIENT_ID` audience must not be renamed to a singular variable without
+coordinated code/config migration. Shared recovery is scheduled for the later Android phase.
+
 Android uses the same account service and Google subject as iOS. An existing Google user signs into the same Mural account. Learning history remains on the device; the account stores identity and conversation-time records.
 
 This branch implements native Google sign-in, secure session storage, account refresh, sign-out, deletion and minute-balance display. Automated tests use synthetic tokens and an isolated database. Real Android Google authorization and the production rollout still need verification. Hosted conversations and purchases remain disabled.

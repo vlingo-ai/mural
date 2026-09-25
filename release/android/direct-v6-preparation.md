@@ -1,5 +1,9 @@
 # Android version 6 preparation
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/upstream 原生发布参考：以下清单、定价草稿、身份、域名和已完成状态只适用于其注明的版本，不是 vLingo 当前发布批准。新三端版本须重新审查隐私、数据流、签名、商店材料及实测结果。
+> 当前范围和后续顺序见[项目开发基准](../../docs/web-ios-model-gateway-plan.md)。
+
 Version 6 is being prepared to fix Google sign-in when guest conversation usage is still being settled. The change lets the Google flow open and durably links the earlier guest usage to the member account. Available gift or purchased balance can then be used while that usage is reconciled, without granting a second welcome allowance. Building and runtime verification remain pending.
 
 The package remains `chat.mural.android`, version name `0.1`, minimum API 26 and target API 36. The default spec uses version code 6 with purchases disabled by default. [specs/direct-v6.json](specs/direct-v6.json) describes the explicitly configured direct Stripe build. The [v5 direct spec](specs/direct-v5.json) and [v4 Play submission](evidence/play-submission-2026-09-14.json) remain historical records.

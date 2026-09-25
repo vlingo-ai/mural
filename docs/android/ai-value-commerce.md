@@ -1,5 +1,9 @@
 # Paid AI value and estimated conversation time
 
+<!-- baseline-scope:2026-09-23 -->
+> 现有原生/商业兼容参考：不是 Android LiveKit 已迁移的声明，也不是本 fork 的定价或支付发布批准。当前集中英语，普通话/粤语后置；共同协议及平台迁移按最新基准实施。
+> 当前范围和后续顺序见[项目开发基准](../web-ios-model-gateway-plan.md)。
+
 Paid purchases add a prepaid AI allocation to the existing nano-USD wallet. They do not grant a fixed number of minutes. Free welcome time and minute gifts keep their separate time ledger.
 
 ## Quote and fulfillment

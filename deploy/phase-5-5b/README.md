@@ -1,5 +1,26 @@
 # Phase 5.5B Cloud Build staging runbook
 
+Scope updated 2026-09-24: follow the [accepted development baseline](../../docs/web-ios-model-gateway-plan.md).
+Staging is deployed; real Cloud quota rejection is waived for this English staging gate only,
+not actually tested. The final Gate 7 report/signoff remains pending. The numbered steps below are a reusable procedure,
+not outstanding tasks to repeat indiscriminately. See [dated evidence](../../verification/phase-5-5b/README.md).
+
+For future releases, use the [reusable release verification design](../../docs/operations/release-verification-plan.md)
+and [report template](../../verification/release-verification-template.md) alongside this runbook.
+The design distinguishes existing scripts from planned automation; it does not enable automatic deployments,
+paid tests, or carry this staging gate's exceptions into another release.
+
+B1 staging deployment (2026-09-25, [Mural API PR #38](https://github.com/vlingo-ai/mural/pull/38)
+and [Worker PR #16](https://github.com/vlingo-ai/model-gateway/pull/16), merged with green CI):
+migration 028 was applied, API was deployed before Worker, and non-billable verification passed.
+See the [dated cleanup/lease evidence and limits](../../verification/2026-09-24-b1-resource-cleanup.md).
+Future deployments must still apply migration 028 before enabling the new Worker, verify API access to
+`hosted_resource_cleanup`, and deploy/verify the matching API lease response.
+A restricted runtime role needs SELECT/INSERT/UPDATE; the 2026-09-24 staging precheck instead
+found API using superuser `mural` (no extra grant needed, separate least-privilege hardening pending).
+Preserve encrypted backups and old images/configuration. Roll back Worker before API and retain
+the additive cleanup table. Do not automatically sweep historical rooms without verified targets.
+
 This bundle prepares the **vLingo Speaking Live** Phase 5.5B hybrid topology on one dedicated
 Ubuntu 24.04 LTS staging VPS. LiveKit Cloud owns rooms and media. The VPS runs PostgreSQL, Mural
 API, the Responses-only Model Gateway, the GPT-Live Agent Worker, and Caddy. It is a Build
@@ -15,8 +36,9 @@ Mark a gate complete only after recording its evidence in `verification/phase-5-
 - Agent Worker owns `gpt-live-1` and is the only process that receives `WORKER_OPENAI_API_KEY`.
 - Model Gateway owns Responses only in the first 5.5B deployment. Both audio backends are fixed to
   `disabled`; its image must not install or import MLX audio packages.
-- LiveKit Cloud receives its project credential and non-sensitive room identifiers, never an OpenAI
-  key, transcript, long-lived user credential, or billing control secret.
+- Public room metadata must contain no transcript or secrets. Private Agent dispatch metadata currently
+  carries bounded history and a per-session HMAC control token through LiveKit to Worker; it is sensitive
+  and must not be logged/exported. The root control secret and OpenAI keys are not sent in that metadata.
 - Web receives only the public Mural API origin and a public OAuth client ID.
 - Existing `mural` database/protocol identifiers remain for compatibility. New external resources
   use `vlingo-speaking-live`.
@@ -36,7 +58,7 @@ not bind or restart that host's port 8000 service.
    git merge-base --is-ancestor upstream/main HEAD
    ```
 
-   Expected: a clean `codex/phase-5-5b-cloud-build` release candidate and exit status 0 for the
+   Expected: a clean, reviewed release commit (not a prescribed historical branch) and exit status 0 for the
    ancestry check.
 
 2. Confirm Model Gateway has merged the trusted Responses contract (`ResponseSource`, `sources`,
@@ -218,13 +240,17 @@ Before a provider call, prove all of the following:
 - Mural `/healthz` is healthy and the database is ready.
 - Model Gateway health and Responses capability are ready; ASR and Alignment report disabled.
 - Mural product capability advertises `livekit-room` only to the restricted staging account after
-  authentication; `yue-Hant-HK` remains rejected and product selectors expose only English and
-  Mandarin.
+  authentication; `yue-Hant-HK` remains rejected. The Web selector offers English only, with
+  Mandarin/Cantonese coming later; API/native `zh-CN` compatibility is not removed by this Web gate.
 - Agent Worker is registered under `vlingo-speaking-live-gpt-live` in the correct LiveKit project.
 - Container inspection shows API has no OpenAI key, Worker has no Gateway/database/account secrets,
   and Gateway has no LiveKit credential or Worker key. Do not save raw inspection output.
 - Logs and LiveKit room metadata contain no transcript, authorization header, OpenAI key, LiveKit
   secret, database URL, or long-lived user credential.
+
+Do not extend the last claim to private dispatch metadata; see its separate sensitive-data boundary above.
+Current `verify.sh` output alone does not establish container health/Worker registration assertions;
+record explicit checks until baseline B7 makes those checks fail closed.
 
 ### Accepted LiveKit credential hardening follow-up
 
@@ -257,6 +283,11 @@ For the current English-only (`en`) staging acceptance scope, use the restricted
 5. Worker hard-stop, 30-second lease expiry, forced room close, safe settlement, and reconciliation
    marker;
 6. Cloud quota/limit rejection that fails closed with a safe user error and no leaked reservation.
+
+Item 6 has an explicit [September 24 staging-only waiver](../../verification/phase-5-5b/2026-09-24-gate-7-continuation.md#cloud-waiver-decision)
+after community reply review. Retain local rejection/settlement evidence and report WAIVED, not PASS.
+The community monitor was deleted; no burst test, capacity purchase or quota change is authorized.
+This does not waive other items or carry forward into future releases.
 
 Capture median and worst observed first-audio latency, interruption latency, reconnect time,
 participant minutes, ingress/egress bytes, error count/rate, VPS CPU/RSS, and Mural billed duration.

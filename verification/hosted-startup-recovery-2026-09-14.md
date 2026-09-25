@@ -1,5 +1,9 @@
 # Hosted startup recovery — 14 September 2026
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/版本限定验证：仅证明所列源码、平台和环境。upstream 的服务、账户、真机与商店状态不能归属于本 fork；原生 WebRTC 通过不等于新三端 LiveKit 验收。
+> 当前范围和后续顺序见[项目开发基准](../docs/web-ios-model-gateway-plan.md)。
+
 The reviewer saw 100 minutes but could not start a conversation. An earlier unconfirmed create retained a ten-minute reservation and blocked subsequent attempts. The previous adapter discarded the provider response details, so the original startup failure cannot be established retrospectively.
 
 Bounded synthetic checks passed with the authorized server key: direct WebRTC creation, creation from the deployed server, the complete public guest/session/close flow, and acceptance of an actual native Android SDP offer. The connected silent sessions finalized at 19 seconds. The native offer was accepted and immediately hung up without connecting client media. The emulator was shut down after the isolated diagnostic; reviewer and owner app data were preserved.

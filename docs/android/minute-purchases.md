@@ -1,5 +1,9 @@
 # Android minute purchases
 
+<!-- baseline-scope:2026-09-23 -->
+> 现有原生/商业兼容参考：不是 Android LiveKit 已迁移的声明，也不是本 fork 的定价或支付发布批准。当前集中英语，普通话/粤语后置；共同协议及平台迁移按最新基准实施。
+> 当前范围和后续顺序见[项目开发基准](../web-ios-model-gateway-plan.md)。
+
 The Android purchase foundation is implemented but disabled by default. It does not activate a catalog, create Play products or charge anyone. The account screen and activity lifecycle now connect it through `MinutePurchaseViewModel` and `MinutePurchaseSheet`; the account entry is hidden while the capability is disabled.
 
 ## Application integration

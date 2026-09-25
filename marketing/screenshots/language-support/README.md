@@ -1,5 +1,9 @@
 # Language support screenshots
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史截图资产：保留 upstream 样例与来源，不代表当前英语 staging 或未来新原生 App 的界面、语言开放范围及商店素材。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 Three unedited captures of Mural's native Talk screen on an iPhone 16 Pro simulator running iOS 26.4.1, taken on 13 September 2026 from the app at `7ea5a8168d35894323ce0717ec8b2caee0e26191`.
 
 | File | Language | Visible behavior |

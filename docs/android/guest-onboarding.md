@@ -1,5 +1,9 @@
 # Guest conversations on Android
 
+<!-- baseline-scope:2026-09-23 -->
+> 现有原生/商业兼容参考：不是 Android LiveKit 已迁移的声明，也不是本 fork 的定价或支付发布批准。当前集中英语，普通话/粤语后置；共同协议及平台迁移按最新基准实施。
+> 当前范围和后续顺序见[项目开发基准](../web-ios-model-gateway-plan.md)。
+
 A fresh installation starts with Mural-hosted conversations after language selection, subtitle selection, and AI consent. Google sign-in is optional. Existing installations with a saved personal API key keep that provider; an explicit provider preference always wins. Saving a key selects the personal-key provider, and the account sheet lets guests switch back to Mural minutes.
 
 The consent screen includes an 18-or-older confirmation in English and Spanish. It does not collect a date of birth or add an onboarding step.
