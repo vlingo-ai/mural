@@ -239,6 +239,12 @@ export class HostedVoice {
     Promise<LiveDelegation | LiveProviderRejection | VoiceUsage> {
     if (!this.provider.acceptTrustedEvent) throw new ServiceError('livekit_control_unavailable', 404);
     const event = this.provider.acceptTrustedEvent(id, authorization, body);
+    if (event.type === 'session.usage.updated' || event.type === 'session.closed') {
+      await this.slots.get(id)?.queue;
+      const row = (await this.db.query('SELECT provider_session_id FROM hosted_sessions WHERE id=$1', [id])).rows[0];
+      if (!row?.provider_session_id) throw new ServiceError('livekit_session_not_attached', 409);
+      await this.recordUsage(id, row.provider_session_id, event);
+    }
     if (event.type === 'session.provider.rejected') await this.settleRuntimeRejection(id, event);
     return event;
   }
@@ -252,6 +258,23 @@ export class HostedVoice {
     return Math.max(0, Math.min(this.provider.controlLeaseMilliseconds ?? 0,
       new Date(row.provider_lease_expires_at).getTime() - this.now(),
       new Date(row.deadline).getTime() - this.now()));
+  }
+  async controlReceipt(id: string, event: VoiceUsage): Promise<{ accepted: true; committed: true;
+    observedMilliseconds: number; acknowledgedMilliseconds: number }> {
+    const row = (await this.db.query('SELECT state,observed_ms,provider_usage_final FROM hosted_sessions WHERE id=$1', [id])).rows[0];
+    const observedMilliseconds = Number(row?.observed_ms);
+    const reportedMilliseconds = Math.ceil(event.usage.seconds * 1000);
+    if (!row || !Number.isSafeInteger(observedMilliseconds) ||
+        (event.type === 'session.usage.updated' && observedMilliseconds < reportedMilliseconds) ||
+        (event.type === 'session.closed' && row.state !== 'closed'))
+      throw new ServiceError('provider_usage_reconciliation_required', 409);
+    if (event.type === 'session.closed' && !(row.provider_usage_final === true && observedMilliseconds === reportedMilliseconds)) {
+      const evidence = (await this.db.query('SELECT reported_ms FROM hosted_final_reconciliation WHERE session_id=$1', [id])).rows[0];
+      if (Number(evidence?.reported_ms) !== reportedMilliseconds)
+        throw new ServiceError('provider_usage_reconciliation_required', 409);
+    }
+    return { accepted: true, committed: true, observedMilliseconds,
+      acknowledgedMilliseconds: reportedMilliseconds };
   }
   private reportStartupFailure(diagnostic: { category: string; providerStatus?: number; requestID?: string }) {
     try { this.config.onStartupFailure?.(diagnostic); } catch { /* Diagnostics cannot change accounting. */ }
@@ -390,10 +413,26 @@ export class HostedVoice {
       else await lockWallet(sql, owner.account_id);
       const row = (await sql.query('SELECT * FROM hosted_sessions WHERE id=$1 FOR UPDATE', [id])).rows[0];
       if (row.provider_session_id !== providerID || row.rate_version !== RATE_VERSION) throw new ServiceError('provider_session_mismatch');
+      if (row.state === 'closed') {
+        const reported = Math.ceil(event.usage.seconds * 1000);
+        const persisted = Number(row.observed_ms);
+        if (event.type === 'session.closed' && row.provider_usage_final && reported === persisted)
+          return { finalized: true, close: false };
+        if (event.type === 'session.closed') {
+          await sql.query(`INSERT INTO hosted_final_reconciliation(session_id,reported_ms,settled_observed_ms,reason)
+            VALUES($1,$2,$3,$4) ON CONFLICT(session_id) DO NOTHING`,
+          [id, reported, persisted, row.provider_usage_final ? 'conflicting_final' : 'late_final']);
+          const evidence = (await sql.query('SELECT reported_ms FROM hosted_final_reconciliation WHERE session_id=$1', [id])).rows[0];
+          if (Number(evidence.reported_ms) === reported) return { finalized: true, close: false };
+          throw new ServiceError('provider_usage_reconciliation_required', 409);
+        }
+        if (event.type === 'session.usage.updated' && reported <= persisted)
+          return { finalized: true, close: false };
+        throw new ServiceError('provider_usage_reconciliation_required', 409);
+      }
       const meter = new VoiceMeter(providerID, row.limit_ms ? Number(row.limit_ms) : row.reserved_ms ? Number(row.reserved_ms) : TRIAL_MS);
       meter.milliseconds = Number(row.observed_ms); meter.finalized = row.state === 'closed';
       meter.receive(providerID, event);
-      if (row.state === 'closed') return { finalized: true, close: false };
       const lease = this.provider.controlLeaseMilliseconds
         ? new Date(this.now() + this.provider.controlLeaseMilliseconds) : null;
       await sql.query('UPDATE hosted_sessions SET observed_ms=$2,funding_exposure_nano=GREATEST(funding_exposure_nano,$3),provider_lease_expires_at=$4 WHERE id=$1',

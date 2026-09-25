@@ -28,14 +28,19 @@ assert all(body["operations"][name]["reason"] == "backend_disabled" for name in 
   exit 1
 }
 
-for service_name in database model-gateway api agent-worker edge; do
+for service_name in database model-gateway api agent-worker agent-worker-replay edge; do
   container_id=$(compose ps -q "$service_name")
   [ -n "$container_id" ] || { printf 'verify: %s container is absent\n' "$service_name" >&2; exit 1; }
   docker inspect --format '{{.Name}} {{.Config.Image}} {{.State.Status}} {{.State.Health.Status}}' "$container_id" 2>/dev/null || \
     docker inspect --format '{{.Name}} {{.Config.Image}} {{.State.Status}}' "$container_id"
 done
 
-if compose logs --since 15m api model-gateway agent-worker 2>&1 | grep -E 'OPENAI_API_KEY=|LIVEKIT_API_SECRET=|Authorization: Bearer |DATABASE_URL=' >/dev/null; then
+compose exec -T agent-worker-replay python -m mural_livekit.outbox_status --require-empty || {
+  printf 'verify: durable control outbox is not empty or cannot be inspected\n' >&2
+  exit 1
+}
+
+if compose logs --since 15m api model-gateway agent-worker agent-worker-replay 2>&1 | grep -E 'OPENAI_API_KEY=|LIVEKIT_API_SECRET=|MURAL_CONTROL_OUTBOX_KEY=|Authorization: Bearer |DATABASE_URL=' >/dev/null; then
   printf 'verify: possible secret-bearing log line detected\n' >&2
   exit 1
 fi

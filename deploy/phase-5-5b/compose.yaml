@@ -143,14 +143,41 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
       OPENAI_API_KEY: ${WORKER_OPENAI_API_KEY:?Set WORKER_OPENAI_API_KEY}
       MURAL_CONTROL_URL: http://127.0.0.1:8080
+      MURAL_CONTROL_OUTBOX_DIR: /var/lib/mural-worker-outbox
+      MURAL_CONTROL_OUTBOX_KEY: ${WORKER_OUTBOX_KEY:?Set WORKER_OUTBOX_KEY}
       MURAL_LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-vlingo-speaking-live-gpt-live}
       PYTHONDONTWRITEBYTECODE: "1"
     depends_on:
       api:
         condition: service_healthy
     read_only: true
+    volumes:
+      - "${WORKER_OUTBOX_HOST_DIR:?Set WORKER_OUTBOX_HOST_DIR}:/var/lib/mural-worker-outbox"
     tmpfs:
       - "/tmp:size=256m,mode=1777"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    labels: *product-labels
+    logging: *bounded-logging
+    restart: unless-stopped
+
+  agent-worker-replay:
+    image: ${LIVEKIT_WORKER_IMAGE:?Set an immutable LiveKit Agent Worker image digest}
+    network_mode: host
+    command: ["python", "-m", "mural_livekit.replay"]
+    environment:
+      MURAL_CONTROL_URL: http://127.0.0.1:8080
+      MURAL_CONTROL_OUTBOX_DIR: /var/lib/mural-worker-outbox
+      MURAL_CONTROL_OUTBOX_KEY: ${WORKER_OUTBOX_KEY:?Set WORKER_OUTBOX_KEY}
+      PYTHONDONTWRITEBYTECODE: "1"
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    volumes:
+      - "${WORKER_OUTBOX_HOST_DIR:?Set WORKER_OUTBOX_HOST_DIR}:/var/lib/mural-worker-outbox"
+    tmpfs:
+      - "/tmp:size=64m,mode=1777"
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     labels: *product-labels

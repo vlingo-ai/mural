@@ -137,9 +137,9 @@ export class LiveKitLiveProvider implements LiveProvider {
         throw new ServiceError('invalid_livekit_control_event');
       const event: VoiceUsage = { type: body.type === 'session.heartbeat' ? 'session.usage.updated' : body.type,
         usage: { seconds: body.seconds } };
-      const listener = this.#listeners.get(sessionID);
-      if (!listener) throw new ServiceError('livekit_session_not_attached', 409);
-      listener.onUsage(event);
+      // Parse only: the controller must await its database transaction before
+      // returning HTTP 2xx. A retry after API restart or finalization cannot
+      // depend on this process's in-memory listener.
       return event;
     }
     if (body.type === 'session.provider.rejected') {

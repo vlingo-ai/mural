@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { execFile } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { chmodSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type Stripe from 'stripe';
 import { connectDatabase, transaction } from '../src/db.js';
@@ -17,6 +22,9 @@ import { MinutePurchases, type VerifiedMinutePurchase } from '../src/minute-purc
 import { HostedHelpers } from '../src/hosted-helpers.js';
 import type { VoiceUsage } from '../src/live-provider.js';
 import { digest, signOut, authenticate } from '../src/auth.js';
+import { createApp } from '../src/app.js';
+
+const execFileAsync = promisify(execFile);
 
 const databaseURL = process.env.TEST_DATABASE_URL;
 if (databaseURL && !new URL(databaseURL).pathname.endsWith('_test')) throw new Error('Dedicated test database required.');
@@ -57,6 +65,137 @@ integration('B1: control grant waits for persistence and never exceeds the funde
     fake.send({ type: 'session.usage.updated', usage: { seconds: 6 } });
     assert.equal(await f.controller.controlLeaseMilliseconds(live.sessionID), 0);
   } finally { await f.cleanup(); }
+});
+
+integration('B2: control final is acknowledged only after commit and replay cannot charge twice', async () => {
+  const fake = cleanupProvider();
+  fake.provider.acceptTrustedEvent = (_id, _authorization, body) => {
+    const event = body as { type: 'session.usage.updated' | 'session.closed'; seconds: number };
+    return { type: event.type, usage: { seconds: event.seconds } };
+  };
+  const f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
+  try {
+    const live = await f.controller.create(f.account, 'b2-commit-ack-key', '', 'en');
+    await f.db.query(`CREATE FUNCTION reject_b2_final() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'simulated final commit failure'; END $$`);
+    await f.db.query(`CREATE TRIGGER reject_b2_final BEFORE UPDATE ON hosted_sessions
+      FOR EACH ROW WHEN (NEW.state='closed') EXECUTE FUNCTION reject_b2_final()`);
+    await assert.rejects(f.controller.acceptTrustedEvent(live.sessionID, undefined,
+      { type: 'session.closed', seconds: 20 }), /simulated final commit failure/);
+    await assert.rejects(f.controller.controlReceipt(live.sessionID,
+      { type: 'session.closed', usage: { seconds: 20 } }), { code: 'provider_usage_reconciliation_required' });
+    assert.equal((await f.controller.status(f.account, live.sessionID)).state, 'active');
+    assert.deepEqual(await f.minutes(), { balance_ms: '90000', reserved_ms: '90000' });
+    await f.db.query('DROP TRIGGER reject_b2_final ON hosted_sessions');
+    await f.controller.acceptTrustedEvent(live.sessionID, undefined, { type: 'session.closed', seconds: 20 });
+    assert.deepEqual(await f.controller.controlReceipt(live.sessionID,
+      { type: 'session.closed', usage: { seconds: 20 } }),
+    { accepted: true, committed: true, observedMilliseconds: 20_000, acknowledgedMilliseconds: 20_000 });
+    const afterCommit = await f.minutes();
+    assert.deepEqual(afterCommit, { balance_ms: '70000', reserved_ms: '0' });
+    // Simulate lost HTTP response after COMMIT, then reconstruct the controller
+    // against the same database before the Worker retries the same final.
+    await f.restart();
+    await f.controller.acceptTrustedEvent(live.sessionID, undefined, { type: 'session.closed', seconds: 20 });
+    await f.controller.acceptTrustedEvent(live.sessionID, undefined, { type: 'session.usage.updated', seconds: 19 });
+    assert.deepEqual(await f.minutes(), afterCommit);
+    await f.controller.acceptTrustedEvent(live.sessionID, undefined, { type: 'session.closed', seconds: 21 });
+    assert.deepEqual((await f.db.query('SELECT reported_ms,settled_observed_ms,reason FROM hosted_final_reconciliation WHERE session_id=$1',
+      [live.sessionID])).rows[0], { reported_ms: '21000', settled_observed_ms: '20000', reason: 'conflicting_final' });
+    assert.deepEqual(await f.minutes(), afterCommit, 'a conflicting provider final is evidence, not a second debit');
+    await assert.rejects(f.controller.acceptTrustedEvent(live.sessionID, undefined,
+      { type: 'session.closed', seconds: 22 }), { code: 'provider_usage_reconciliation_required' });
+  } finally { await f.cleanup(); }
+});
+
+integration('B2: a late final after lease-expiry settlement is retained without changing user charges', async () => {
+  const fake = cleanupProvider();
+  fake.provider.acceptTrustedEvent = (_id, _authorization, body) => {
+    const event = body as { type: 'session.usage.updated' | 'session.closed'; seconds: number };
+    return { type: event.type, usage: { seconds: event.seconds } };
+  };
+  const f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
+  try {
+    const live = await f.controller.create(f.account, 'b2-late-final-key', '', 'en');
+    await f.controller.acceptTrustedEvent(live.sessionID, undefined, { type: 'session.usage.updated', seconds: 17 });
+    f.advance(30_001); await f.controller.tick();
+    const charged = await f.minutes();
+    assert.deepEqual(charged, { balance_ms: '73000', reserved_ms: '0' });
+    await f.controller.acceptTrustedEvent(live.sessionID, undefined, { type: 'session.closed', seconds: 19 });
+    assert.deepEqual(await f.controller.controlReceipt(live.sessionID, { type: 'session.closed', usage: { seconds: 19 } }),
+      { accepted: true, committed: true, observedMilliseconds: 17_000, acknowledgedMilliseconds: 19_000 });
+    assert.deepEqual((await f.db.query('SELECT reported_ms,settled_observed_ms,reason FROM hosted_final_reconciliation WHERE session_id=$1',
+      [live.sessionID])).rows[0], { reported_ms: '19000', settled_observed_ms: '17000', reason: 'late_final' });
+    await f.controller.acceptTrustedEvent(live.sessionID, undefined, { type: 'session.closed', seconds: 19 });
+    assert.deepEqual(await f.minutes(), charged);
+  } finally { await f.cleanup(); }
+});
+
+test('B2 cross-repository: real API HTTP and Worker process replay final exactly once', {
+  skip: !databaseURL || !process.env.B2_WORKER_PYTHON || !process.env.B2_WORKER_PYTHONPATH
+    ? 'Set TEST_DATABASE_URL, B2_WORKER_PYTHON and B2_WORKER_PYTHONPATH.' : false,
+}, async () => {
+  const fake = cleanupProvider();
+  fake.provider.acceptTrustedEvent = (_id, _authorization, body) => {
+    const event = body as { type: 'session.usage.updated' | 'session.closed'; seconds: number };
+    return { type: event.type, usage: { seconds: event.seconds } };
+  };
+  const f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
+  const directory = mkdtempSync(join(tmpdir(), 'mural-b2-cross-'));
+  chmodSync(directory, 0o700);
+  const key = randomBytes(32).toString('base64');
+  let app = createApp({ db: f.db, auth: {}, hosted: f.controller });
+  const script = `import asyncio,os
+from mural_livekit.outbox import DurableUsageOutbox
+from mural_livekit.replay import replay_once
+box=DurableUsageOutbox(os.environ['B2_DIR'],os.environ['B2_KEY'])
+if os.environ['B2_ACTION']=='enqueue':
+ box.put(os.environ['B2_SESSION'],'test-control-token',20,final=True)
+elif os.environ['B2_ACTION']=='replay':
+ asyncio.run(replay_once(box,os.environ['B2_ORIGIN']))
+else:
+ print(len(box.pending()))`;
+  const python = async (action: string, origin = '') => {
+    const result = await execFileAsync(process.env.B2_WORKER_PYTHON!, ['-c', script], {
+      env: { ...process.env, PYTHONPATH: process.env.B2_WORKER_PYTHONPATH!,
+        B2_DIR: directory, B2_KEY: key, B2_ACTION: action, B2_ORIGIN: origin,
+        B2_SESSION: live.sessionID }, timeout: 15_000,
+    });
+    return result.stdout.trim();
+  };
+  let live!: Awaited<ReturnType<typeof f.controller.create>>;
+  try {
+    live = await f.controller.create(f.account, 'b2-cross-repo-key', '', 'en');
+    const origin = await app.listen({ host: '127.0.0.1', port: 0 });
+    await python('enqueue');
+    await f.db.query(`CREATE FUNCTION reject_b2_cross_final() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'simulated final commit failure'; END $$`);
+    await f.db.query(`CREATE TRIGGER reject_b2_cross_final BEFORE UPDATE ON hosted_sessions
+      FOR EACH ROW WHEN (NEW.state='closed') EXECUTE FUNCTION reject_b2_cross_final()`);
+    await python('replay', origin);
+    assert.equal(await python('count'), '1');
+    assert.deepEqual(await f.minutes(), { balance_ms: '90000', reserved_ms: '90000' });
+    await f.db.query('DROP TRIGGER reject_b2_cross_final ON hosted_sessions');
+    await python('replay', origin);
+    assert.equal(await python('count'), '0');
+    const charged = await f.minutes();
+    assert.deepEqual(charged, { balance_ms: '70000', reserved_ms: '0' });
+
+    // A committed response lost to the Worker leaves the same final on disk.
+    // Rebuild the real API controller before replaying it over HTTP.
+    await python('enqueue');
+    await app.close();
+    await f.restart();
+    app = createApp({ db: f.db, auth: {}, hosted: f.controller });
+    const restartedOrigin = await app.listen({ host: '127.0.0.1', port: 0 });
+    await python('replay', restartedOrigin);
+    assert.equal(await python('count'), '0');
+    assert.deepEqual(await f.minutes(), charged);
+  } finally {
+    await app.close();
+    await f.cleanup();
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 integration('B1: cleanup confirmation DB failure survives restart and repeats deletion safely', async () => {
