@@ -17,7 +17,8 @@ current-session response. JSON-schema fixtures cover both transports and reject 
 Actual Live route/isolated-database response validation is now covered. Helper JSON/SSE declarations
 and synthetic event fixtures are added; actual helper route serialization/Accept negotiation is
 validated with a fake helper and isolated authentication DB. This is not full helper/provider
-integration. Compatible DTO generation remains pending; do not assume full parity.
+integration. The reviewed Live DTO graph is generated for all three languages with shared
+round-trip fixtures; runtime client adoption is deferred. Do not assume full API parity.
 The deprecated `instructions` field documents existing compatibility only; new clients must not
 treat it as new prompt authority. API language compatibility does not enable deferred UI languages.
 The [accepted plan](../../docs/web-ios-model-gateway-plan.md) requires runtime/contract tests first,
@@ -43,5 +44,5 @@ Unknown profiles fail closed. These checks inspect contract declarations, not a 
 LiveKit Worker control events remain a separate internal authenticated protocol, not public DTOs.
 
 First DTO candidates and explicit limitations are under [generated/](generated/README.md).
-Generation/checking is implemented for four primitive object schemas only; full DTO generation
-and runtime client adoption are not complete.
+Generation/checking covers the selected Live request/response graph, including native unions
+and field presence. See its README for excluded legacy inputs and runtime adoption boundaries.

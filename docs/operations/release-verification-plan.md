@@ -296,6 +296,8 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-25：B3 候选上传受阻 | [权限边界](../../verification/2026-09-25-b3-contract-alignment.md#发布权限边界) | 本地验证完成；push 被安全审批拒绝，需明确上传授权。无远端 PR/CI/合并，保存本地候选；无部署 | 不以本地完成替代发布签结，不绕过上传审批；等待明确目标仓库/分支授权 |
+| 2026-09-25：B3 完整 Live DTO 本地候选 | [第八轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第八轮完整-live-dto-候选与本地验证) | API clean-install/构建及 428/428 PASS（修正首跑 Worker 路径 FAIL）；Web 37/37、mock E2E 2/2；Python 72/72；独立原生编解码实际执行。PR/CI 待办，无部署/付费 | 三端共用 fixture 检查 presence/null、联合分派、费用字符串；native codec 非完整 schema validator；生成 Live DTO 不等于全 API SDK 或客户端采用 |
 | 2026-09-25：B3 原生 transport codec | [第七轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第七轮原生-transport-联合编解码) | 生成/漂移、Python 72/72、独立 Swift 编译及往返/拒绝 PASS；Kotlin 工具不可用，编译 NOT_RUN；未接应用 | discriminator 扩展必须阻断旧生成器并复核；同模块 codec 测试不能替代跨模块/应用验收，不为轻量 DTO 任务启动原生重型构建 |
 | 2026-09-25：B3 TS 联合类型 | [第六轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第六轮typescript-完整-live-wire-类型) | 首次共享 .ts 导致 rootDir FAIL；改 .d.ts 后生成/漂移、Python 71/71、API 类型正反例 PASS。原生扩展与客户端接入未完成 | DTO 生成需验证必需 nullable 与可选字段差异、联合类型收窄、未知类型拒绝；声明产物不扩张运行时构建边界 |
 | 2026-09-25：B3 首批 DTO 生成 | [第五轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第五轮首批-dto-生成与漂移检查) | const 无 type 首跑失败，修正后生成/漂移及 TS 检查 PASS，Python 69/69 PASS；原生编译 NOT_RUN，未接客户端 | 生成必须确定性、CI 检查漂移、未知形状失败；生成成功不等于三端运行时/编解码通过；完整 DTO 待办 |

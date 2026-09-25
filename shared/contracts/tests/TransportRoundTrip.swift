@@ -20,7 +20,7 @@ import Foundation
             } catch is DecodingError { }
         }
         do {
-            _ = try encoder.encode(LiveTransportDTO.webrtc(.init(type: "wrong", sdp: "v=0")))
+            _ = try encoder.encode(LiveTransportDTO.variant0(.init(type: "wrong", sdp: "v=0")))
             fatalError("Mismatched transport encoded")
         } catch is EncodingError { }
         print("Swift transport round-trip and rejection: PASS")

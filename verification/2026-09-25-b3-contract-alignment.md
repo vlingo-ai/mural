@@ -143,4 +143,43 @@ Swift 测试与生成文件同模块编译，不证明跨模块公开构造或�
 这些 codec 不是完整 JSON Schema 验证器，额外字段及文本格式规则仍依赖边界校验。
 完整原生 session/status/helper DTO、共享测试矩阵、客户端采用和最终 CI 仍待完成。
 本轮无服务端运行时修改，无需部署，无付费调用。B3 未完成。
+
+## 第八轮：完整 Live DTO 候选与本地验证
+
+三端生成统一覆盖 13 个 Live schema 根节点及其内嵌对象：transport、capabilities、
+usage、session/status/current、history/create、helper result/event、error。
+原生 object 编解码保留 required nullable 与 optional presence 的差异，enum/const 双向校验，
+Swift 有公开构造器。生成器拒绝未支持形状/引用或不一致 discriminator，不静默降级。
+这不是全 API SDK：旧 helper request 的递归用户 schema、其他账户/model-task 未纳入生成。
+客户端采用与平台应用验收仍属于后续适配，不在本轮启用原生功能。
+
+通过现有 Gradle 缓存找到 Kotlin 编译器/序列化插件，新增独立 JVM 检查脚本，
+无需 Gradle/Android 应用/模拟器。Swift 与 Kotlin 共享 24 条 JSON fixture：两 transport、
+Live 创建、status/current 的 missing/null、history 角色/内容、helper usage/result/events、
+错误响应和 enum/const 拒绝。大额费用保持十进制字符串；API AJV 验证同一组 fixture。
+原生 codec 不是完整 schema validator：格式、字节/数量限制仍由 API 校验；额外字段为向前兼容忽略。
+
+本地执行：
+
+- API npm ci --ignore-scripts --offline、类型检查、构建 PASS。
+- 全量 API 首跑跨仓用例 FAIL：操作时 PYTHONPATH 错多一层 src，未找到 mural_livekit；
+  修正为 Worker 根目录后全量通过。clean-install 后再次全量 **428/428 PASS，0 skip**，
+  包括 B2 实际 API HTTP + Worker 子进程故障用例；全部专用 DB/假 provider。
+- Web 离线 npm ci、37/37 单测、构建、2/2 mock Playwright PASS；已有大 bundle 警告保留，
+  不冒充真实 LiveKit 媒体/原生应用验收。
+- Python 72/72、生成漂移、轻量跨端内容检查 PASS。
+- Swift/Kotlin 独立编译及共享 fixture 检查实际执行；Kotlin JDK 26 兼容性警告保留，
+  不是编译失败；native 重型任务未运行。
+
+无需部署：所有变更为文档、schema、生成工具、隔离生成产物和测试，未改 app/API/Worker runtime。
+本轮无 UI/UX 改动、迁移、新 feature 或付费请求。PR/CI/审查尚待完成，不宣称已合并。
+可复用规则：共享 fixture 同时验证 API schema 与独立原生 codec；nullable 字段应检查
+round-trip 后仍保留 null 或缺失，不以能解码代替语义一致。
+
+### 发布权限边界
+
+2026-09-25：本地候选验证完成，专用 PostgreSQL 已停止。尝试将候选推送到
+`vlingo-ai/mural` 的 `codex/b3-contract-alignment` 被安全审批拦截，要求用户明确批准
+本轮源码/测试/文档上传目的地。未绕过，未上传、未创建 PR、未运行本轮远端 CI 或合并。
+改为仅保存本地提交。B3 本地开发完成不等于 PR/CI/合并签结完成。
 复用规则：成功、流中失败与流前限流错误均需契约断言，重试字段缺失不能解释为允许重试。

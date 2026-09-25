@@ -12,8 +12,8 @@ class LiveDTOTests(unittest.TestCase):
         result = render(self.contract)
         self.assertEqual(result, render(copy.deepcopy(self.contract)))
         self.assertIn('"transport"?: "webrtc" | "livekit-room"', result['live.d.ts'])
-        self.assertIn('public let transport: String?', result['LiveDTOs.swift'])
-        self.assertIn('val transport: String? = null', result['LiveDTOs.kt'])
+        self.assertIn('public let transport: WireField<String>', result['LiveDTOs.swift'])
+        self.assertIn('val transport: WireField<String> = WireField.Missing', result['LiveDTOs.kt'])
         self.assertIn('val inputTokens: Long', result['LiveDTOs.kt'])
 
     def test_unsupported_field_fails(self):

@@ -7,6 +7,17 @@ import { parseHostedHelperInput } from '../src/hosted-helpers.js';
 const contractURL = new URL('../../../shared/contracts/mural-api.openapi.json', import.meta.url);
 const loadContract = async () => JSON.parse(await readFile(contractURL, 'utf8')) as Record<string, any>;
 
+test('shared native wire fixtures agree with OpenAPI validation', async () => {
+  const require = createRequire(import.meta.url), Ajv = require('ajv/dist/2020.js').default;
+  const ajv = new Ajv({ strict: false }); require('ajv-formats')(ajv);
+  const contract = await loadContract();
+  const rows = JSON.parse(await readFile(new URL('../../../shared/contracts/tests/live-wire-fixtures.json', import.meta.url), 'utf8'));
+  for (const row of rows) {
+    const validate = ajv.compile({ $ref: `#/components/schemas/${row.schema}`, components: contract.components });
+    assert.equal(validate(row.value), row.valid, `${row.schema}: ${JSON.stringify(validate.errors)}`);
+  }
+});
+
 test('public contract freezes the Web/iOS/Android product boundary', async () => {
   const contract = await loadContract();
   assert.equal(contract.openapi, '3.1.0');
