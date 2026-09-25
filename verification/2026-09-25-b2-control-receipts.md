@@ -1,6 +1,6 @@
 # B2 分次证据：控制回执与最终用量（2026-09-25）
 
-状态：**候选已推进至第十轮开发/审查；B2 尚未完成、未合并、未发布镜像、未迁移或部署。** 下文各轮的“未提交”是其当时状态，不代表截至本记录末尾的状态；最新进展见第十轮。
+状态：**两仓 B2 PR 已合并，Worker 固定摘要镜像已发布；尚未在 VPS 构建 API、应用迁移 029 或部署，B2 尚未完成。** 下文各轮状态是当时快照；最新发布准备见第十一轮。
 范围服从[项目 B2 基准](../docs/web-ios-model-gateway-plan.md)；不改变英语 staging Gate 7 的独立状态。
 
 ## 本轮代码范围
@@ -118,3 +118,24 @@ Worker 现在要求 `acknowledgedMilliseconds` **等于**本次报告毫秒值�
 复用规则：USAGE-01 的回执身份必须跨“删除→重新插入→进程重启”保持唯一，
 不能只验证同一行更新时的版本递增。CI 镜像验证应覆盖与部署一致的 UID、目录权限、
 只读根文件系统及跨容器卷保留；通过后仍需核对 VPS 实际配置和积压。
+
+## 第十一轮：候选合并、镜像与发布前交接（2026-09-25）
+
+| 对象 | 不可变标识 / 结果 |
+| --- | --- |
+| Mural PR #39 | 合并提交 `a81c3ba2ee1f722495c1c20db566928121fc0b5a` |
+| Mural 最终候选 CI | `0e2fdfb` 的 [Checks 36116168762](https://github.com/vlingo-ai/mural/actions/runs/36116168762) 及契约/扫描 PASS；原生任务按阶段 SKIPPED |
+| Worker PR #18 | 合并提交 `5c6a2d3738cdbb8db7b66869373b0a028e6a2cd6` |
+| Worker 候选 CI | `bee12ec` 的 [36116012511](https://github.com/vlingo-ai/model-gateway/actions/runs/36116012511) 全部 PASS，含真实 Linux 镜像两容器 UID/0700/只读根文件系统测试 |
+| Worker 镜像发布 | [36116373635](https://github.com/vlingo-ai/model-gateway/actions/runs/36116373635) PASS，源码为上述合并提交 |
+| Worker registry digest | `ghcr.io/vlingo-ai/livekit-gpt-live-worker@sha256:8e9f070289f60086b5df4066c548657b85c43da8b4111958c37158ef153c3f3d` |
+| 最新跨仓定向复测 | API `0e2fdfb` + Worker `bee12ec`，实际 API HTTP、独立 Worker 子进程、专用 PostgreSQL：**1/1 PASS、0 skip**；假 LiveKit，无付费调用；专用临时 PostgreSQL 已停止 |
+
+发布前仍需：VPS 活跃会话确认、新加密备份及异机校验、保留旧镜像和配置、准备 outbox 专用密钥与
+10001/0700 目录、拉取固定 Worker digest、构建固定 API 源码镜像，再按 migration/API→Worker/replay
+顺序执行。迁移是新增表；回滚不得删除待对账数据或 outbox 密钥/持久卷。
+VPS 当前仍为 B1 `a8d9e60`，非交互 sudo 不可用，需操作员在 VPS 终端执行受控步骤。
+合并/发布不是部署，也不证明真实媒体或新的付费用量验收通过。
+
+本轮复用审查：第十轮的 USAGE-01 规则已覆盖新发现，无额外规则变化；把真实镜像测试和最新跨仓
+复测结果补齐。继续保留供应商未产生 final 或回调落盘前进程被杀的已知边界，不声明所有 final 永不丢失。
