@@ -29,6 +29,22 @@ validation environment, not Phase 5.5C product release infrastructure.
 No deployment has occurred merely because this bundle exists or `docker compose config` passes.
 Mark a gate complete only after recording its evidence in `verification/phase-5-5b/`.
 
+## B2 durable-control candidate (not deployed)
+
+This candidate requires migration 029 before a new Worker image is started. Configure a distinct
+`WORKER_OUTBOX_KEY` (base64 encoding of 32 random bytes) and an absolute, pre-created
+`WORKER_OUTBOX_HOST_DIR` owned by UID 10001 with mode 0700. The Worker and
+`agent-worker-replay` share the directory; the replay service has no OpenAI or LiveKit keys.
+Retain the key and encrypted outbox across image rollbacks until every report is reconciled.
+
+Before deployment, check active sessions, preserve previous images/configuration, and take the
+encrypted backup. Apply migration 029, deploy the API before the Worker, then start the replay
+service. Run `preflight.sh` and `verify.sh`; the latter requires the replay container to run and
+its durable queue to be empty, printing only a count. **Do not run this candidate against the
+current staging `.env` until the B2 review and release gates are complete.** See the
+[dated B2 evidence](../../verification/2026-09-25-b2-control-receipts.md). No real provider test or
+deployment follows merely from local checks passing.
+
 ## Frozen boundaries
 
 - Mural API owns product capability, authentication, session admission, quotas, trusted control,

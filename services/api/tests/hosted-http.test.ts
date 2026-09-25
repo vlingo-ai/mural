@@ -96,6 +96,33 @@ test('LiveKit control uses its private source for rate limiting without weakenin
   }
 });
 
+test('B2 LiveKit control HTTP returns a durable final receipt and rejects uncommitted final', async () => {
+  const db = { query: async () => ({ rows: [] }) } as unknown as Database;
+  const session = randomUUID();
+  let committed = false;
+  const hosted = {
+    acceptTrustedEvent: async () => ({ type: 'session.closed', usage: { seconds: 2.5 } }),
+    controlReceipt: async () => {
+      if (!committed) throw new ServiceError('provider_usage_reconciliation_required', 409);
+      return { accepted: true, committed: true, observedMilliseconds: 2500, acknowledgedMilliseconds: 2500 };
+    },
+  } as unknown as Services['hosted'];
+  const app = createApp({ db, auth: {}, hosted });
+  const request = () => app.inject({ method: 'POST', url: `/internal/livekit/sessions/${session}/events`,
+    headers: { authorization: 'Bearer private-session-control' },
+    payload: { type: 'session.closed', seconds: 2.5 } });
+  try {
+    const before = await request();
+    assert.equal(before.statusCode, 409);
+    assert.equal(before.json().committed, undefined);
+    committed = true;
+    const after = await request();
+    assert.equal(after.statusCode, 200);
+    assert.deepEqual(after.json(), { accepted: true, committed: true,
+      observedMilliseconds: 2500, acknowledgedMilliseconds: 2500 });
+  } finally { await app.close(); }
+});
+
 const databaseURL = process.env.TEST_DATABASE_URL;
 if (databaseURL && !new URL(databaseURL).pathname.endsWith('_test')) throw new Error('Dedicated test database required.');
 test('hosted HTTP authenticates guest ownership, recovers uncertain sessions and bounds helper bodies', {
