@@ -31,7 +31,8 @@ Language-independent examples are in [live-recovery-traces.json](live-recovery-t
   before the request; response transit consumes the remaining duration. It never extends this
   deadline on reconnect. This assumes a reasonably synchronized client wall clock; it is NOT
   a server-clock proof. Server/Worker enforce the actual authority independently. Status is checked
-  before fallback Room replacement; SDK-only restoration still needs full status reconciliation.
+  before fallback Room replacement and SDK-only restoration; shorter returned deadlines shorten
+  the local bound. These reads are snapshots, not a lock against subsequent server closure.
   A response arriving after expiry cannot revive the same model.
 
 ## Implementation sequence / still required

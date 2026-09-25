@@ -130,6 +130,91 @@ describe('LiveKit reconnect lifecycle', () => {
   });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
+  it('does not claim idle when a stopped admission loses its response', async () => {
+    const h = harness();
+    let reject!: (error: Error) => void;
+    h.createLiveSession.mockReturnValue(new Promise((_resolve, fail) => { reject = fail; }));
+    const connecting = h.connection.connect('en');
+    await vi.advanceTimersByTimeAsync(0);
+    h.connection.close();
+    reject(new Error('response lost; admission unknown'));
+    await connecting;
+    await vi.advanceTimersByTimeAsync(0);
+    h.connection.close();
+    expect(h.states.at(-1)).toBe('closing');
+    expect(mock.rooms).toHaveLength(0);
+    expect(h.microphone.readyState).toBe('ended');
+  });
+
+  it('refuses SDK-only recovery when the server has already closed the session', async () => {
+    const h = harness();
+    await h.connection.connect('en');
+    h.publishAgent(mock.rooms[0]!);
+    h.liveSessionStatus.mockResolvedValue({ sessionID: 'session-1', state: 'closed', deadline: null });
+    mock.rooms[0]!.emit(RoomEvent.SignalReconnecting);
+    mock.rooms[0]!.emit(RoomEvent.Reconnected);
+    expect(h.states.at(-1)).toBe('connecting');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.states.at(-1)).toBe('failed');
+    expect(mock.rooms).toHaveLength(1);
+    expect(h.microphone.readyState).toBe('ended');
+  });
+
+  it('retries temporary SDK recovery status failure without recreating the Room', async () => {
+    const h = harness();
+    await h.connection.connect('en');
+    h.publishAgent(mock.rooms[0]!);
+    h.liveSessionStatus.mockRejectedValueOnce(new Error('temporary network error'));
+    mock.rooms[0]!.emit(RoomEvent.SignalReconnecting);
+    mock.rooms[0]!.emit(RoomEvent.Reconnected);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.states.at(-1)).toBe('connecting');
+    await vi.advanceTimersByTimeAsync(MURAL_RECOVERY_RETRY_MS);
+    expect(h.states.at(-1)).toBe('active');
+    expect(mock.rooms).toHaveLength(1);
+    expect(h.createLiveSession).toHaveBeenCalledTimes(1);
+    h.connection.disconnect();
+  });
+
+  it('does not apply an old SDK status response across Stop', async () => {
+    const h = harness();
+    await h.connection.connect('en');
+    h.publishAgent(mock.rooms[0]!);
+    let resolve!: (value: unknown) => void;
+    h.liveSessionStatus.mockReturnValue(new Promise(done => { resolve = done; }));
+    mock.rooms[0]!.emit(RoomEvent.SignalReconnecting);
+    mock.rooms[0]!.emit(RoomEvent.Reconnected);
+    h.connection.close();
+    await vi.advanceTimersByTimeAsync(0);
+    resolve({ sessionID: 'session-1', state: 'active', deadline: new Date(Date.now() + 60_000).toISOString() });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.states.at(-1)).toBe('idle');
+    expect(h.microphone.readyState).toBe('ended');
+  });
+
+  it('keeps a late admitted session visible for explicit close retry after failure', async () => {
+    const h = harness();
+    let resolve!: (value: Awaited<ReturnType<MuralAPI['createLiveSession']>>) => void;
+    h.createLiveSession.mockReturnValue(new Promise(done => { resolve = done; }));
+    const connecting = h.connection.connect('en');
+    await vi.advanceTimersByTimeAsync(0);
+    h.connection.close();
+    h.closeLiveSession.mockRejectedValueOnce(new Error('close lost'));
+    resolve({ sessionID: 'session-late', deadline: new Date(Date.now() + 60_000).toISOString(),
+      transport: { type: 'livekit-room', url: 'wss://example.test', token: 'test-token' },
+      reservedMilliseconds: 60_000, billingBasis: 'connected-conversation-time', experimental: true });
+    await connecting;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.closeLiveSession).toHaveBeenCalledTimes(1);
+    expect(h.states.at(-1)).toBe('closing');
+    h.closeLiveSession.mockResolvedValue({ sessionID: 'session-late', state: 'closed' });
+    h.connection.close();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.closeLiveSession).toHaveBeenLastCalledWith('session-late');
+    expect(h.states.at(-1)).toBe('idle');
+    expect(mock.rooms).toHaveLength(0);
+  });
+
   it('ends an active connection at its product deadline without extending on SDK recovery', async () => {
     const h = harness();
     h.createLiveSession.mockResolvedValue({ sessionID: 'session-1',
@@ -141,6 +226,7 @@ describe('LiveKit reconnect lifecycle', () => {
     await vi.advanceTimersByTimeAsync(5_000);
     mock.rooms[0]!.emit(RoomEvent.SignalReconnecting);
     mock.rooms[0]!.emit(RoomEvent.Reconnected);
+    await vi.advanceTimersByTimeAsync(0);
     expect(h.states.at(-1)).toBe('active');
     await vi.advanceTimersByTimeAsync(5_000);
     expect(h.states.at(-1)).toBe('failed');
@@ -152,15 +238,18 @@ describe('LiveKit reconnect lifecycle', () => {
   it('closes a late admitted session after Stop without joining its Room', async () => {
     const h = harness();
     let resolve!: (value: Awaited<ReturnType<MuralAPI['createLiveSession']>>) => void;
+    h.closeLiveSession.mockResolvedValue({ sessionID: 'session-late', state: 'closed' });
     h.createLiveSession.mockReturnValue(new Promise(done => { resolve = done; }));
     const connecting = h.connection.connect('en');
     await vi.advanceTimersByTimeAsync(0);
     expect(h.createLiveSession).toHaveBeenCalledTimes(1);
     h.connection.close();
+    expect(h.states.at(-1)).toBe('closing');
     resolve({ sessionID: 'session-late', deadline: new Date(Date.now() + 60_000).toISOString(),
       transport: { type: 'livekit-room', url: 'wss://example.test', token: 'test-token' },
       reservedMilliseconds: 60_000, billingBasis: 'connected-conversation-time', experimental: true });
     await connecting;
+    await vi.advanceTimersByTimeAsync(0);
     expect(mock.rooms).toHaveLength(0);
     expect(h.closeLiveSession).toHaveBeenCalledWith('session-late');
     expect(h.states.at(-1)).toBe('idle');
@@ -265,6 +354,7 @@ describe('LiveKit reconnect lifecycle', () => {
     await vi.advanceTimersByTimeAsync(MURAL_RECOVERY_FALLBACK_MS);
     expect(mock.rooms).toHaveLength(1);
     mock.rooms[0]!.emit(RoomEvent.Reconnected);
+    await vi.advanceTimersByTimeAsync(0);
     expect(h.states.at(-1)).toBe('active');
     expect(h.timings.filter(kind => kind === 'recovery-detected')).toHaveLength(1);
     expect(h.timings.filter(kind => kind === 'recovery-media-ready')).toHaveLength(1);
@@ -390,6 +480,7 @@ describe('LiveKit reconnect lifecycle', () => {
     await vi.advanceTimersByTimeAsync(MURAL_RECOVERY_FALLBACK_MS);
     expect(mock.rooms).toHaveLength(2);
     h.publishAgent(mock.rooms[1]!);
+    await vi.advanceTimersByTimeAsync(0);
     expect(h.states.at(-1)).toBe('active');
     h.connection.disconnect();
   });
@@ -406,6 +497,7 @@ describe('LiveKit reconnect lifecycle', () => {
     await vi.advanceTimersByTimeAsync(MURAL_RECOVERY_RETRY_MS);
     expect(mock.rooms).toHaveLength(3);
     h.publishAgent(mock.rooms[2]!);
+    await vi.advanceTimersByTimeAsync(0);
     expect(h.states.at(-1)).toBe('active');
     h.connection.disconnect();
   });
@@ -424,6 +516,7 @@ describe('LiveKit reconnect lifecycle', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(mock.rooms).toHaveLength(2);
     h.publishAgent(mock.rooms[1]!);
+    await vi.advanceTimersByTimeAsync(0);
     expect(h.states.at(-1)).toBe('active');
     h.connection.disconnect();
   });

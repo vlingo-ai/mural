@@ -1,4 +1,4 @@
-import type { TranscriptEvent } from '../api/contracts';
+import type { TranscriptEvent, LiveSessionResult } from '../api/contracts';
 import { providerLocale, type AvailableLanguage } from '../api/contracts';
 import type { MuralAPI } from '../api/mural';
 import { MuralAPIError } from '../api/mural';
@@ -39,6 +39,9 @@ export class LiveConnection {
   private closingRequest?: Promise<void>;
   private recoveryState?: RecoveryState;
   private controlTimer?: number;
+  private pendingAdmission?: Promise<LiveSessionResult>;
+  private closingAdmission?: Promise<LiveSessionResult>;
+  private admissionUncertain = false;
 
   private reduceRecovery(update: RecoveryUpdate): void {
     if (!this.recoveryState) return;
@@ -166,10 +169,14 @@ export class LiveConnection {
     if (this.closed || generation !== this.generation) return;
     const requestedAt = performance.now();
     const requestedWallTime = Date.now();
-    const result = await this.api.createLiveSession({ language: providerLocale(language),
+    const admission = this.api.createLiveSession({ language: providerLocale(language),
       requestedMilliseconds: 15 * 60_000 }, crypto.randomUUID());
+    this.pendingAdmission = admission;
+    let result: LiveSessionResult;
+    try { result = await admission; }
+    finally { if (this.pendingAdmission === admission) this.pendingAdmission = undefined; }
     if (this.closed || generation !== this.generation) {
-      void this.api.closeLiveSession(result.sessionID).catch(() => {});
+      if (this.closingAdmission !== admission) void this.api.closeLiveSession(result.sessionID).catch(() => {});
       return;
     }
     this.sessionID = result.sessionID;
@@ -192,22 +199,55 @@ export class LiveConnection {
       }
     }, Math.max(0, controlUntil - performance.now()));
     let replacementRequired = false;
+    let recoveryRevision = 0;
+    let checkingRecovery = false;
     const current = (): boolean => !this.closed && generation === this.generation;
     const mediaReady = (room: Room): boolean => room.state === 'connected' && navigator.onLine !== false &&
       agentMediaIsReady(this.liveKitAgentIdentity, room.remoteParticipants.values()) &&
       microphoneIsReady(this.local?.getAudioTracks()[0], room.localParticipant.audioTrackPublications.values());
     const finishRecovery = (room: Room): void => {
       if (!current() || this.room !== room || !mediaReady(room) ||
-          (this.liveKitReady && !this.liveKitReconnecting)) return;
-      if (!this.protocolMediaReady()) return;
-      this.liveKitReady = true;
-      this.liveKitReconnecting = false;
-      replacementRequired = false;
-      this.clearLiveKitRecoveryTimers();
-      if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
-      this.liveKitReadyTimer = undefined;
-      this.onTiming('recovery-media-ready');
-      this.onState('active');
+          (this.liveKitReady && !this.liveKitReconnecting) || checkingRecovery) return;
+      checkingRecovery = true;
+      const revision = recoveryRevision;
+      const at = performance.now(), wall = Date.now();
+      const stillCurrent = () => current() && this.room === room && revision === recoveryRevision;
+      void this.api.liveSessionStatus(result.sessionID).then(status => {
+        if (!stillCurrent()) return;
+        const until = typeof status.deadline === 'string' ? at + Date.parse(status.deadline) - wall : NaN;
+        if (status.sessionID !== result.sessionID || status.state !== 'active' ||
+            !Number.isFinite(until) || until <= performance.now()) {
+          this.failLiveKitAgent('reconnect_failed');
+          return;
+        }
+        const bounded = Math.min(this.recoveryState?.controlUntil ?? 0, until);
+        this.reduceRecovery({ kind: 'control', validUntil: bounded });
+        this.clearControlTimer();
+        this.controlTimer = globalThis.setTimeout(() => {
+          if (current()) this.failLiveKitAgent('reconnect_failed');
+        }, Math.max(0, bounded - performance.now()));
+        if (!mediaReady(room) || !this.protocolMediaReady()) return;
+        this.liveKitReady = true;
+        this.liveKitReconnecting = false;
+        replacementRequired = false;
+        this.clearLiveKitRecoveryTimers();
+        if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
+        this.liveKitReadyTimer = undefined;
+        this.onTiming('recovery-media-ready');
+        this.onState('active');
+      }).catch((error: unknown) => {
+        if (!stillCurrent()) return;
+        if (error instanceof MuralAPIError && [401, 403, 404].includes(error.status)) {
+          this.failLiveKitAgent('reconnect_failed');
+        } else {
+          if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
+          this.liveKitReadyTimer = globalThis.setTimeout(() => finishRecovery(room), MURAL_RECOVERY_RETRY_MS);
+        }
+      }).finally(() => {
+        checkingRecovery = false;
+        if (current() && this.liveKitReconnecting && revision !== recoveryRevision && this.room)
+          finishRecovery(this.room);
+      });
     };
     const scheduleRecovery = (delay: number): void => {
       if (!current() || !this.liveKitReconnecting || this.liveKitRecoveryTimer !== undefined) return;
@@ -218,6 +258,7 @@ export class LiveConnection {
     };
     const beginRecovery = (allowReplacement = true): void => {
       if (!current() || !this.sessionID) return;
+      recoveryRevision++;
       replacementRequired ||= allowReplacement;
       this.reduceRecovery({ kind: 'signal', connected: false });
       const firstDetection = !this.liveKitReconnecting;
@@ -490,10 +531,26 @@ export class LiveConnection {
     this.channel?.close();
     this.peer?.close();
     const sessionID = this.sessionID;
-    if (!sessionID) { this.disconnect(); return; }
-    const request = this.api.closeLiveSession(sessionID).then(status => {
+    const admission = this.pendingAdmission;
+    if (!sessionID && !admission && this.admissionUncertain) {
+      this.onEvent({ type: 'mural.live.close_pending' });
+      return;
+    }
+    if (!sessionID && !admission) { this.disconnect(); return; }
+    this.admissionUncertain = !sessionID;
+    this.closingAdmission = admission;
+    const target = sessionID ? Promise.resolve(sessionID) : admission!.then(result => result.sessionID);
+    const request = target.then(async id => {
+      if (generation === this.generation) {
+        this.admissionUncertain = false;
+        this.sessionID = id;
+        this.onSession(id);
+      }
+      const status = await this.api.closeLiveSession(id);
+      return { status, id };
+    }).then(({ status, id }) => {
       if (generation !== this.generation) return;
-      if (status.sessionID !== sessionID || status.state !== 'closed') {
+      if (status.sessionID !== id || status.state !== 'closed') {
         this.onEvent({ type: 'mural.live.close_pending' });
         return;
       }
@@ -503,11 +560,13 @@ export class LiveConnection {
       if (generation === this.generation) this.onEvent({ type: 'mural.live.close_pending' });
     }).finally(() => {
       if (this.closingRequest === request) this.closingRequest = undefined;
+      if (this.closingAdmission === admission) this.closingAdmission = undefined;
     });
     this.closingRequest = request;
   }
 
   disconnect(): void {
+    this.pendingAdmission = undefined;
     this.clearControlTimer();
     this.recoveryState = undefined;
     this.closingRequest = undefined;
