@@ -149,4 +149,8 @@ API 类型/生产构建 PASS，全套 **428/428 PASS、0 skip**，启用 B2 私�
 原 Dockerfile 将 Web 展平到 /app 且未复制 shared，新增 DTO 和轨迹 JSON 的相对导入无法解析。
 修复为保持 /app/apps/web 与 /app/shared/contracts 的仓库层级，同时调整最终 dist 复制路径。
 本机无 Docker，此修复须由后续云端镜像构建确认；不把本地 Vite 构建作为 Docker 成功证据。
-契约与密钥扫描首轮 PASS；其余及修复后 CI 待核对。未合并、未部署、无付费测试。
+契约与密钥扫描首轮 PASS；首轮 Checks 后因新提交被取消，不记全量通过。
+修复提交 `4408893` 的 [Checks](https://github.com/vlingo-ai/mural/actions/runs/36162996379)
+已确认 Web 单测/构建/mock E2E、API/Edge Docker 构建、Compose 与脚本检查 PASS。
+契约、密钥扫描 PASS；API 回归及汇总门禁仍待完成。原生重型任务按阶段跳过。
+未合并、未部署、无付费测试。

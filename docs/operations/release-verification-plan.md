@@ -70,7 +70,6 @@
 
 | 阶段 | 自动化设计 | 人工/授权边界 | 输出 |
 | --- | --- | --- | --- |
-| 2026-09-26：B4 草稿 PR / Edge 上下文 | [第七轮](../../verification/2026-09-26-b4-recovery-protocol.md#第七轮草稿-pr-与镜像上下文修复)、[PR #44](https://github.com/vlingo-ai/mural/pull/44) | 首轮 Edge Docker 构建 FAIL，契约/扫描 PASS；保持 Web/shared 仓库层级修复，云端复验待办；未部署 | 客户端新增跨目录共享依赖时必须同步 Docker COPY、WORKDIR 与 dist 路径；本地构建不替代镜像验证 |
 | R0 影响分析 | 按文件/契约变更建议测试集合，校验必需用例未遗漏 | 发布负责人确认三端兼容、UI 变化、迁移与费用范围 | 测试计划与风险清单 |
 | R1 非计费 CI | 单元、契约、真实隔离 DB、假供应商故障注入、构建及扫描；后续统一 API/Worker 候选构建 | 不能使用生产凭据；PR 无部署权限；当前 API 的 CI 发布尚未实现 | 测试结果、跳过项、构建摘要 |
 | R2 冻结候选 | 对齐各仓 commit、CI run、镜像 registry digest/平台、Web 资源摘要、迁移版本；本地 image ID 另列 | UI/UX 变化在合并前说明；合并、镜像发布与部署分别确认 | release manifest、兼容矩阵 |
@@ -311,6 +310,7 @@ PR #43 未合并、未部署，证据归集提交的最新 CI 需另行核对，
 
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-26：B4 草稿 PR / Edge 上下文 | [第七轮](../../verification/2026-09-26-b4-recovery-protocol.md#第七轮草稿-pr-与镜像上下文修复)、[PR #44](https://github.com/vlingo-ai/mural/pull/44) | 首轮 Edge Docker 构建 FAIL；修复 `4408893` 云端 Web、双镜像、Compose、契约/扫描 PASS，API 回归/汇总待完成；未部署 | 客户端新增跨目录共享依赖时必须同步 Docker COPY、WORKDIR 与 dist 路径；本地构建不替代镜像验证 |
 | 2026-09-26：B4 本地候选回归 | [第六轮](../../verification/2026-09-26-b4-recovery-protocol.md#第六轮未知准入查询旧-webrtc-边界与候选回归) | Web 74/74、mock E2E 2/2、API 428/428（0 skip）及额外权限定向 1/1、构建/类型/漂移 PASS；首跑失败已记录；未部署 | 原 UUID 只读查询，不重放创建；null 不作取消证明；发布须 API→Web，无迁移/Worker 改动 |
 | 2026-09-26：B4 SDK 恢复与迟到准入 | [第五轮](../../verification/2026-09-26-b4-recovery-protocol.md#第五轮sdk-恢复确认与迟到准入) | 首轮 6 FAIL，修正异步断言/替身后 70/70、类型/构建、mock E2E 2/2 PASS；未部署 | SDK 恢复也核查状态；未知准入保留未知，原幂等身份协调待实施 |
 | 2026-09-26：B4 共享模型接入 | [第四轮](../../verification/2026-09-26-b4-recovery-protocol.md#第四轮livekit-接入共享-reducer-与本地截止) | Web 65/65、类型/构建与 mock E2E 2/2 PASS；本地未部署 | 重连不续长产品期限；SDK-only 状态协调、迟到准入关闭可见性仍待办，不签结 |
