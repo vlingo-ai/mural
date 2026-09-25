@@ -114,4 +114,18 @@ primitive object：两种 transport、capabilities、helper usage，生成 TS/Sw
 Swift/Kotlin 编译与编解码 NOT_RUN；两端 enum/const 暂为基础类型，不能声称运行时约束等价。
 复杂联合类型、完整 DTO、共享 round-trip fixtures、客户端接入及 PR CI 尚待完成。
 无运行时修改、部署或付费调用。B3 未完成。
+
+## 第六轮：TypeScript 完整 Live wire 类型
+
+TS 生成范围扩展至 transport union、LiveSession/Status/current、历史与创建请求、
+helper result/event、ErrorResponse。递归处理受审查本地 ref、object/array、oneOf/anyOf、
+可选与 nullable；未知 ref/开放对象/未审查 allOf 拒绝生成。原生生成范围不变。
+新增编译反例：缺 room token、缺 current.session、缺必需 nullable cost、
+缺 completed.result、未知 transport 必须报错，transport discriminator 可正确收窄。
+
+首次把共享 .ts 引入 API 测试触发 rootDir 错误；改为纯声明 live.d.ts，
+不扩大 API 构建根目录、不输出新运行时代码。旧生成 live.ts 被声明文件替代，Git 可恢复。
+修正后生成/漂移检查 PASS，Python 71/71 PASS，API tsc（含负例）PASS。
+这些类型不是 runtime validators；Swift/Kotlin 联合编解码及客户端接入仍未实现。
+无部署/付费调用。B3 尚未完成，下一步原生类型/编解码及候选完整验证。
 复用规则：成功、流中失败与流前限流错误均需契约断言，重试字段缺失不能解释为允许重试。
