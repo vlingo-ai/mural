@@ -1,5 +1,9 @@
 # English timing energy-gate diagnostic rollout — 2026-09-23
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史证据：保留当时部署、测试和观察，不追改结果。旧 pending 项由最新基准及本目录索引统一管理；普通话已暂停，英语 Gate 7 仍未通过。本文件不是当前部署命令清单。
+> 当前范围和后续顺序见[项目开发基准](../../docs/web-ios-model-gateway-plan.md)。
+
 Status: **deployed to staging for opt-in inspection; Gate 7 latency acceptance remains open**.
 
 ## Reviewed change and scope

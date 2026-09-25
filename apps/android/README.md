@@ -1,5 +1,11 @@
 # Mural for Android
 
+Scope: existing upstream-compatible native implementation, not a LiveKit-migrated release.
+The [accepted plan](../../docs/web-ios-model-gateway-plan.md) schedules LiveKit Android SDK and
+the shared Mural session protocol after iOS Phase 6. Eight retained language modules are not eight
+currently approved product languages. Current development/testing is English-only; Mandarin and
+Cantonese remain deferred. Native compatibility and local archives are preserved.
+
 Native Kotlin and Jetpack Compose client for Android 8.0 or later. It offers voice and written conversation, eight learning languages, 24 themes, meanings, vocabulary and local history, using the owner's OpenAI API key. Mandarin captions link each word and show optional pinyin on Android 10 or later; Android 8 and 9 keep word links without pinyin.
 
 Word taps in all eight languages open a contextual meaning sheet, matching the iOS flow. Mandarin uses a bundled offline phrase dictionary with an ICU fallback; unresolved common ambiguous readings retain their source characters.

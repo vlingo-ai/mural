@@ -1,12 +1,21 @@
 # Enable optional accounts
 
+<!-- baseline-scope:2026-09-23 -->
+> 兼容功能参考：本文件的原生账户、商业能力和历史部署状态不构成当前 vLingo staging 的启用批准。按最新基准与 staging runbook 核对实际版本；upstream 域名、OAuth/商店身份和定价不可直接复用。Web 托管历史存于服务端，不能套用原生“仅本地”隐私描述。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 This procedure enables native Google sign-in independently of payments, free trials and hosted voice. The current release keeps Apple disabled until Apple Developer enrollment and revocation credentials are ready. Account storage and HTTP contracts are in the [account reference](accounts-reference.md).
 
 ## Configure the identity provider
 
-Create a Google **iOS** OAuth client for the app's bundle ID and use that same client ID as `GOOGLE_IOS_CLIENT_ID` on the server and as the native authorization audience. The current Mural app uses bundle ID `no.william.mural`; its public client ID is `1034240936303-gernpir75rp4uvc8m5imrhrs18npma5n.apps.googleusercontent.com`, in project `mural-508413`. This installed-app PKCE flow needs no Google client secret on the backend. [Google iOS backend authentication](https://developers.google.com/identity/sign-in/ios/backend-auth)
+Create a Google **iOS** OAuth client for your own bundle ID and use it as `GOOGLE_IOS_CLIENT_ID`
+and the native authorization audience. Phase 6 chooses this fork's identity first; do not reuse
+upstream's `no.william.mural` / `mural-508413` client. The PKCE flow needs no Google client
+secret on the backend. [Google iOS backend authentication](https://developers.google.com/identity/sign-in/ios/backend-auth)
 
-Mural's Google project is External/In production as of September 12, 2026, with verified and published branding. It requests only `openid` and `email`. For a separate development project, note that Testing is not an invitation-only gate for these basic identity scopes. Workspace policies can still block authorization. [Google OAuth app states](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview)
+Upstream's September 12 consent-branding status does not apply to this fork. Verify the intended
+project and consent configuration, and enforce staging access in Mural's server allowlist rather
+than assuming an OAuth test-user list is the product access gate.
 
 For Web, create a separate Google **Web application** OAuth client, configure its exact HTTPS and
 local development origins, set it as `GOOGLE_WEB_CLIENT_ID` on the server and

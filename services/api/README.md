@@ -1,8 +1,15 @@
-# Run Mural's commercial backend foundation
+# Mural API: current scope and backend references
 
-This backend prepares accounts, a credit ledger, and **Stripe sandbox** payments. Public funded conversations and free trials remain unavailable; live Stripe keys are rejected. A disabled, operator-allowlisted voice experiment has durable accounting plus OpenAI/LiveKit Live providers and a Model Gateway Responses adapter, tested against local fake providers. The existing iPhone BYOK build continues to operate independently.
+Follow the [accepted development baseline](../../docs/web-ios-model-gateway-plan.md).
+Staging is deployed with restricted English Web access through LiveKit/Worker and Gateway Responses;
+Gate 7 is not accepted. Public commercial launch and new payment activation are not authorized.
+Use the [staging runbook](../../deploy/phase-5-5b/README.md), not the historical Hetzner procedure,
+for this VPS. Native/BYOK and account/commerce instructions below are compatibility references,
+not a statement about current upstream production or permission to activate those features here.
 
-Consumer pricing is moving to **conversation minutes**. The time ledger, configurable welcome allowance, guest-to-account transfer and audited grants are implemented separately from provider cost accounting. They do not activate hosted calls or real purchases. Read [conversation minutes](../../docs/conversation-minutes.md) and [how to manage free minutes](../../docs/manage-free-minutes.md) before configuring the operator controls.
+Minute entitlements, purchased AI value and provider cost accounting are separate. Existing code
+does not authorize a new commercial price or live sales. Read [conversation minutes](../../docs/conversation-minutes.md)
+and the baseline before configuring operator controls; do not apply older fixed-minute pricing plans.
 
 ## Run locally
 
@@ -93,7 +100,7 @@ All monetary strings are integer **nanoUSD**: 1 USD = 1,000,000,000 nanoUSD. A d
 | `POST /v1/checkout` | Bearer token; `Idempotency-Key`; `product` = `ai-10-usd` or `ai-25-usd` | `checkoutURL`, `orderID`, `sandbox: true`, itemized `quote` |
 | `POST /v1/webhooks/stripe` | Raw signed Stripe JSON | Atomic payment/refund journal update and duplicate receipt |
 | `POST /v1/trial/eligibility` | Apple attestation proof | `503 trial_attestation_unavailable` until a verified adapter is configured |
-| `POST /v1/live/sessions` | Bearer token; `Idempotency-Key`; `sdp`; `language` (`en` or `zh-CN`) | Default `503`; allowlisted experiment returns public `sessionID`, `sdp`, `deadline`, reservation policy and `experimental`; provider/Gateway session IDs remain server-only |
+| `POST /v1/live/sessions` | Bearer; `Idempotency-Key`; language; top-level `sdp` for legacy WebRTC; optional requested duration/history per runtime validation | Gated; LiveKit returns `livekit-room` transport and short-lived room credentials; legacy WebRTC returns SDP; provider model credentials stay server-only |
 | `GET /v1/live/sessions/:id` | Bearer token belonging to the session owner | Minimal state, cumulative milliseconds, confirmed provider cost and customer debit |
 | `POST /v1/live/sessions/:id/close` | Bearer token belonging to the session owner | Requests server closure; never accepts client-reported usage |
 | `POST /v1/model-tasks` | Member Bearer token; `Idempotency-Key`; prompt-free business task and explicit funding | Translation, assessment and teaching reply use an owned Live session; topic search may instead reserve verified account AI value when separately enabled |
@@ -105,23 +112,35 @@ Error responses contain a safe `error.code` only. Request bodies, keys, ID token
 
 ## Restricted voice experiment
 
-The default remains `HOSTED_VOICE_EXPERIMENTAL=false`. The production Compose file deliberately does not forward hosted-provider credentials. To conduct a separately authorized engineering test, an operator must supply all of the following through a private deployment override:
+The source default remains `HOSTED_VOICE_EXPERIMENTAL=false`. The historical foundation Compose
+and the current Phase 5.5B staging bundle are different deployment wrappers. Staging requires the
+following configuration through its private environment, without changing public commercial gates:
 
-- `HOSTED_VOICE_EXPERIMENTAL=true` and either a dedicated `OPENAI_API_KEY`, or both
-  `MODEL_GATEWAY_URL` and `MODEL_GATEWAY_API_KEY`. Gateway is preferred for both Live and
-  hosted helper Responses; its production origin must use HTTPS, while exact loopback HTTP
-  origins are accepted locally. Startup validates Gateway's public `/healthz` response without
-  sending its credential. Live and Responses share a retry-free client with bounded timeouts;
-  three consecutive transport, timeout, `429`, or `5xx` failures open a 15-second circuit before
-  one recovery probe. Direct OpenAI remains the explicit short-term fallback.
+- `HOSTED_VOICE_EXPERIMENTAL=true` and the staging runbook's LiveKit/control configuration.
+  Worker holds the realtime OpenAI key; staging API does not. Gateway URL/key configure teaching
+  Responses only, never realtime selection. Gateway uses HTTPS except exact loopback HTTP;
+  health probes do not send its credential. The retry-free Responses client has bounded timeouts
+  and a circuit breaker. Direct OpenAI WebRTC is an explicit development compatibility path.
 - Explicit existing account UUIDs in `HOSTED_VOICE_ACCOUNT_ALLOWLIST`; sandbox purchases never qualify a public user automatically.
 - `HOSTED_VOICE_LIFETIME_CAP_NANO`, between $0.50 and $25 expressed in nanoUSD. It bounds admission against persisted lifetime exposure, including unresolved sessions. It does not reset on restart.
 
-Each call reserves $0.50 of wallet value before one provider create, targets a 600-second maximum, and accepts only trusted sideband usage snapshots. It settles once after `session.closed`, including WebRTC’s 15-second initialization minimum, and releases the unused hold. Customer debit cannot exceed the reservation; observed provider overrun is recorded separately. Creation is never automatically retried. A duplicate offer key returns `409 live_request_already_created`; SDP is not retained for replay. Query the existing session’s status and close it before starting a new offer.
+The legacy cash experiment reserved $0.50; current staging uses minute reservations and its
+explicitly authorized limits. Do not apply the old amount as staging policy. Trusted provider usage,
+not a client stopwatch, determines settlement. Creation is not automatically retried; query the
+existing session after an uncertain result. Lease-expiry user settlement can be non-final for provider
+reconciliation. Persistent cleanup retry and Worker control-lease self-stop remain baseline B1 work;
+a closed DB row alone does not prove the provider has stopped.
 
-A PostgreSQL advisory lock permits one controller. On restart it reattaches saved provider IDs and requests closure. The watchdog checks deadlines and reversed funding, attempts graceful closure, and retries HTTP hangup. An uncertain creation, lost sideband, regressing final usage, or missing final event keeps the reservation unresolved and blocks new funding. No provider success is inferred from an HTTP hangup alone. There is no automated operator override that invents final usage.
+A PostgreSQL advisory lock permits one controller. Restart recovery and the watchdog attempt to
+close saved sessions; do not scale this controller to multiple API replicas without ownership design.
+Uncertain creation and some missing-final paths retain unresolved funding, whereas the LiveKit
+lease-expiry policy settles the user at last trusted usage and marks provider reconciliation.
+Neither a user settlement nor a hangup response establishes an exact final provider bill.
 
-The sideband adapter discards audio, transcripts, and session snapshots before the accounting callback. Only identifiers, duration, money, state, and fixed reason codes reach PostgreSQL. Live uses fixed application delegation; model-initiated delegation is not funded by this experiment. Hosted helpers use their separate server-owned budgets, request limits and one-shot transport.
+The accounting callback excludes content, but the separate Web history API stores transcripts
+and learning results in PostgreSQL. Worker uses GPT client delegation through Mural to Gateway;
+helpers have independent budgets. Some final control acknowledgments currently precede durable
+commit; baseline B2 fixes that gap. Reliable Worker final-history delivery is also planned.
 
 `tests/model-gateway-e2e.test.ts` exercises the public Mural path against an OpenAI Live fixture,
 a separate local fake Model Gateway Responses endpoint, and PostgreSQL without provider credentials
@@ -159,7 +178,10 @@ SDP, provider session identifiers and credentials are excluded. Apply
 runtime role. Product selectors admit only current launch locales, while stored locale strings remain
 readable for older native clients and historical sessions.
 
-A 600-second wall-clock closure request is **not an absolute provider spending guarantee during a network partition**. OpenAI’s general guide describes hangup for Live sessions, while the fetched endpoint reference calls it a SIP operation. WebRTC hangup and terminal usage recovery must be confirmed with the provider and a real bounded test. No such paid call was made here. Keep public hosted voice off until those limits and reconciliation are verified.
+A wall-clock close request is **not an absolute provider spending guarantee during a network
+partition**. Use the current LiveKit/Worker cleanup and final-usage findings in the baseline.
+The older direct-WebRTC hangup question below belongs to that compatibility adapter, not a claim
+that no paid staging calls have happened. Existing dated acceptance records remain authoritative.
 
 ## Container verification
 
@@ -192,7 +214,12 @@ Local verification on 15 September 2026: TypeScript checks passed, and **357 tes
 
 ## Provider contracts
 
-The adapter follows [OpenAI WebRTC creation](https://developers.openai.com/api/docs/guides/voice-webrtc?api=live), [authenticated sideband controls](https://developers.openai.com/api/docs/guides/voice-server-controls?api=live), [cumulative and final usage](https://developers.openai.com/api/docs/guides/live-conversations#usage-and-graceful-close), and the [hangup endpoint](https://developers.openai.com/api/reference/typescript/resources/live/subresources/sessions/methods/hangup). The WebRTC/SIP documentation discrepancy above remains an activation blocker.
+The legacy direct adapter references [OpenAI WebRTC creation](https://developers.openai.com/api/docs/guides/voice-webrtc?api=live),
+[sideband controls](https://developers.openai.com/api/docs/guides/voice-server-controls?api=live),
+[usage](https://developers.openai.com/api/docs/guides/live-conversations#usage-and-graceful-close) and
+[hangup](https://developers.openai.com/api/reference/typescript/resources/live/subresources/sessions/methods/hangup).
+Those historical references are not the deployed LiveKit Worker protocol or evidence for its gate.
+Revalidate the direct adapter independently before using it as anything beyond explicit diagnostics.
 
 Apple revocation follows [authorization-code validation](https://developer.apple.com/documentation/signinwithapplerestapi/generate-and-validate-tokens), [token revocation](https://developer.apple.com/documentation/signinwithapplerestapi/revoke-tokens), and the [client-secret contract linked from Apple's Sign in with Apple documentation](https://developer.apple.com/documentation/accountorganizationaldatasharing/creating-a-client-secret). Checkout retry handling follows [Stripe's idempotency retention contract](https://docs.stripe.com/api/idempotent_requests).
 

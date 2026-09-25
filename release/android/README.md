@@ -1,5 +1,9 @@
 # Android release package
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/upstream 原生发布参考：以下清单、定价草稿、身份、域名和已完成状态只适用于其注明的版本，不是 vLingo 当前发布批准。新三端版本须重新审查隐私、数据流、签名、商店材料及实测结果。
+> 当前范围和后续顺序见[项目开发基准](../../docs/web-ios-model-gateway-plan.md)。
+
 The default release specification tracks **version 8**, matching the Android build. Clean builds keep paid purchases disabled. The separate direct-distribution configuration enables Stripe purchases; it requires its own configuration and release checks.
 
 The archived **version 4 guest preview for adults 18+** was submitted to Play production review on 14 September 2026, with paid checkout disabled. That [submission record](evidence/play-submission-2026-09-14.json) does not establish approval or publication. The retained Play listing copy, declarations and v4 test results describe that submitted preview. See [candidate scopes](candidate-scopes.md) before validating or distributing a build.

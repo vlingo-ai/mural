@@ -1,5 +1,9 @@
 # Mural screenshots — Spanish
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史截图资产：保留 upstream 样例与来源，不代表当前英语 staging 或未来新原生 App 的界面、语言开放范围及商店素材。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 Four original PNG captures from the iPhone 17 simulator, iOS 26.4, at 1206 × 2622 pixels. Captured 12 September 2026 with a 09:41 status bar, full signal and full battery. No device frame, resizing or image retouching.
 
 1. **01-hola.png** — Spanish greeting and voice controls.

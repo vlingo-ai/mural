@@ -1,6 +1,9 @@
 # Mural Web
 
-Phase 5 browser client for the same Mural API used by the native apps. The browser never receives
+The current browser client follows the [accepted baseline](../../docs/web-ios-model-gateway-plan.md).
+English-only LiveKit staging is deployed but Gate 7 is not accepted. Mandarin and Cantonese remain
+coming later. Shared recovery fixtures and durable Worker history delivery are planned, not complete.
+The browser never receives
 a Model Gateway or OpenAI credential. Google Identity Services can exchange a nonce-bound ID token
 for a short-lived Mural bearer when `VITE_GOOGLE_CLIENT_ID` is configured. The local development
 token and production bearer are held in React memory only and are intentionally cleared by reload.
@@ -31,10 +34,10 @@ For separate manual startup:
 4. Paste a short-lived Mural account or guest bearer into the development field. Do not paste an
    OpenAI or Model Gateway key.
 
-The browser first reads the server's live capability. The stable rollback path creates an OpenAI
-WebRTC offer as before. In the optional Phase 5.5 path it receives a short-lived `livekit-room`
-token and joins through the LiveKit browser SDK; that SDK is loaded only when selected. In both
-paths the Mural API and Model Gateway remain the control, policy and accounting boundary.
+The browser first reads Mural's live capability. Staging selects `livekit-room` and uses a short-lived
+room token with the LiveKit SDK. The explicit legacy `webrtc` path is for development/compatibility,
+not an accepted production failover. Mural API owns session authorization, funding and history;
+Worker owns realtime provider integration; Gateway serves teaching Responses, not live media.
 
 To run the LiveKit spike with the isolated worker worktree:
 
@@ -60,4 +63,6 @@ npm run test:e2e
 
 The Playwright test uses a browser-side WebRTC fixture plus the public Mural HTTP contract. The API
 suite separately exercises that same public contract through a fake Model Gateway and PostgreSQL, so
-CI covers the browser and Gateway boundaries without a paid provider call.
+CI covers those boundaries without a paid provider call. This fixture is not a real LiveKit SDK
+reconnection test. Mocked Room unit tests also do not prove microphone recovery or real media.
+The baseline requires a separate local LiveKit/real SDK/synthetic-media integration layer.

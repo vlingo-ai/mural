@@ -1,5 +1,9 @@
 # How to release Mural through Apple
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/upstream 原生发布参考：以下清单、定价草稿、身份、域名和已完成状态只适用于其注明的版本，不是 vLingo 当前发布批准。新三端版本须重新审查隐私、数据流、签名、商店材料及实测结果。
+> 当前范围和后续顺序见[项目开发基准](../docs/web-ios-model-gateway-plan.md)。
+
 Use this checklist for the uploaded build, not just the source checkout. Requirements were checked against Apple’s official documentation on 12 September 2026.
 
 The current completed work and remaining credentials, code and verification tasks are summarized in [release status](README.md). An unsigned archive does not complete the distribution or review steps below.

@@ -1,5 +1,9 @@
 # Optional AI-output reports
 
+<!-- baseline-scope:2026-09-23 -->
+> 兼容功能参考：本文件的原生账户、商业能力和历史部署状态不构成当前 vLingo staging 的启用批准。按最新基准与 staging runbook 核对实际版本；upstream 域名、OAuth/商店身份和定价不可直接复用。Web 托管历史存于服务端，不能套用原生“仅本地”隐私描述。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 Mural accepts a short excerpt that a learner deliberately reports from the app. The report contains only the selected text and report metadata. Relevant conversation context still goes to the AI provider for teaching; learning archives stay on the device. Reporting is disabled by default in self-hosted deployments. Mural's production API was enabled and verified on September 14, 2026; see the verification record below.
 
 ## Request and receipt

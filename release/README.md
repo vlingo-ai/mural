@@ -1,5 +1,9 @@
 # Release status
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/upstream 原生发布参考：以下清单、定价草稿、身份、域名和已完成状态只适用于其注明的版本，不是 vLingo 当前发布批准。新三端版本须重新审查隐私、数据流、签名、商店材料及实测结果。
+> 当前范围和后续顺序见[项目开发基准](../docs/web-ios-model-gateway-plan.md)。
+
 **The source and website are public, and optional Google accounts are deployed for supported preview builds.** The user completed Google sign-in on the phone, and PostgreSQL account/session records were verified without exposing personal data. Apple sign-in, TestFlight, the App Store, hosted free minutes and credit purchases remain unavailable. Account creation does not enable hosted conversations or payments; practice with a personal OpenAI key remains independent of signup.
 
 ## Completed
