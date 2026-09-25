@@ -34,3 +34,8 @@ class LiveDTOTests(unittest.TestCase):
                        {'type': 'object'}, {'oneOf': []}, {'allOf': []}):
             with self.assertRaises(ValueError):
                 ts_type(schema)
+
+    def test_native_discriminator_change_requires_review(self):
+        self.contract['components']['schemas']['LiveTransport']['discriminator']['mapping']['new'] = '#/components/schemas/LiveKitRoomTransport'
+        with self.assertRaises(ValueError):
+            render(self.contract)

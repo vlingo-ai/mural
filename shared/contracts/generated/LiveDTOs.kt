@@ -5,6 +5,13 @@ package chat.mural.contracts
 
 import kotlinx.serialization.Serializable
 
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.*
+
 @Serializable
 data class LiveWebRTCTransportDTO(
     val type: String,
@@ -33,3 +40,38 @@ data class HostedHelperUsageDTO(
     val outputTokens: Long,
     val searchCalls: Long
 )
+
+@Serializable(with = LiveTransportSerializer::class)
+sealed class LiveTransportDTO {
+    data class WebRTC(val value: LiveWebRTCTransportDTO) : LiveTransportDTO()
+    data class LiveKitRoom(val value: LiveKitRoomTransportDTO) : LiveTransportDTO()
+}
+
+object LiveTransportSerializer : KSerializer<LiveTransportDTO> {
+    override val descriptor: SerialDescriptor = JsonObject.serializer().descriptor
+    override fun deserialize(decoder: Decoder): LiveTransportDTO {
+        val input = decoder as? JsonDecoder ?: throw SerializationException("JSON required")
+        val element = input.decodeJsonElement().jsonObject
+        val tag = element["type"] as? JsonPrimitive ?: throw SerializationException("Missing transport")
+        if (!tag.isString) throw SerializationException("Invalid transport")
+        return when (tag.content) {
+            "webrtc" -> LiveTransportDTO.WebRTC(input.json.decodeFromJsonElement(LiveWebRTCTransportDTO.serializer(), element))
+            "livekit-room" -> LiveTransportDTO.LiveKitRoom(input.json.decodeFromJsonElement(LiveKitRoomTransportDTO.serializer(), element))
+            else -> throw SerializationException("Unknown transport")
+        }
+    }
+    override fun serialize(encoder: Encoder, value: LiveTransportDTO) {
+        val output = encoder as? JsonEncoder ?: throw SerializationException("JSON required")
+        val element = when (value) {
+            is LiveTransportDTO.WebRTC -> {
+                if (value.value.type != "webrtc") throw SerializationException("Transport mismatch")
+                output.json.encodeToJsonElement(LiveWebRTCTransportDTO.serializer(), value.value)
+            }
+            is LiveTransportDTO.LiveKitRoom -> {
+                if (value.value.type != "livekit-room") throw SerializationException("Transport mismatch")
+                output.json.encodeToJsonElement(LiveKitRoomTransportDTO.serializer(), value.value)
+            }
+        }
+        output.encodeJsonElement(element)
+    }
+}

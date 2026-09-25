@@ -128,4 +128,19 @@ helper result/event、ErrorResponse。递归处理受审查本地 ref、object/a
 修正后生成/漂移检查 PASS，Python 71/71 PASS，API tsc（含负例）PASS。
 这些类型不是 runtime validators；Swift/Kotlin 联合编解码及客户端接入仍未实现。
 无部署/付费调用。B3 尚未完成，下一步原生类型/编解码及候选完整验证。
+
+## 第七轮：原生 transport 联合编解码
+
+Swift enum 和 Kotlin sealed class/custom JSON serializer 显式按 type 分派两种 transport，
+拒绝未知/缺失类型；编码分支与内部 type 不匹配时拒绝。生成器锁定已审查 discriminator，
+schema 新增类型时失败要求复核，不静默忽略。未接入任何原生应用。
+
+生成/漂移检查、Python 72/72 PASS；swiftc 独立编译生成 DTO 与
+shared/contracts/tests/TransportRoundTrip.swift PASS，运行后两种往返、未知类型、
+缺 SDP/token、null/缺 type、编码类型错配检查全部 PASS。
+本机未找到 kotlinc；Kotlin 编译与 round-trip NOT_RUN，未为此启动 Android 重型构建。
+Swift 测试与生成文件同模块编译，不证明跨模块公开构造或真实 iOS 应用兼容。
+这些 codec 不是完整 JSON Schema 验证器，额外字段及文本格式规则仍依赖边界校验。
+完整原生 session/status/helper DTO、共享测试矩阵、客户端采用和最终 CI 仍待完成。
+本轮无服务端运行时修改，无需部署，无付费调用。B3 未完成。
 复用规则：成功、流中失败与流前限流错误均需契约断言，重试字段缺失不能解释为允许重试。

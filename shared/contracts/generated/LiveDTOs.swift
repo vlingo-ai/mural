@@ -27,3 +27,27 @@ public struct HostedHelperUsageDTO: Codable, Sendable {
     public let outputTokens: Int64
     public let searchCalls: Int64
 }
+
+public enum LiveTransportDTO: Codable, Sendable {
+    case webrtc(LiveWebRTCTransportDTO)
+    case livekitRoom(LiveKitRoomTransportDTO)
+    private enum CodingKeys: String, CodingKey { case type }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch try container.decode(String.self, forKey: .type) {
+        case "webrtc": self = .webrtc(try LiveWebRTCTransportDTO(from: decoder))
+        case "livekit-room": self = .livekitRoom(try LiveKitRoomTransportDTO(from: decoder))
+        default: throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unknown transport")
+        }
+    }
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .webrtc(let value):
+            guard value.type == "webrtc" else { throw EncodingError.invalidValue(value, .init(codingPath: encoder.codingPath, debugDescription: "Transport mismatch")) }
+            try value.encode(to: encoder)
+        case .livekitRoom(let value):
+            guard value.type == "livekit-room" else { throw EncodingError.invalidValue(value, .init(codingPath: encoder.codingPath, debugDescription: "Transport mismatch")) }
+            try value.encode(to: encoder)
+        }
+    }
+}
