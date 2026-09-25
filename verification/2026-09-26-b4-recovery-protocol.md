@@ -152,5 +152,7 @@ API 类型/生产构建 PASS，全套 **428/428 PASS、0 skip**，启用 B2 私�
 契约与密钥扫描首轮 PASS；首轮 Checks 后因新提交被取消，不记全量通过。
 修复提交 `4408893` 的 [Checks](https://github.com/vlingo-ai/mural/actions/runs/36162996379)
 已确认 Web 单测/构建/mock E2E、API/Edge Docker 构建、Compose 与脚本检查 PASS。
-契约、密钥扫描 PASS；API 回归及汇总门禁仍待完成。原生重型任务按阶段跳过。
+契约、密钥扫描、API 回归及 checks-gate 最终 PASS。原生重型任务按阶段跳过。
+云端 API 为 427 PASS / 1 SKIP / 0 FAIL；B2 私有跨仓用例在本地全套执行，CI 未运行。
+结论仅覆盖 `4408893`；随后证据归集提交的自身 CI 须另行核对，不自动沿用。
 未合并、未部署、无付费测试。
