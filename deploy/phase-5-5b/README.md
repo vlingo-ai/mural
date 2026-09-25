@@ -21,21 +21,6 @@ found API using superuser `mural` (no extra grant needed, separate least-privile
 Preserve encrypted backups and old images/configuration. Roll back Worker before API and retain
 the additive cleanup table. Do not automatically sweep historical rooms without verified targets.
 
-B2 candidate (2026-09-25, **local only; not merged or deployed**): the Compose file now requires
-`WORKER_OUTBOX_KEY` (base64 encoding of 32 random bytes) and `WORKER_OUTBOX_HOST_DIR` (an absolute,
-pre-created host directory owned by UID 10001 with mode 0700). Keep this key distinct from the
-LiveKit control secret, retain it for as long as encrypted reports remain pending, and never copy it
-into evidence. The Worker and `agent-worker-replay` share that directory; the replay service does
-not receive OpenAI or LiveKit credentials. Before any B2 deployment, check active calls, take the
-encrypted backup, preserve prior images/configuration, apply migration 029, deploy API before Worker,
-then start and verify the replay service and inspect its pending count without exposing tokens.
-The candidate `verify.sh` runs `python -m mural_livekit.outbox_status --require-empty` inside the
-replay container and fails if any durable control report remains pending; this prints a count only.
-Do not run this candidate against the current staging `.env` until the B2 release gates and
-[dated evidence](../../verification/2026-09-25-b2-control-receipts.md) are complete. On rollback,
-retain the encrypted outbox and its key until every pending record is reconciled; do not delete the
-additive reconciliation table or treat a rollback as permission to re-debit a closed session.
-
 This bundle prepares the **vLingo Speaking Live** Phase 5.5B hybrid topology on one dedicated
 Ubuntu 24.04 LTS staging VPS. LiveKit Cloud owns rooms and media. The VPS runs PostgreSQL, Mural
 API, the Responses-only Model Gateway, the GPT-Live Agent Worker, and Caddy. It is a Build
