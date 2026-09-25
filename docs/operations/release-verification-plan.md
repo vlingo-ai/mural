@@ -132,6 +132,7 @@ PR、候选发布、上线后是三种运行模式；完整故障矩阵在隔离
 | HISTORY-01 | 最终 turn 发送失败、浏览器刷新、断网前/中/后 turn、重复修订 | 持久去重、cursor 补取、无越权；计数/合成 fixture 摘要匹配 |
 | RELEASE-01 | 错镜像、unhealthy、Worker 未注册、日志读取失败、空分母 | 非零退出；UNKNOWN 不伪装 PASS；部署停止或进入回滚决策 |
 | RESTORE-01 | 损坏备份、错误密钥、缺运行权限、旧 schema | 校验失败阻止发布；隔离恢复完整性与迁移兼容被真实测试 |
+| CONTRACT-01 | 当前/旧 transport、缺字段、额外私有字段、错误格式、未知 Gateway profile | 创建与状态响应分别验证；null 与缺失不混同；Responses 默认检查不依赖旧 Live，显式 legacy 检查仍拒绝缺项；fixture 通过不等于真实 HTTP 或 DTO 已验证 |
 
 真实 Cloud 拒绝不允许通过耗尽共享额度、购买容量或影响别人来实现；有供应商支持的隔离办法才另行批准。
 自动测试应验证非计费保障本身：无真实 key、模型出口禁用、只允许本地假服务；跑完真实供应商请求数为零。
@@ -295,6 +296,7 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-25：B3 第一轮契约对齐 | [B3 本地证据](../../verification/2026-09-25-b3-contract-alignment.md)；基线 `9b2f485`、未提交候选 | 类型检查、5/5 契约测试 PASS；真实 Gateway 两种 profile 检查 PASS。无运行时修改、部署或付费调用；HTTP 集成、helper/SSE、DTO 与 PR CI 待办，B3 未完成 | 新增 CONTRACT-01；格式与形状均验证，历史兼容字段不代表新增权限；默认必需契约与旧协议兼容检查分开 |
 | 2026-09-25：B2 第十二轮 VPS 部署 | [B2 部署证据](../../verification/2026-09-25-b2-control-receipts.md)；API `a81c3ba`、Worker `5c6a2d3` | 异机备份校验、迁移 029、API→Worker/replay、版本/运行状态及 verify PASS；注册记录 1，复查重启 0、待投递队列 0。文档提交/评审及签结待办；无新付费测试，恢复/回滚演练 NOT_RUN | 多目录发布须记录组件实际 Compose 路径，旧部署目录不得误用于全量 up；B7/A2 收敛部署入口。健康/空队列不冒充真实媒体和故障恢复验收 |
 | 2026-09-25：B2 第十一轮合并及镜像准备 | [B2 发布标识](../../verification/2026-09-25-b2-control-receipts.md)；API `a81c3ba`、Worker `5c6a2d3` | 两仓最终候选 CI PASS；Worker 镜像及 Linux 卷检查 PASS；最新跨仓定向复测 1/1、0 skip。Worker digest 已发布；VPS 仍为 B1，sudo 需操作员，未备份/迁移/部署 B2 | 已复查，无额外规则变更；沿用第十轮 ACK 唯一性与卷权限规则，区分源码合并/镜像发布/线上运行；B2 未完成 |
 | 2026-09-25：B2 第十轮回执删除重插竞态 | [B2 证据第十轮](../../verification/2026-09-25-b2-control-receipts.md)；Worker `12cb69f` / `bee12ec`，API `623c9f9` | 旧实现回归 FAIL，持久版本计数修复后 Worker 40/40、lint/format PASS；API 阶段 CI PASS。新增两容器非 root/持久卷检查，本机无 Docker，执行状态见 Worker CI；VPS 仅只读核对，无迁移或部署，B2 未完成 | USAGE-01 增加跨删除重插/重启的 ACK 唯一性；新增生产等效 Linux 卷权限与跨容器测试；不扩大费用或用户计费范围 |

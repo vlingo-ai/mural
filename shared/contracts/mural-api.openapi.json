@@ -18,7 +18,7 @@
     "/v1/live/sessions": {
       "post": {
         "operationId": "createLiveSession",
-        "summary": "Create a Mural Live WebRTC session",
+        "summary": "Create a Mural Live session using the server-selected transport",
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -100,6 +100,19 @@
           "default": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [],
+                "properties": {}
+              }
+            }
+          }
         }
       }
     },
@@ -110,9 +123,17 @@
         "responses": {
           "200": {
             "description": "Recent conversations",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationList" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationList"
+                }
+              }
+            }
           },
-          "default": { "$ref": "#/components/responses/Error" }
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
         }
       }
     },
@@ -120,13 +141,25 @@
       "get": {
         "operationId": "getConversation",
         "summary": "Get transcript fragments and learning results for an owned conversation",
-        "parameters": [{ "$ref": "#/components/parameters/SessionID" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Conversation detail",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationDetail" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDetail"
+                }
+              }
+            }
           },
-          "default": { "$ref": "#/components/responses/Error" }
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
         }
       }
     },
@@ -134,18 +167,48 @@
       "post": {
         "operationId": "appendConversationEvent",
         "summary": "Idempotently append a bounded frontend-visible transcript fragment",
-        "parameters": [{ "$ref": "#/components/parameters/SessionID" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          }
+        ],
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationEventInput" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationEventInput"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
             "description": "Event accepted or previously stored",
-            "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false,
-              "required": ["accepted","duplicate"], "properties": { "accepted": { "const": true }, "duplicate": { "type": "boolean" } } } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "accepted",
+                    "duplicate"
+                  ],
+                  "properties": {
+                    "accepted": {
+                      "const": true
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           },
-          "default": { "$ref": "#/components/responses/Error" }
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
         }
       }
     },
@@ -175,6 +238,54 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ModelTaskResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/live/capabilities": {
+      "get": {
+        "operationId": "getLiveCapabilities",
+        "summary": "Read gated Live availability and server-selected transport",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current runtime response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCapabilities"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/live/sessions/current": {
+      "get": {
+        "operationId": "getCurrentLiveSession",
+        "summary": "Read the current non-closed minute-funded session, or null",
+        "responses": {
+          "200": {
+            "description": "Current runtime response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentLiveSession"
                 }
               }
             }
@@ -254,32 +365,42 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "language",
-          "transport"
+          "language"
         ],
         "properties": {
           "language": {
             "type": "string",
-            "minLength": 2,
-            "maxLength": 16
-          },
-          "transport": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "type",
-              "sdp"
+            "enum": [
+              "en",
+              "zh-CN"
             ],
-            "properties": {
-              "type": {
-                "const": "webrtc"
-              },
-              "sdp": {
-                "type": "string",
-                "minLength": 3,
-                "maxLength": 65536
-              }
-            }
+            "description": "API compatibility values; UI availability is a separate release policy."
+          },
+          "sdp": {
+            "type": "string",
+            "pattern": "^v=0",
+            "maxLength": 65536,
+            "description": "Legacy WebRTC only, at most 65536 UTF-8 bytes. Omit for livekit-room. Transport is selected by server capabilities, not by a request transport object."
+          },
+          "requestedMilliseconds": {
+            "type": "integer",
+            "minimum": 60000,
+            "maximum": 3600000
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000,
+            "deprecated": true,
+            "description": "Existing compatibility field, at most 12000 UTF-8 bytes; not a new client prompt authority. Whitespace/control-character validation also applies. New clients should omit."
+          },
+          "history": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "$ref": "#/components/schemas/LiveHistoryMessage"
+            },
+            "description": "Compatibility context: serialized JSON at most 6000 UTF-8 bytes; nonblank text with valid Unicode and no disallowed control characters."
           }
         }
       },
@@ -288,38 +409,82 @@
         "additionalProperties": false,
         "required": [
           "sessionID",
-          "state",
           "transport",
-          "deadline"
+          "deadline",
+          "rateVersion",
+          "experimental"
         ],
         "properties": {
           "sessionID": {
             "type": "string",
             "format": "uuid"
           },
-          "state": {
-            "const": "active"
-          },
           "transport": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "type",
-              "sdp"
-            ],
-            "properties": {
-              "type": {
-                "const": "webrtc"
-              },
-              "sdp": {
-                "type": "string",
-                "minLength": 3
-              }
-            }
+            "$ref": "#/components/schemas/LiveTransport"
           },
           "deadline": {
             "type": "string",
             "format": "date-time"
+          },
+          "rateVersion": {
+            "type": "string"
+          },
+          "experimental": {
+            "const": true
+          },
+          "sdp": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Legacy WebRTC response alias only."
+          },
+          "fundingMode": {
+            "type": "string",
+            "enum": [
+              "minutes",
+              "ai-value"
+            ]
+          },
+          "billingBasis": {
+            "type": "string",
+            "enum": [
+              "connected-conversation-time",
+              "actual-ai-usage"
+            ]
+          },
+          "minimumChargeMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "billingPolicy": {
+            "type": "string",
+            "enum": [
+              "connected-time-only-v1",
+              "connected-time-15s-minimum-v1",
+              "actual-ai-usage-15s-minimum-v1"
+            ]
+          },
+          "reservedMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limitMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reservedNanoUSD": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "voiceReservedNanoUSD": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "helperReservedNanoUSD": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "helperRateVersion": {
+            "type": "string"
           }
         }
       },
@@ -328,7 +493,10 @@
         "additionalProperties": false,
         "required": [
           "sessionID",
-          "state"
+          "state",
+          "deadline",
+          "observedMilliseconds",
+          "providerCostNanoUSD"
         ],
         "properties": {
           "sessionID": {
@@ -351,6 +519,102 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "observedMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "providerCostNanoUSD": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]+$"
+          },
+          "fundingMode": {
+            "type": "string",
+            "enum": [
+              "minutes",
+              "ai-value"
+            ]
+          },
+          "billingBasis": {
+            "type": "string",
+            "enum": [
+              "connected-conversation-time",
+              "actual-ai-usage"
+            ]
+          },
+          "minimumChargeMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "billingPolicy": {
+            "type": "string",
+            "enum": [
+              "connected-time-only-v1",
+              "connected-time-15s-minimum-v1",
+              "actual-ai-usage-15s-minimum-v1"
+            ]
+          },
+          "reservedMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limitMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reservedNanoUSD": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "voiceReservedNanoUSD": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "helperReservedNanoUSD": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "helperRateVersion": {
+            "type": "string"
+          },
+          "chargedMilliseconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "chargedNanoUSD": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]+$"
+          },
+          "chargedVoiceNanoUSD": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]+$"
+          },
+          "chargedHelperNanoUSD": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "helperPendingNanoUSD": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "helperReservedRemainingNanoUSD": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "rateVersion": {
+            "type": "string"
           }
         }
       },
@@ -839,59 +1103,223 @@
       "ConversationEventInput": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["eventID", "speaker", "text", "source"],
+        "required": [
+          "eventID",
+          "speaker",
+          "text",
+          "source"
+        ],
         "properties": {
-          "eventID": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
-          "speaker": { "type": "string", "enum": ["user", "assistant"] },
-          "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
-          "source": { "type": "string", "enum": ["live", "typed"] }
+          "eventID": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+          },
+          "speaker": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "live",
+              "typed"
+            ]
+          }
         }
       },
       "ConversationSummary": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "language", "state", "createdAt", "deadline", "preview", "eventCount", "resultCount"],
+        "required": [
+          "id",
+          "language",
+          "state",
+          "createdAt",
+          "deadline",
+          "preview",
+          "eventCount",
+          "resultCount"
+        ],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "language": { "type": ["string", "null"], "maxLength": 32 },
-          "state": { "type": "string" },
-          "createdAt": { "type": "string", "format": "date-time" },
-          "deadline": { "type": "string", "format": "date-time" },
-          "preview": { "type": ["string", "null"] },
-          "eventCount": { "type": "integer", "minimum": 0 },
-          "resultCount": { "type": "integer", "minimum": 0 }
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 32
+          },
+          "state": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "preview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eventCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resultCount": {
+            "type": "integer",
+            "minimum": 0
+          }
         }
       },
       "ConversationList": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["conversations"],
-        "properties": { "conversations": { "type": "array", "items": { "$ref": "#/components/schemas/ConversationSummary" } } }
+        "required": [
+          "conversations"
+        ],
+        "properties": {
+          "conversations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConversationSummary"
+            }
+          }
+        }
       },
       "ConversationDetail": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "language", "state", "createdAt", "deadline", "observedMilliseconds", "chargedMilliseconds", "events", "results"],
+        "required": [
+          "id",
+          "language",
+          "state",
+          "createdAt",
+          "deadline",
+          "observedMilliseconds",
+          "chargedMilliseconds",
+          "events",
+          "results"
+        ],
         "properties": {
-            "id": { "type": "string", "format": "uuid" },
-            "language": { "type": ["string", "null"], "maxLength": 32 },
-            "state": { "type": "string" },
-            "createdAt": { "type": "string", "format": "date-time" },
-            "deadline": { "type": "string", "format": "date-time" },
-            "observedMilliseconds": { "type": "integer", "minimum": 0 },
-            "chargedMilliseconds": { "type": ["integer", "null"], "minimum": 0 },
-            "events": { "type": "array", "items": { "type": "object", "additionalProperties": false,
-              "required": ["eventID", "speaker", "text", "source", "createdAt"], "properties": {
-                "eventID": { "type": "string" }, "speaker": { "type": "string", "enum": ["user", "assistant"] },
-                "text": { "type": "string" }, "source": { "type": "string", "enum": ["live", "typed"] },
-                "createdAt": { "type": "string", "format": "date-time" }
-              } } },
-            "results": { "type": "array", "items": { "type": "object", "additionalProperties": false,
-              "required": ["kind", "result", "createdAt"], "properties": {
-                "kind": { "type": "string", "enum": ["translation", "assessment", "teachingReply", "topicSearch"] },
-                "result": { "$ref": "#/components/schemas/ModelTaskResult" },
-                "createdAt": { "type": "string", "format": "date-time" }
-              } } }
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 32
+          },
+          "state": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "observedMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "chargedMilliseconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "eventID",
+                "speaker",
+                "text",
+                "source",
+                "createdAt"
+              ],
+              "properties": {
+                "eventID": {
+                  "type": "string"
+                },
+                "speaker": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "assistant"
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "live",
+                    "typed"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "result",
+                "createdAt"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "translation",
+                    "assessment",
+                    "teachingReply",
+                    "topicSearch"
+                  ]
+                },
+                "result": {
+                  "$ref": "#/components/schemas/ModelTaskResult"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
         }
       },
       "ModelTaskResult": {
@@ -916,6 +1344,187 @@
             "teachingReply": "#/components/schemas/TeachingReplyTaskResult",
             "topicSearch": "#/components/schemas/TopicSearchTaskResult",
             "assessment": "#/components/schemas/AssessmentResult"
+          }
+        }
+      },
+      "LiveHistoryMessage": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "role",
+              "content"
+            ],
+            "properties": {
+              "type": {
+                "const": "message"
+              },
+              "role": {
+                "const": "user"
+              },
+              "content": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "text"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "input_text"
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "role",
+              "content"
+            ],
+            "properties": {
+              "type": {
+                "const": "message"
+              },
+              "role": {
+                "const": "assistant"
+              },
+              "content": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "text"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "output_text"
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "LiveWebRTCTransport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "sdp"
+        ],
+        "properties": {
+          "type": {
+            "const": "webrtc"
+          },
+          "sdp": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "LiveKitRoomTransport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "url",
+          "token"
+        ],
+        "properties": {
+          "type": {
+            "const": "livekit-room"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": false,
+            "description": "Short-lived room credential; never persist in history or diagnostic artifacts."
+          }
+        }
+      },
+      "LiveTransport": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/LiveWebRTCTransport"
+          },
+          {
+            "$ref": "#/components/schemas/LiveKitRoomTransport"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "webrtc": "#/components/schemas/LiveWebRTCTransport",
+            "livekit-room": "#/components/schemas/LiveKitRoomTransport"
+          }
+        }
+      },
+      "LiveCapabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "hostedMinutes"
+        ],
+        "properties": {
+          "hostedMinutes": {
+            "type": "boolean"
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "webrtc",
+              "livekit-room"
+            ]
+          },
+          "experimental": {
+            "const": true
+          }
+        }
+      },
+      "CurrentLiveSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "session"
+        ],
+        "properties": {
+          "session": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LiveSessionStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       }
