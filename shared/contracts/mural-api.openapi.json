@@ -275,6 +275,17 @@
         }
       }
     },
+    "/v1/live/requests/{requestID}": {
+      "get": {
+        "operationId": "getLiveSessionByRequest",
+        "summary": "Read this account's session by original UUID idempotency key; null is an unknown snapshot, not cancellation",
+        "parameters": [{ "name": "requestID", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "No provider credentials; includes closed sessions", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CurrentLiveSession" } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/v1/live/sessions/current": {
       "get": {
         "operationId": "getCurrentLiveSession",

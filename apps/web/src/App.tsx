@@ -70,7 +70,9 @@ export default function App() {
     if (event.type === 'mural.history.sync_failed') setError('The live conversation continues, but history sync needs a retry.');
     if (event.type === 'mural.live.agent_lost') setError('The voice service stopped unexpectedly. Start a new conversation to reconnect.');
     if (event.type === 'mural.live.reconnect_failed') setError('The connection could not be restored. Start a new conversation.');
+    if (event.type === 'mural.live.close_pending') setError('Audio has stopped locally. Server closure is not confirmed; retry closing.');
     if (event.type === 'session.closed') {
+      setError(undefined);
       timing?.mark('closed'); audioProbe?.stop(); setState('idle'); void refreshHistory(accountRef.current?.accountID);
     }
   }, stream => { if (audio.current) audio.current.srcObject = stream; audioProbe?.attachRemote(stream); },
@@ -178,7 +180,7 @@ export default function App() {
         <p key={caption.id} className={caption.speaker}><span>{caption.speaker === 'user' ? 'You' : 'Mural'}</span>{caption.text}</p>)}</div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">{!busy ? <button className="primary" onClick={() => void start()} disabled={!token.trim()}>Start conversation</button> :
-        <button className="danger" onClick={() => connection.close()}>Stop</button>}</div>
+        <button className="danger" onClick={() => connection.close()}>{state === 'closing' ? 'Retry closing' : 'Stop'}</button>}</div>
       <div className="typed"><input value={typed} onChange={event => setTyped(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !sending) void sendText(); }}
         placeholder="Type a message" disabled={!active || sending} maxLength={2_000} /><button onClick={() => void sendText()} disabled={!active || sending || !typed.trim()}>{sending ? 'Sending…' : 'Send'}</button></div>
       <div className="learning-actions"><button onClick={() => void runLiveTask('translation')} disabled={!active || !latestUser || toolBusy}>Translate latest</button>

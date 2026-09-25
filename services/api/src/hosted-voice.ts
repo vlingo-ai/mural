@@ -538,6 +538,13 @@ export class HostedVoice {
     const row = (await this.db.query("SELECT id FROM hosted_sessions WHERE account_id=$1 AND state<>'closed'", [account])).rows[0];
     return { session: row ? await this.status(account, row.id) : null };
   }
+  async byRequest(account: string, requestID: string) {
+    const row = (await this.db.query(
+      'SELECT id FROM hosted_sessions WHERE account_id=$1 AND idempotency_key=$2',
+      [account, requestID])).rows[0];
+    // Absence is only a snapshot: an in-flight create may still commit later.
+    return { session: row ? await this.status(account, row.id) : null };
+  }
   async close(account: string, id: string) { await this.status(account, id); await this.requestClose(id, 'user_requested'); return this.status(account, id); }
   async tick(): Promise<void> {
     if (this.ticking || !this.leader) return; this.ticking = true;

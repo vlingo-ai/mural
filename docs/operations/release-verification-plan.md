@@ -294,6 +294,14 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 
 ### 迭代归集表
 
+恢复共享轨迹须分别校验产品 generation 与 Room epoch；Stop 后迟到事件不得重新 Active。
+媒体权限异步结果须先检查 generation/closed，再赋给当前会话；过期结果须停止全部音轨，不能覆盖新会话媒体。
+关闭 HTTP 成功不等于会话 closed；本地停音与服务端关闭确认须分开测试，失败/非终态不得由定时器伪装 idle。
+产品截止须消耗请求在途时间，不能因 SDK 恢复或 Room 重建重新计时；客户端墙钟假设和服务端真正授权必须分开说明。
+创建响应丢失不等于未准入；须按原幂等身份查证，不得直接创建第二个付费会话或将未知清成 idle。
+原请求查询返回 null 只是当时未找到；没有原子取消凭据时不得当作取消成功，且客户端新查询接口须先部署 API 再 Web。
+信令单独丢失不等于媒体丢失，不以静默判失败；纯状态模型通过不替代 SDK/API 适配层及真实媒体测试。
+
 B3 镜像构建复用规则：仓库全量类型检查与受限 Docker 上下文构建须分别通过；测试依赖不得隐式进入生产构建。
 
 B3 `0c1dc5a` 云端复验全部适用检查 PASS（[run](https://github.com/vlingo-ai/mural/actions/runs/36156951956)）。
@@ -302,6 +310,13 @@ PR #43 未合并、未部署，证据归集提交的最新 CI 需另行核对，
 
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-26：B4 草稿 PR / Edge 上下文 | [第七轮](../../verification/2026-09-26-b4-recovery-protocol.md#第七轮草稿-pr-与镜像上下文修复)、[PR #44](https://github.com/vlingo-ai/mural/pull/44) | 首轮 Edge Docker 构建 FAIL；修复 `4408893` 云端 Web、双镜像、Compose、API、契约/扫描及汇总 PASS；文档归集提交自身 CI 另验，未部署 | 客户端新增跨目录共享依赖时必须同步 Docker COPY、WORKDIR 与 dist 路径；本地构建不替代镜像验证 |
+| 2026-09-26：B4 本地候选回归 | [第六轮](../../verification/2026-09-26-b4-recovery-protocol.md#第六轮未知准入查询旧-webrtc-边界与候选回归) | Web 74/74、mock E2E 2/2、API 428/428（0 skip）及额外权限定向 1/1、构建/类型/漂移 PASS；首跑失败已记录；未部署 | 原 UUID 只读查询，不重放创建；null 不作取消证明；发布须 API→Web，无迁移/Worker 改动 |
+| 2026-09-26：B4 SDK 恢复与迟到准入 | [第五轮](../../verification/2026-09-26-b4-recovery-protocol.md#第五轮sdk-恢复确认与迟到准入) | 首轮 6 FAIL，修正异步断言/替身后 70/70、类型/构建、mock E2E 2/2 PASS；未部署 | SDK 恢复也核查状态；未知准入保留未知，原幂等身份协调待实施 |
+| 2026-09-26：B4 共享模型接入 | [第四轮](../../verification/2026-09-26-b4-recovery-protocol.md#第四轮livekit-接入共享-reducer-与本地截止) | Web 65/65、类型/构建与 mock E2E 2/2 PASS；本地未部署 | 重连不续长产品期限；SDK-only 状态协调、迟到准入关闭可见性仍待办，不签结 |
+| 2026-09-26：B4 恢复门禁与关闭确认 | [第三轮](../../verification/2026-09-26-b4-recovery-protocol.md#第三轮恢复状态门禁与关闭确认) | Web 63/63、类型/构建、mock E2E 2/2 PASS；未部署/付费；复用现有服务端契约 | 状态查询失败不授权重入；Stop 立即停音，只有 closed 才 idle；仍缺完整控制截止与适配矩阵 |
+| 2026-09-26：B4 信令与权限竞态 | [第二轮](../../verification/2026-09-26-b4-recovery-protocol.md#第二轮web-适配的两个有界修复) | Web 52/52、类型/构建、mock E2E 2/2 PASS；本地候选，未部署/付费；服务端未改 | signal-only 不自动重建 Room，既有截止不延长；过期媒体结果主动释放。状态查询/close 确认仍待办 |
+| 2026-09-26：B3 签结 / B4 参考模型 | [第一轮证据](../../verification/2026-09-26-b4-recovery-protocol.md)；B3 主线 `4a9a26b` | B3 最终 CI PASS 并获授权合并，无需部署；B4 Web 48/48、类型/构建 PASS，模型未接 runtime，无付费调用 | generation/Room epoch、Stop 优先与信令/媒体分离；B4 适配与部署待办，纯模型不冒充端到端 |
 | 2026-09-25：B3 授权上传与构建修正 | [第九轮](../../verification/2026-09-25-b3-contract-alignment.md#第九轮授权上传与镜像构建边界修正)、[PR #43](https://github.com/vlingo-ai/mural/pull/43) | 授权后已上传；首轮镜像构建 FAIL（跨目录测试依赖），拆分生产构建后本地 check/build PASS，云端复验待完成；无合并/部署 | 完整测试类型检查保留，生产构建仅编译 src；CI 镜像构建不等于部署 |
 | 2026-09-25：B3 候选上传受阻 | [权限边界](../../verification/2026-09-25-b3-contract-alignment.md#发布权限边界) | 本地验证完成；push 被安全审批拒绝，需明确上传授权。无远端 PR/CI/合并，保存本地候选；无部署 | 不以本地完成替代发布签结，不绕过上传审批；等待明确目标仓库/分支授权 |
 | 2026-09-25：B3 完整 Live DTO 本地候选 | [第八轮证据](../../verification/2026-09-25-b3-contract-alignment.md#第八轮完整-live-dto-候选与本地验证) | API clean-install/构建及 428/428 PASS（修正首跑 Worker 路径 FAIL）；Web 37/37、mock E2E 2/2；Python 72/72；独立原生编解码实际执行。PR/CI 待办，无部署/付费 | 三端共用 fixture 检查 presence/null、联合分派、费用字符串；native codec 非完整 schema validator；生成 Live DTO 不等于全 API SDK 或客户端采用 |

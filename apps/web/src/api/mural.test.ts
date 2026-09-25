@@ -2,6 +2,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { MuralAPI, MuralAPIError } from './mural';
 
 describe('MuralAPI', () => {
+  it('reads session status with bearer, encoded identity and bounded request', async () => {
+    const send = vi.fn(async (input, init) => {
+      expect(String(input)).toBe('https://api.example.test/v1/live/sessions/session%2F1');
+      expect(init?.method).toBe('GET');
+      expect(init?.body).toBeUndefined();
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer test-session');
+      return new Response(JSON.stringify({ sessionID: 'session/1', state: 'closed' }));
+    });
+    const status = await new MuralAPI('https://api.example.test', () => 'test-session', send as typeof fetch)
+      .liveSessionStatus('session/1');
+    expect(status.state).toBe('closed');
+  });
   it('binds bearer and idempotency to the configured origin', async () => {
     const calls: Array<[RequestInfo | URL, RequestInit | undefined]> = [];
     const send: typeof fetch = async (input, init) => {

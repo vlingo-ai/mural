@@ -135,11 +135,18 @@ Gate 7 收尾可以独立签结，不要求先完成 B1–B7；反过来，开�
   第九轮审查补充公平重放：前 100 条永久失败不能饿死后续可交付记录，分页游标必须回绕；Worker 候选本地 38/38 与更新后的 PR CI 通过。永久 4xx 仍需人工对账，此修复不改变 B2 的未完成状态。
   第十、十一轮修复删除重插后的迟到 ACK 误删新 final，Worker 全套 40/40、真实 Linux 镜像持久卷检查及最新跨仓定向 1/1 通过；两仓 PR 已合并（API `a81c3ba`、Worker `5c6a2d3`），Worker 固定摘要镜像已发布。VPS 仍运行 B1，B2 备份、目录/密钥、迁移 029、API→Worker/replay 部署及非计费核验尚待执行；**B2 不勾完成**，详见同一证据第十一轮。
   B2 最新签结（第十二轮）：上述未部署状态为历史快照；隔离跨仓故障测试、Linux 镜像检查及 staging 迁移 029、API→Worker/replay 部署、备份与非计费核验通过。注册记录 1、三个 B2 服务重启 0、待投递队列 0。按开发及非计费部署范围完成；不将未执行的真实媒体、恢复或回滚演练记为通过。供应商未生成 final 或落盘前崩溃仍保留未知用量边界。详见 [B2 最新证据](../verification/2026-09-25-b2-control-receipts.md)。
-- [ ] B3：OpenAPI 对齐现有 LiveKit/旧 WebRTC 请求响应；拆分 Gateway 必需契约与旧 Live 残留。契约先修正，再生成三端 DTO。
+- [x] B3：OpenAPI 对齐现有 LiveKit/旧 WebRTC 请求响应；拆分 Gateway 必需契约与旧 Live 残留。契约先修正，再生成三端 DTO。
+  - 2026-09-26 最新签结：用户授权后 PR #43 已合并，主线 `4a9a26b`；最终候选 `b93debe` 全部适用 CI 通过。以下未合并描述为历史快照。完成范围是已审查 Live DTO 子集，不含原生 runtime 接入或全 API SDK；无业务运行时改变，无需部署。
   - 发布进展：[PR #43](https://github.com/vlingo-ai/mural/pull/43) 已创建；`0c1dc5a` 适用云端检查全部通过，API 427 PASS/1 SKIP（跨仓用例本地已验）。首次镜像构建失败已修复并归集；无 UI/业务运行时变化，无需部署。待审查/合并签结，不提前勾选。
   - 2026-09-25 第一轮：本地候选已修正 Live 创建、状态、capabilities/current 的 schema，并拆分 Responses/legacy-live 检查；定向测试通过。实际 HTTP 契约回归、helper JSON/SSE 和 DTO 生成待办，尚未提交或合并；[证据](../verification/2026-09-25-b3-contract-alignment.md)。
   - 最新候选：上述为首轮历史状态。已补实际路由/隔离 DB、helper JSON/SSE、三端 Live wire DTO 及共享编解码检查；API 全量 428/428、Web 37/37 + mock E2E 2/2 通过。生成范围为 Live 请求/响应，不是全 API SDK；原生应用接入留对应平台阶段。本轮无运行时变更，无需部署；PR/CI/审查待完成，B3 暂不勾选。
 - [ ] B4：统一恢复状态和事件 fixtures；覆盖信令断而媒体通、麦克风重发、迟到事件、Stop 竞态和控制过期。
+  - 第六轮候选：未知准入按原 UUID 鉴权查询，不重放创建；旧 WebRTC await/文字发送竞态已隔离。Web 74/74、mock E2E 2/2、API 428/428（0 skip）、类型/构建/漂移 PASS。新增 API 路由需 API→Web 部署；PR/CI/上线核验待办，不勾完成。细节与失败记录见 [B4 证据](../verification/2026-09-26-b4-recovery-protocol.md)。
+  - 第五轮最新：SDK 恢复核查服务端状态，迟到准入关闭失败可重试；响应未知不伪报 idle。Web 70/70、类型/构建、mock E2E 2/2 PASS。未知准入原幂等身份协调、旧 WebRTC 边界与发布仍待办，未部署。
+  - 第四轮最新：共享 reducer 已接 LiveKit Active/恢复/Stop 门禁；产品截止转单调时钟且重连不延期。Web 65/65、类型/构建、mock E2E 2/2 PASS。未部署；SDK-only 状态协调、迟到准入关闭可见性和旧 WebRTC 竞态仍待办。
+  - 第三轮：后备 Room 重建前查询服务端 active/有效截止；Stop 待 closed 才 idle，失败可 Retry closing。Web 63/63、类型/构建及 mock E2E 2/2 PASS；共享模型正式接入、其他异步竞态和发布验收待办，未部署。下列较早轮次状态保留作历史。
+  - 第二轮本地候选：signal-only 不固定 5 秒重建 Room；Stop/新会话后的迟到媒体授权停轨且不覆盖新流。Web 52/52、mock E2E 2/2、类型/构建 PASS。共享模型尚未接入，状态查询/close 确认及发布待办；未部署。
+  - 2026-09-26 已启动：规范同级工作树 `mural-b4-recovery-protocol`；新增[恢复参考协议](../shared/contracts/live-recovery-protocol.md)、共享轨迹与隔离 Web reducer。尚未接入 LiveConnection，未改变线上 UI；Web 适配、集成测试和发布验收待办，不勾完成。
 - [ ] B5：真实本地 LiveKit、真实 SDK、合成音频/假 Agent 的非计费集成；mocked Room 和旧 WebRTC Playwright 不能替代。
 - [ ] B6：Worker→API 最终历史可靠交付和 cursor 补取，覆盖浏览器掉线/刷新；原生迁移保留本地历史。
 - [ ] B7：无正文事件/耗时指标；验证脚本对不健康/Worker 未注册失败退出；发布 manifest、digest 与恢复演练。发布工程子项与验证方案 A2 联动：把 API 纳入与 Worker 一致的受控 CI 构建、测试、私有镜像发布及 digest 固定流程，VPS 改为只拉取经验证的候选镜像；设计专用最小权限的私有镜像只读拉取身份，不把个人 Mac 凭据当作长期部署依赖。

@@ -69,7 +69,8 @@ integration('B3: actual API route responses match Live schemas for both transpor
       const token = randomBytes(32).toString('base64url');
       await f.db.query("INSERT INTO auth_sessions(id,account_id,token_hash,expires_at) VALUES($1,$2,$3,now()+interval '1 hour')",
         [randomUUID(), f.account, digest(token)]);
-      const headers = { authorization: `Bearer ${token}`, 'idempotency-key': `b3-contract-${transport}` };
+      const requestID = randomUUID();
+      const headers = { authorization: `Bearer ${token}`, 'idempotency-key': requestID };
       const check = (name: string, response: { statusCode: number; json(): any }) => {
         assert.equal(response.statusCode, 200);
         const body = response.json();
@@ -83,12 +84,28 @@ integration('B3: actual API route responses match Live schemas for both transpor
         payload: { language: 'en', requestedMilliseconds: 60_000, ...(transport === 'webrtc' ? { sdp: 'v=0\r\nfixture' } : {}) } }));
       assert.equal(live.transport.type, transport);
       assert.equal(live.providerSessionID, undefined);
+      const lookup = `/v1/live/requests/${requestID}`;
+      assert.equal(check('CurrentLiveSession', await app.inject({ method: 'GET', url: lookup, headers })).session.sessionID, live.sessionID);
+      assert.equal((await app.inject({ method: 'GET', url: lookup })).statusCode, 401);
+      assert.equal((await app.inject({ method: 'GET', url: '/v1/live/requests/not-a-uuid', headers })).statusCode, 400);
+      const otherAccount = randomUUID(), otherToken = randomBytes(32).toString('base64url');
+      await f.db.query('INSERT INTO accounts(id,is_guest) VALUES($1,true)', [otherAccount]);
+      await f.db.query("INSERT INTO auth_sessions(id,account_id,token_hash,expires_at) VALUES($1,$2,$3,now()+interval '1 hour')",
+        [randomUUID(), otherAccount, digest(otherToken)]);
+      assert.equal(check('CurrentLiveSession', await app.inject({ method: 'GET', url: lookup,
+        headers: { authorization: `Bearer ${otherToken}` } })).session, null);
+      assert.equal(check('CurrentLiveSession', await app.inject({ method: 'GET', url: `/v1/live/requests/${randomUUID()}`, headers })).session, null);
+      assert.equal((await f.controller.byRequest(randomUUID(), requestID)).session, null);
       check('LiveSessionStatus', await app.inject({ method: 'GET', url: `/v1/live/sessions/${live.sessionID}`, headers }));
       assert.equal(check('CurrentLiveSession', await app.inject({ method: 'GET', url: '/v1/live/sessions/current', headers })).session.sessionID, live.sessionID);
       const invalid = await app.inject({ method: 'POST', url: '/v1/live/sessions', headers,
         payload: { language: 'en', transport: { type: 'webrtc', sdp: 'v=0' } } });
       assert.equal(invalid.statusCode, 400);
+      f.closeReplies = true;
       check('LiveSessionStatus', await app.inject({ method: 'POST', url: `/v1/live/sessions/${live.sessionID}/close`, headers, payload: {} }));
+      if (transport === 'livekit-room') fake.send({ type: 'session.closed', usage: { seconds: 0 } });
+      await until(async () => (await f.controller.status(f.account, live.sessionID)).state === 'closed');
+      assert.equal(check('CurrentLiveSession', await app.inject({ method: 'GET', url: lookup, headers })).session.state, 'closed');
     } finally { await app.close(); await f.cleanup(); }
   }
 });

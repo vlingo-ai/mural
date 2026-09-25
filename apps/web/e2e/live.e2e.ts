@@ -54,7 +54,8 @@ test('development sign-in, Live captions, teaching tools and server history form
       if (body.kind === 'assessment') return json({ kind: 'assessment', outcome: 'success', suggestedLevel: 2, nextGoal: 'Add one detail.', capability: 'Clear greeting.', words: [] });
       return json({ kind: body.kind, text: 'Nice greeting. What are you doing today?', sources: [], usage: {} });
     }
-    if (url.pathname.endsWith('/close') || url.pathname === '/v1/auth/sign-out') return json({});
+    if (url.pathname.endsWith('/close')) return json({ sessionID: url.pathname.split('/').at(-2), state: 'closed' });
+    if (url.pathname === '/v1/auth/sign-out') return json({});
     return json({ error: { code: 'not_found' } }, 404);
   });
 
