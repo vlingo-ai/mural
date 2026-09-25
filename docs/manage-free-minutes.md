@@ -1,5 +1,9 @@
 # How to manage free minutes
 
+<!-- baseline-scope:2026-09-23 -->
+> 适用范围：以下原生构建、安装或运营操作按对应实现保留；不自动启用托管语音、语言、支付或付费测试。iOS/Android 当前仍为旧 WebRTC，LiveKit 三端迁移按最新基准另行测试；upstream 身份不能当作本 fork 配置。
+> 当前范围和后续顺序见[项目开发基准](web-ios-model-gateway-plan.md)。
+
 Run these commands from Mural's server directory on a trusted operator machine, using its private `DATABASE_URL`. Apply database migrations first. The commands do not need an OpenAI key. Never put a production database URL in a command, screenshot, issue or checked-in file.
 
 Use an operator database role permitted to maintain minute policy and grants. The app and website cannot call these operations. Until deployment roles and funded voice are finished, use the isolated test environment only. See [conversation minutes](conversation-minutes.md) for the behavior and current activation limits.

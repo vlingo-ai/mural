@@ -4,6 +4,11 @@
 - 日期：2026-09-17
 - 范围：Phase 5.5，仅 OpenAI `gpt-live-1`
 
+2026-09-23 续订：本 ADR 保留 5.5A 的历史证据；后续实施遵循
+[统一开发基准](../web-ios-model-gateway-plan.md)及已采纳的三端/多供应商设计。
+目前只有 Web 已接入 LiveKit staging；iOS/Android 尚待迁移，Gate 7 未验收通过。
+本轮英语单语推进；以下普通话测试仅为既往证据，不要求继续同步开发或测试。
+
 ## 产品命名约束
 
 本仓库继续保留 Mural 上游身份、Git 历史和既有内部兼容标识；对外产品名为
@@ -41,7 +46,8 @@ Web / iOS ── WebRTC ── LiveKit Room ── Agent Worker ── gpt-live-
 - GPT-Live 使用 `delegation=client`。教学推理回调 Mural，再沿既有 Model Gateway
   Responses 路径执行，不绕过统一模型网关。
 - Web 先读取 Mural capability，再选择 `livekit-room` 或旧 `webrtc`。LiveKit SDK 按需
-  加载；原 OpenAI/Gateway WebRTC 路径继续作为显式回滚方案。
+  加载；旧 OpenAI WebRTC 保留为显式本地诊断/兼容路径，不是已验收的 staging 回滚。
+  Gateway 的实时原型适配已移除，不恢复 Gateway Live 作为默认链路。
 - 浏览器只得到有房间范围和短有效期的 LiveKit token，不得到 OpenAI key、LiveKit
   API secret 或 Worker control token。
 - 产品级 Live capability 由 Mural 聚合，实时 provider/model 的就绪状态由 Agent Worker
@@ -56,7 +62,8 @@ Web / iOS ── WebRTC ── LiveKit Room ── Agent Worker ── gpt-live-
 - 可信 control 回调使用按会话 HMAC token，严格解析累计 usage 和 delegation 数据。
 - 英语和普通话元数据、历史、字幕通道、`lk.chat` 文本输入、client delegation、主动停止
   及原 WebRTC 回滚路径均已接入代码和确定性测试。
-- OpenAI key 仅存在于 Worker 环境；Web bundle 和 Mural API 响应不包含该 key。
+- 实时 OpenAI key 仅存在于 Worker 环境；Gateway 另持独立教学推理 key。
+  Web bundle 和 Mural API staging 环境/响应不包含这两把 key。
 - 真实零余额 smoke 已贯通浏览器、LiveKit Room、Agent Worker 并到达 OpenAI。OpenAI 在
   `session.started` 前返回 `credit_balance_exhausted`；Worker 将其作为可信 429 上报且不重试，
   Mural 以 0ms/0 成本关闭会话、释放全部 600000ms 预留，数据库无遗留 reservation。
@@ -88,7 +95,10 @@ Web / iOS ── WebRTC ── LiveKit Room ── Agent Worker ── gpt-live-
 - LiveKit 本机测试仍未在 Agent job 硬崩溃后自动启动替代 job；当前策略是结束故障会话，
   不在缺少可持久恢复上下文时透明创建第二个 OpenAI 会话。
 - lease 异常结算只把最后可信累计 usage 计入用户账单；最后 heartbeat 到供应商实际终止之间
-  的未知差额最多约一个 30 秒 lease 窗口，由 Mural 运营方承担并对账，不转嫁给用户。
+  的未知差额由运营方承担并对账，不转嫁给用户。**30 秒不是所有故障下的费用上界**：
+  DeleteRoom 失败时可能继续运行。持久清理重试及 Worker 控制授权本地截止已在 B1
+  实现并于 2026-09-25 部署至英语 staging；故障路径是非计费测试证据，真实 Cloud 故障注入仍未执行，
+  参见 [B1 部署记录](../../verification/2026-09-24-b1-resource-cleanup.md)。
 - Phase 5.5A 只证明本机自托管拓扑。LiveKit Cloud Build、跨区域网络、滚动发布、并发容量、
   告警和产品内测仍按 Phase 5.5B/5.5C 验证；未通过前不删除旧 WebRTC 回滚路径。
 
@@ -106,8 +116,9 @@ Mural 功能和信任边界，不代表生产部署决定。
    承载房间、信令和媒体；Mural API、
    Model Gateway 与 Agent Worker 自托管。重跑双向语音、打断、结算、断线恢复与密钥
    隔离门禁，并记录 participant-minutes、下行流量和延迟。
-2. **LiveKit Cloud Ship 产品内测**：保持相同拓扑，增加真实用户白名单、并发与预算上限、
-   成本告警、kill switch、Worker 高可用和 Web/iOS 分阶段内测。
+2. **受控产品内测**：保持相同拓扑，先验收 Web，再按 Phase 6 接入 iOS、后续 Android。
+   加入用户白名单、并发/预算、告警、kill switch 和恢复能力；套餐升级须按实测需求单独批准，
+   不以本 ADR 自动购买 Ship，也不在没有控制所有权方案时直接扩 API 副本。
 
 上述两步均使用 Mural 运营方保存在 Agent Worker 服务端的 OpenAI API key。Mural 注册
 用户只取得短期 LiveKit room token，不需要每次输入自备 key。LiveKit Cloud 账单与
@@ -120,6 +131,6 @@ Region Pinning 不控制 Worker、OpenAI、数据库、录音或日志的地域�
 
 ## 不在本决定内
 
-Gemini Live、第二供应商、会话中切换、供应商自动故障转移、Scale/Region Pinning 与
-完全自托管的生产选型均留待独立阶段；本 spike 不用它们扩大公开协议。Build 和 Ship
-仅验证同一 LiveKit 架构从本机到混合部署的演进，不改变公开协议。
+后续已采纳最小多供应商扩展基础（execution、版本化 route/用量/价格），先服务 GPT/英语并用假供应商验证。
+Gemini 等真实第二供应商、会话中 handoff、自动故障转移、Scale/Region Pinning 和完全自托管
+生产选型仍为独立后续范围；不因设计接受而启用、购买或宣称无缝切换。

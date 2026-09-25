@@ -1,5 +1,9 @@
 # Android version 4 — 14 September 2026
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/upstream 原生发布参考：以下清单、定价草稿、身份、域名和已完成状态只适用于其注明的版本，不是 vLingo 当前发布批准。新三端版本须重新审查隐私、数据流、签名、商店材料及实测结果。
+> 当前范围和后续顺序见[项目开发基准](../../docs/web-ios-model-gateway-plan.md)。
+
 This is the historical v4 packaging record. The later [Play submission record](evidence/play-submission-2026-09-14.json) records v4 in review; the current source and default release spec have moved to later versions. Recheck this bundle with [specs/play-v4.json](specs/play-v4.json) using the [explicit-spec procedure](build-and-verify.md#3-validate-the-exact-bundle-and-assets). The original evidence below remains unchanged.
 
 Version 4 adds an account-deletion support dialog with email, copy-address and web options. It retains the free-trial and personal-key experience. Paid checkout is disabled, with its environment set to `test` in both packaged builds.

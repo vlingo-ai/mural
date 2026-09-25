@@ -11,8 +11,12 @@ product contract rather than a model-provider contract.
 - Additive optional fields are compatible within version 1. Breaking changes require a
   new version or a coordinated client migration.
 
-The API implementation will adopt these contract shapes behind feature
-flags during Phase 4. Until then, this artifact freezes the target Web/iOS/Android boundary.
+Status on 2026-09-23: the checked-in OpenAPI has known drift from the deployed API.
+It still requires the legacy WebRTC transport shape and does not cover the current LiveKit create
+request/response correctly. Do not generate production clients assuming parity.
+The [accepted plan](../../docs/web-ios-model-gateway-plan.md) requires runtime/contract tests first,
+then compatible DTO generation and shared JSON recovery fixtures for TS/Swift/Kotlin.
+New protocol/ownership/execution fields in the design are not yet published endpoints.
 
 The API pins only the Model Gateway protocol requirements in
 `services/api/contracts/model-gateway.lock.json`; it does not copy the Gateway

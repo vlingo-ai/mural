@@ -1,5 +1,9 @@
 # PR #128 review — 17 September 2026
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/版本限定验证：仅证明所列源码、平台和环境。upstream 的服务、账户、真机与商店状态不能归属于本 fork；原生 WebRTC 通过不等于新三端 LiveKit 验收。
+> 当前范围和后续顺序见[项目开发基准](../docs/web-ios-model-gateway-plan.md)。
+
 Reviewed the native caption, translation, teaching, saved-evidence, and typed-turn changes and the hosted helper streaming and final-usage changes against main at `60bd6d3`. The reviewed implementation is `e2a11d7`; this review adds focused HTTP regressions and corrects streaming header negotiation.
 
 ## Security alert #59

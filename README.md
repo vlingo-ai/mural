@@ -1,4 +1,15 @@
-# Mural
+# vLingo Speaking Live — Mural 下游
+
+本 fork 的[最新开发计划](docs/web-ios-model-gateway-plan.md)是项目基准；
+阅读[文档索引](docs/documentation-index.md)区分现行规范、兼容指南和历史证据。
+当前 Web 已部署 LiveKit Cloud staging，英语 Gate 7 尚未验收通过。普通话和粤语为 coming later。
+iOS/Android 仍保留原生 WebRTC；统一 LiveKit 协议迁移分别在 Phase 6 和后续阶段实施。
+Web 托管模式使用账户、服务端历史及账本，不要求用户提供 OpenAI key；原生旧版仍有本地/BYOK 模式。
+
+以下介绍、截图及安装说明保留 upstream 原生/BYOK 语境，不是本 fork 当前 Web 的隐私或发布承诺。
+`mural.chat` 和原作者 OAuth/商店身份不属于本项目；新 App 须使用自己的身份。
+
+## Upstream Mural 原生版本参考
 
 **The language app you eventually delete.**
 

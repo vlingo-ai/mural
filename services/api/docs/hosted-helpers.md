@@ -1,8 +1,18 @@
 # Hosted teaching helpers
 
+<!-- baseline-scope:2026-09-23 -->
+> 兼容功能参考：本文件的原生账户、商业能力和历史部署状态不构成当前 vLingo staging 的启用批准。按最新基准与 staging runbook 核对实际版本；upstream 域名、OAuth/商店身份和定价不可直接复用。Web 托管历史存于服务端，不能套用原生“仅本地”隐私描述。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 `HostedHelpers` is an experimental gateway for an explicitly allowed account's minute-funded voice session. It accepts the Android teaching prompts transiently, fixes the model and tools, reserves provider funding, then returns a normalized result. Public hosted activation and final consumer prices remain pending.
 
-`main.ts` connects the gateway to `OpenAIHostedResponses` and `POST /v1/live/sessions/:id/helpers`. It starts only when `HOSTED_HELPERS_EXPERIMENTAL=true`, minute billing is selected, and `HOSTED_HELPER_BUDGET_PER_MINUTE_NANO` supplies a positive reviewed cost allowance. Voice and helpers use the same account allowlist and aggregate cap. Search defaults to disabled. `/v1/live/capabilities` advertises hosted minutes only when both services allow the authenticated account. Cleanup releases unused helper funding every 15 minutes; the request window still expires on time between cleanup runs.
+`main.ts` selects the configured Gateway Responses transport; direct `OpenAIHostedResponses`
+is a development compatibility option, not the staging realtime provider. The legacy native
+`POST /v1/live/sessions/:id/helpers` contract below coexists with the newer prompt-free
+`POST /v1/model-tasks` product endpoint. New clients should use product tasks rather than copy
+the legacy client-supplied prompt interface. Helper admission requires its experimental gate,
+appropriate funding, account allowlist and a reviewed budget; those gates do not permit provider
+selection or arbitrary retries. Worker delegation also returns through Mural's trusted budget path.
 
 `GET /v1/live/sessions/current` returns the authenticated account's unresolved session or `null`. Clients use this after losing a create response, then close that original session. They must not start a replacement while its usage remains unresolved. Signing out also records a durable server close request before revoking credentials.
 

@@ -1,5 +1,9 @@
 # Android visual review
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/版本限定验证：仅证明所列源码、平台和环境。upstream 的服务、账户、真机与商店状态不能归属于本 fork；原生 WebRTC 通过不等于新三端 LiveKit 验收。
+> 当前范围和后续顺序见[项目开发基准](../../docs/web-ios-model-gateway-plan.md)。
+
 These captures show the actual Android interface on a Pixel 9 emulator running API 36. Images 01–12 show the full display; images 13–16 show the purchase sheet itself. They use the separate `chat.mural.android.uitest` installation, no account or API credentials, and disabled continuous motion. They are design-review evidence, not final Play Store listing assets.
 
 - [Learning language](01-onboarding.png)

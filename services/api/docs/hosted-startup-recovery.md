@@ -1,5 +1,9 @@
 # Hosted voice startup recovery
 
+<!-- baseline-scope:2026-09-23 -->
+> 兼容功能参考：本文件的原生账户、商业能力和历史部署状态不构成当前 vLingo staging 的启用批准。按最新基准与 staging runbook 核对实际版本；upstream 域名、OAuth/商店身份和定价不可直接复用。Web 托管历史存于服务端，不能套用原生“仅本地”隐私描述。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 A rejected startup must not leave a learner permanently waiting for a previous conversation. The provider adapter treats an explicit HTTP 4xx response, except 408, as a rejected create. The controller settles the reservation at zero, releases the helper allowance, and keeps rejection status and a sanitized request ID as evidence. Reusing the same idempotency key never creates another provider session; a new attempt requires a new key.
 
 Transport failures, 408, 5xx, malformed successful responses and attachment failures remain uncertain. Those holds are not released automatically. Startup diagnostics contain only a failure stage, HTTP status and sanitized request ID. They contain no credentials, SDP, prompts, transcripts or provider error bodies.

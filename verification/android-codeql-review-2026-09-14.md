@@ -1,5 +1,9 @@
 # Android PR security review — 14 September 2026
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/版本限定验证：仅证明所列源码、平台和环境。upstream 的服务、账户、真机与商店状态不能归属于本 fork；原生 WebRTC 通过不等于新三端 LiveKit 验收。
+> 当前范围和后续顺序见[项目开发基准](../docs/web-ios-model-gateway-plan.md)。
+
 Reviewed all 37 open CodeQL findings reported for [PR #17](https://github.com/Chuloo/mural/pull/17) at `c8668df1dbc10d241c547400657ee82b69410e71`: three critical and 34 high. The Python and JavaScript SARIF data flows were retrieved from analyses `1770657374` and `1770658023`; this review uses their exact sources and sinks.
 
 No production exploit was established by these 37 findings. Thirty-five are false positives for the reported rule, with evidence below. Two identify imprecise assertions in tests; those assertions have been strengthened. This is a review of the reported flows, not a claim that the whole application is vulnerability-free. No alerts were dismissed and no scanning configuration was weakened. The remote CodeQL gate remains failed until GitHub processes changes and reviewed alert dispositions.

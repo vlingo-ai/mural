@@ -1,8 +1,12 @@
 # How to enable optional sign-in on iPhone
 
-Configure Google or Apple sign-in without enabling hosted conversations, trial minutes or purchases. Users can still practise with their own OpenAI API key without an account. The source defaults to accounts disabled; the current local Mural build enables Google only. Mural’s Google project is in production with verified, published consent branding as of September 12, 2026.
+Follow the [accepted baseline](web-ios-model-gateway-plan.md). Phase 6 uses this fork's own
+App/Bundle ID, Google Cloud project and iOS OAuth client; Web staging has a separate Web client.
+This guide does not enable payments/trials. Existing native BYOK mode remains independent.
 
-On 12 September 2026, the owner confirmed that real Google sign-in worked on the installed iPhone build. Session persistence, sign-out, expiry and account deletion still need their separate device checks below. Apple remains disabled pending enrollment and revocation setup.
+The September 12 iPhone login record belongs to upstream history, not this fork's Phase 6 app.
+It does not establish whether this user's earlier test used a simulator or physical iPhone.
+Verify new-app login, persistence, logout and deletion independently. Apple needs separate setup.
 
 ## Enable Google
 
@@ -12,16 +16,19 @@ On 12 September 2026, the owner confirmed that real Google sign-in worked on the
 
 ```xcconfig
 MURAL_MANAGED_ACCOUNTS_ENABLED = YES
-MURAL_MANAGED_API_URL = https:/$()/api.mural.chat
+MURAL_MANAGED_API_URL = https:/$()/api-speaking-live-staging.vlingo.ai
 MURAL_GOOGLE_SIGN_IN_ENABLED = YES
-MURAL_GOOGLE_CLIENT_ID = 1034240936303-gernpir75rp4uvc8m5imrhrs18npma5n.apps.googleusercontent.com
-MURAL_GOOGLE_CALLBACK_SCHEME = com.googleusercontent.apps.1034240936303-gernpir75rp4uvc8m5imrhrs18npma5n
+MURAL_GOOGLE_CLIENT_ID = YOUR_OWN_IOS_CLIENT_ID.apps.googleusercontent.com
+MURAL_GOOGLE_CALLBACK_SCHEME = YOUR_REVERSED_IOS_CLIENT_ID
 MURAL_APPLE_SIGN_IN_ENABLED = NO
 MURAL_APPLE_SWIFT_FLAGS =
 MURAL_APPLE_ENTITLEMENTS =
 ```
 
-These values identify Mural's public iOS client in Google Cloud project `mural-508413`, for bundle `no.william.mural`. For another backend or bundle ID, substitute its origin and matching OAuth client. Keep the `https:/$()/` syntax in an xcconfig file so `//` is not treated as a comment.
+Replace placeholders after choosing the new Bundle ID. The server variable is
+`GOOGLE_IOS_CLIENT_ID`; the existing Xcode key remains `MURAL_GOOGLE_CLIENT_ID`.
+Do not reuse upstream's `mural-508413` project/client. Keep `https:/$()/` so xcconfig does not
+interpret `//` as a comment.
 
 4. Build and run the app using the [iPhone setup guide](run-on-iphone.md). Preserve the installed app's bundle ID and development team when updating it. `apps/ios/Config/Signing.xcconfig` loads the checked-in defaults from `apps/ios/Config/ManagedAccounts.xcconfig`, then applies the local overrides.
 5. Open **Settings → Account**. Confirm Google appears, Apple is absent, and the terms agreement and privacy acknowledgment are visible above the button. The registered callback is the reversed client ID followed by `:/oauth2redirect`, with one slash.
@@ -31,7 +38,8 @@ Client IDs are public configuration. Keep OAuth secrets, Apple signing keys, Ope
 
 ## Enable Apple when enrollment is approved
 
-Hackmamba Inc.'s Apple Developer enrollment was still processing on 12 September 2026. Keep Apple disabled until the developer account, provisioning and server revocation setup are ready. Google configuration does not require Apple capability.
+Upstream enrollment does not establish this fork's access. Keep Apple disabled until your own
+developer account, provisioning and server revocation setup are ready.
 
 1. Enable **Sign in with Apple** for the app identifier on the enrolled Apple Developer team. Regenerate a matching provisioning profile. Coordinate any signing-team change before updating the existing personal installation.
 2. Configure the server's `APPLE_CLIENT_ID` with the app's bundle ID, plus its team ID, key ID and private key file. Follow the [server instructions](../services/api/docs/enable-accounts.md) and complete authorization revocation checks before offering Apple signup.
@@ -54,7 +62,7 @@ To use Apple alone, set `MURAL_GOOGLE_SIGN_IN_ENABLED = NO`. Each provider is ga
 Run the offline account checks:
 
 ```sh
-swift test --filter ManagedAccountTests
+swift test --package-path apps/ios --filter ManagedAccountTests
 ```
 
 These cover provider configuration, PKCE S256, callback validation, session expiry and scoping, profile identity binding, exact wallet arithmetic and cancellation. Wallet arithmetic remains tested foundation code; it does not enable a purchase flow. The tests use synthetic values and make no network calls.

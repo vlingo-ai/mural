@@ -1,5 +1,14 @@
 # How to build and test Mural
 
+For reusable release gates, evidence collection, fault-injection coverage and automation implementation
+priorities, see the [release verification plan](operations/release-verification-plan.md) and
+[report template](../verification/release-verification-template.md). Planned checks are not implemented
+merely because they appear in that plan.
+
+<!-- baseline-scope:2026-09-23 -->
+> 适用范围：以下原生构建、安装或运营操作按对应实现保留；不自动启用托管语音、语言、支付或付费测试。iOS/Android 当前仍为旧 WebRTC，LiveKit 三端迁移按最新基准另行测试；upstream 身份不能当作本 fork 配置。
+> 当前范围和后续顺序见[项目开发基准](web-ios-model-gateway-plan.md)。
+
 Run commands from the repository root unless a step changes directory. The iPhone project and Swift package live in `apps/ios/`. Core tests need Swift 6. Native builds need Xcode 26 or later.
 
 ## Run offline checks

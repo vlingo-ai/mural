@@ -1,5 +1,9 @@
 # Stripe and Play minute providers
 
+<!-- baseline-scope:2026-09-23 -->
+> 兼容功能参考：本文件的原生账户、商业能力和历史部署状态不构成当前 vLingo staging 的启用批准。按最新基准与 staging runbook 核对实际版本；upstream 域名、OAuth/商店身份和定价不可直接复用。Web 托管历史存于服务端，不能套用原生“仅本地”隐私描述。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 The optional adapters implement provider verification and durable fulfillment for the minute ledger. They are not installed by `app.ts` or `main.ts`, and missing configuration leaves them unavailable. Production requires an explicit `allowLive: true` capability as well as the matching live environment. This is separate from enabling new checkout/purchase flows.
 
 ## Service composition

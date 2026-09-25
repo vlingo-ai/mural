@@ -1,5 +1,9 @@
 # Android version 3 — 14 September 2026
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/upstream 原生发布参考：以下清单、定价草稿、身份、域名和已完成状态只适用于其注明的版本，不是 vLingo 当前发布批准。新三端版本须重新审查隐私、数据流、签名、商店材料及实测结果。
+> 当前范围和后续顺序见[项目开发基准](../../docs/web-ios-model-gateway-plan.md)。
+
 Version 3 keeps meanings visible during long replies. Each language has its own bounded scroll area with soft edges; longer replies reduce the orb and spacing to make room for reading. The greeting and short-conversation layout retain the original large orb and floating navigation.
 
 The files below are in the sibling `Hej/deliverables` directory. Both use `chat.mural.android`, version 0.1 (code 3), minimum API 26 and target API 36. Paid checkout remains disabled.

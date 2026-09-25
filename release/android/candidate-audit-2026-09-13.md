@@ -1,5 +1,9 @@
 # Unsigned Android candidate audit — 13 September 2026
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/upstream 原生发布参考：以下清单、定价草稿、身份、域名和已完成状态只适用于其注明的版本，不是 vLingo 当前发布批准。新三端版本须重新审查隐私、数据流、签名、商店材料及实测结果。
+> 当前范围和后续顺序见[项目开发基准](../../docs/web-ios-model-gateway-plan.md)。
+
 This historical inspection candidate builds and passes bundle validation. Account lifecycle fixes made afterward require a fresh candidate before signing. It is not signed, uploaded or approved for publication. Minute purchases are disabled in this build, and this audit made no live provider call, account request or purchase.
 
 ## Candidate and evidence

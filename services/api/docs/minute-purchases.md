@@ -1,5 +1,9 @@
 # Minute purchase accounting
 
+<!-- baseline-scope:2026-09-23 -->
+> 兼容功能参考：本文件的原生账户、商业能力和历史部署状态不构成当前 vLingo staging 的启用批准。按最新基准与 staging runbook 核对实际版本；upstream 域名、OAuth/商店身份和定价不可直接复用。Web 托管历史存于服务端，不能套用原生“仅本地”隐私描述。
+> 当前范围和后续顺序见[项目开发基准](../../../docs/web-ios-model-gateway-plan.md)。
+
 `MinutePurchases` records fixed conversation-minute entitlements in the existing minute wallet. It currently has no HTTP routes, default products or launch prices. Optional Stripe/Play adapters and the delivery worker are documented in [provider integration](minute-provider-integration.md). New sales default to disabled. Configuring this module alone does not make Stripe or Play purchases available.
 
 ## Catalog and order binding

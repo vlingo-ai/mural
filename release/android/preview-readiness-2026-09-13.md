@@ -1,5 +1,9 @@
 # Android preview readiness — 13 September 2026
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/upstream 原生发布参考：以下清单、定价草稿、身份、域名和已完成状态只适用于其注明的版本，不是 vLingo 当前发布批准。新三端版本须重新审查隐私、数据流、签名、商店材料及实测结果。
+> 当前范围和后续顺序见[项目开发基准](../../docs/web-ios-model-gateway-plan.md)。
+
 The current deliverable is an installable **debug guest preview for adults 18+**. It has not been uploaded to Google Play. Paid checkout and AI-output reporting remain disabled. The listing copy now describes the eligible ten-minute guest trial and optional personal OpenAI key.
 
 Follow-up on 14 September: the six store screenshots and feature graphic are now prepared from an isolated build containing later layout corrections. The named APK below predates those corrections. Its audit remains specific to that file; build a fresh distributable after the final source freeze.

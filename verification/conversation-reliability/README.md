@@ -1,5 +1,9 @@
 # Conversation and reliability review
 
+<!-- baseline-scope:2026-09-23 -->
+> 历史/版本限定验证：仅证明所列源码、平台和环境。upstream 的服务、账户、真机与商店状态不能归属于本 fork；原生 WebRTC 通过不等于新三端 LiveKit 验收。
+> 当前范围和后续顺序见[项目开发基准](../../docs/web-ios-model-gateway-plan.md)。
+
 This combines #41, #48, #49, #57, #61 and #62. The earlier fixes for #50, #53 and #54 are already on main. Issue #32 and PR #44 are deferred at the owner's request; the new persona/accent instructions have been removed. Existing regional guidance and the OpenAI `marin` voice remain.
 
 ## UI and conversation changes
