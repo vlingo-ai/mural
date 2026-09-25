@@ -134,6 +134,7 @@ Gate 7 收尾可以独立签结，不要求先完成 B1–B7；反过来，开�
   2026-09-25 第六轮本地非计费回归通过：加密持久队列、重放进程、晚到/冲突 final 不可变证据、乱序高水位、积压门禁，以及**实际 Mural API HTTP/隔离 PostgreSQL + 独立 Worker Python 子进程**故障演练均已在候选代码；LiveKit provider 部分为假实现，仍缺候选 Linux 镜像/权限与 staging 部署验证，**未合并、未部署、不勾完成**。见[B2 分次证据](../verification/2026-09-25-b2-control-receipts.md)。
   第九轮审查补充公平重放：前 100 条永久失败不能饿死后续可交付记录，分页游标必须回绕；Worker 候选本地 38/38 与更新后的 PR CI 通过。永久 4xx 仍需人工对账，此修复不改变 B2 的未完成状态。
   第十、十一轮修复删除重插后的迟到 ACK 误删新 final，Worker 全套 40/40、真实 Linux 镜像持久卷检查及最新跨仓定向 1/1 通过；两仓 PR 已合并（API `a81c3ba`、Worker `5c6a2d3`），Worker 固定摘要镜像已发布。VPS 仍运行 B1，B2 备份、目录/密钥、迁移 029、API→Worker/replay 部署及非计费核验尚待执行；**B2 不勾完成**，详见同一证据第十一轮。
+  B2 最新进展（第十二轮）：上述未部署状态为历史快照；迁移 029、API→Worker/replay 部署、备份及非计费验证现已 PASS，注册记录 1、三个 B2 服务重启 0、待投递队列 0。文档提交/评审及最终签结待办；不将本轮未执行的真实媒体、恢复或回滚演练记为通过。详见 [B2 最新证据](../verification/2026-09-25-b2-control-receipts.md)。
 - [ ] B3：OpenAPI 对齐现有 LiveKit/旧 WebRTC 请求响应；拆分 Gateway 必需契约与旧 Live 残留。契约先修正，再生成三端 DTO。
 - [ ] B4：统一恢复状态和事件 fixtures；覆盖信令断而媒体通、麦克风重发、迟到事件、Stop 竞态和控制过期。
 - [ ] B5：真实本地 LiveKit、真实 SDK、合成音频/假 Agent 的非计费集成；mocked Room 和旧 WebRTC Playwright 不能替代。

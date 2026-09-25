@@ -295,6 +295,7 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-25：B2 第十二轮 VPS 部署 | [B2 部署证据](../../verification/2026-09-25-b2-control-receipts.md)；API `a81c3ba`、Worker `5c6a2d3` | 异机备份校验、迁移 029、API→Worker/replay、版本/运行状态及 verify PASS；注册记录 1，复查重启 0、待投递队列 0。文档提交/评审及签结待办；无新付费测试，恢复/回滚演练 NOT_RUN | 多目录发布须记录组件实际 Compose 路径，旧部署目录不得误用于全量 up；B7/A2 收敛部署入口。健康/空队列不冒充真实媒体和故障恢复验收 |
 | 2026-09-25：B2 第十一轮合并及镜像准备 | [B2 发布标识](../../verification/2026-09-25-b2-control-receipts.md)；API `a81c3ba`、Worker `5c6a2d3` | 两仓最终候选 CI PASS；Worker 镜像及 Linux 卷检查 PASS；最新跨仓定向复测 1/1、0 skip。Worker digest 已发布；VPS 仍为 B1，sudo 需操作员，未备份/迁移/部署 B2 | 已复查，无额外规则变更；沿用第十轮 ACK 唯一性与卷权限规则，区分源码合并/镜像发布/线上运行；B2 未完成 |
 | 2026-09-25：B2 第十轮回执删除重插竞态 | [B2 证据第十轮](../../verification/2026-09-25-b2-control-receipts.md)；Worker `12cb69f` / `bee12ec`，API `623c9f9` | 旧实现回归 FAIL，持久版本计数修复后 Worker 40/40、lint/format PASS；API 阶段 CI PASS。新增两容器非 root/持久卷检查，本机无 Docker，执行状态见 Worker CI；VPS 仅只读核对，无迁移或部署，B2 未完成 | USAGE-01 增加跨删除重插/重启的 ACK 唯一性；新增生产等效 Linux 卷权限与跨容器测试；不扩大费用或用户计费范围 |
 | 2026-09-25：按阶段及改动范围选择 CI | [范围规则与验证](../../verification/2026-09-25-ci-stage-selection.md) | 阶段切换、手动覆盖、文档跳过和汇总门禁已实现；本地 67 项 Python 测试（含 18 种实际门禁场景）、契约和 YAML 解析 PASS。`8008773` 的 Web/服务端/部署/汇总门禁/契约/扫描 CI PASS，iOS 和 Android 重型任务按范围 SKIPPED；补充回归测试提交仍须核对自身 CI。无需 VPS 部署，无付费测试 | 新增第 4 节阶段规则；旧 Android 模拟器失败仍保留，阶段延期不冒充平台通过；原生发布前必须启用完整平台验证 |
