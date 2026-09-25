@@ -33,3 +33,24 @@ Agent 丢失、静默与明确媒体丢失。状态模型尚未接入应用，�
 后续：接入 Web 协调器并补各 await 边界的 Stop/迟到结果测试；新 Room 前查询服务端终态，
 明确 close 未确认状态及 UI 行为，完成非计费适配测试后再准备运行时发布。
 B4 未完成、未开 PR、未合并、未部署。
+
+## 第二轮：Web 适配的两个有界修复
+
+LiveConnection 现在区分 signal-only 与允许 Room 替换的恢复原因；SignalReconnecting
+不再固定 5 秒重建 Room，保留 SDK 处理机会；出现 Reconnecting/轨丢失等证据后才允许后备。
+原 40 秒恢复截止不延长，持续信令故障到期仍关闭，不无限维持 Active。
+核对本地锁定 SDK 源码：信令恢复路径发出 Reconnected，沿用该事件完成准备检查。
+
+getUserMedia 的返回值先保存在局部变量，确认 generation/closed 后才赋给当前会话。
+Stop 后返回的旧流立即停轨；新会话建立后旧授权返回也不能覆盖新流。
+新增回归覆盖两种授权迟到竞态、signal-only SDK 恢复、升级完整重连、持续失联截止。
+
+执行结果：Web **52/52 PASS**、类型检查 PASS、生产构建 PASS、既有 mock E2E **2/2 PASS**。
+保留既有 bundle/Node 警告。mock E2E 是旧 WebRTC/接口替身，不冒充真实 LiveKit 媒体。
+没有服务端/Worker 变更，不要求新服务端契约即可运行本轮修复；Web 本身未部署。
+候选 UI 行为：仍显示 connecting，但信令单独故障期间不再主动打断健康媒体；
+Stop 后迟到麦克风不再保持采集。合并/发布前须再次展示这些变化。
+
+共享 reducer 尚未接 runtime；新 Room 前服务端状态核查、close 确认、其他 await 竞态仍待办。
+本轮仅保存本地候选；未开 PR、未合并、未部署、未执行付费测试，B4 不签结。
+新增复用规则：媒体权限异步结果必须先验证所有权再赋值；过期结果须主动释放媒体资源。

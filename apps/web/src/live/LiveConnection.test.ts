@@ -141,7 +141,7 @@ describe('LiveKit reconnect lifecycle', () => {
     h.connection.disconnect();
   });
 
-  it('rebuilds after SDK signaling stalls even without browser online/offline events', async () => {
+  it('preserves the Room on signal-only loss and lets the SDK recover', async () => {
     const h = harness();
     await h.connection.connect('en');
     h.publishAgent(mock.rooms[0]!);
@@ -149,14 +149,76 @@ describe('LiveKit reconnect lifecycle', () => {
     mock.rooms[0]!.emit(RoomEvent.SignalReconnecting);
     expect(h.states.at(-1)).toBe('connecting');
     await vi.advanceTimersByTimeAsync(MURAL_RECOVERY_FALLBACK_MS);
-    expect(mock.rooms).toHaveLength(2);
-    h.publishAgent(mock.rooms[1]!);
+    expect(mock.rooms).toHaveLength(1);
+    mock.rooms[0]!.emit(RoomEvent.Reconnected);
     expect(h.states.at(-1)).toBe('active');
     expect(h.timings.filter(kind => kind === 'recovery-detected')).toHaveLength(1);
     expect(h.timings.filter(kind => kind === 'recovery-media-ready')).toHaveLength(1);
     expect(h.closeLiveSession).not.toHaveBeenCalled();
     expect(h.microphone.readyState).toBe('live');
     h.connection.disconnect();
+  });
+
+  it('stops a microphone permission result arriving after Stop', async () => {
+    const h = harness();
+    let resolve!: (stream: MediaStream) => void;
+    const pending = new Promise<MediaStream>(done => { resolve = done; });
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockReturnValueOnce(pending);
+    const connecting = h.connection.connect('en');
+    h.connection.close();
+    const stream = new TestMediaStream();
+    stream.addTrack(h.microphone);
+    resolve(stream as unknown as MediaStream);
+    await connecting;
+    expect(h.microphone.stop).toHaveBeenCalledTimes(1);
+    expect(mock.rooms).toHaveLength(0);
+    expect(h.states.at(-1)).toBe('closing');
+    h.connection.disconnect();
+  });
+
+  it('escalates signal loss to replacement only after media reconnect evidence', async () => {
+    const h = harness();
+    await h.connection.connect('en');
+    h.publishAgent(mock.rooms[0]!);
+    mock.rooms[0]!.emit(RoomEvent.SignalReconnecting);
+    await vi.advanceTimersByTimeAsync(MURAL_RECOVERY_FALLBACK_MS);
+    expect(mock.rooms).toHaveLength(1);
+    mock.rooms[0]!.emit(RoomEvent.Reconnecting);
+    await vi.advanceTimersByTimeAsync(MURAL_RECOVERY_FALLBACK_MS);
+    expect(mock.rooms).toHaveLength(2);
+    h.connection.disconnect();
+  });
+
+  it('does not let an old permission result overwrite the new microphone', async () => {
+    const h = harness();
+    let resolve!: (stream: MediaStream) => void;
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockReturnValueOnce(
+      new Promise<MediaStream>(done => { resolve = done; }));
+    const oldConnect = h.connection.connect('en');
+    await h.connection.connect('en');
+    h.publishAgent(mock.rooms[0]!);
+    const obsolete = { readyState: 'live', stop: vi.fn() } as unknown as FakeTrack;
+    const stream = new TestMediaStream();
+    stream.addTrack(obsolete);
+    resolve(stream as unknown as MediaStream);
+    await oldConnect;
+    expect(obsolete.stop).toHaveBeenCalledTimes(1);
+    expect(h.microphone.readyState).toBe('live');
+    expect(h.states.at(-1)).toBe('active');
+    h.connection.disconnect();
+    expect(h.microphone.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends persistent signaling loss at the existing bounded deadline without room churn', async () => {
+    const h = harness();
+    await h.connection.connect('en');
+    h.publishAgent(mock.rooms[0]!);
+    mock.rooms[0]!.emit(RoomEvent.SignalReconnecting);
+    await vi.advanceTimersByTimeAsync(MURAL_RECOVERY_WINDOW_MS);
+    expect(mock.rooms).toHaveLength(1);
+    expect(h.states.at(-1)).toBe('failed');
+    expect(h.closeLiveSession).toHaveBeenCalledTimes(1);
+    expect(h.microphone.readyState).toBe('ended');
   });
 
   it('does not mistake SDK participant removal before Reconnecting for a lost agent', async () => {

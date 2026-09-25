@@ -53,12 +53,16 @@ export class LiveConnection {
     this.context = [];
     this.onState('requesting-microphone');
     try {
-      this.local = await navigator.mediaDevices.getUserMedia({
+      const local = await navigator.mediaDevices.getUserMedia({
         audio: inputDeviceID ? { deviceId: { exact: inputDeviceID }, echoCancellation: true, noiseSuppression: true } :
           { echoCancellation: true, noiseSuppression: true },
         video: false,
       });
-      if (this.closed || generation !== this.generation) return;
+      if (this.closed || generation !== this.generation) {
+        local.getTracks().forEach(track => track.stop());
+        return;
+      }
+      this.local = local;
       this.onLocalStream(this.local);
       this.onState('connecting');
       const capabilities = await this.api.liveCapabilities();
@@ -145,6 +149,7 @@ export class LiveConnection {
     this.onSession(result.sessionID);
     if (result.transport.type !== 'livekit-room') throw new Error('Mural returned an unexpected live transport.');
     const transport = result.transport;
+    let replacementRequired = false;
     const current = (): boolean => !this.closed && generation === this.generation;
     const mediaReady = (room: Room): boolean => room.state === 'connected' && navigator.onLine !== false &&
       agentMediaIsReady(this.liveKitAgentIdentity, room.remoteParticipants.values()) &&
@@ -154,6 +159,7 @@ export class LiveConnection {
           (this.liveKitReady && !this.liveKitReconnecting)) return;
       this.liveKitReady = true;
       this.liveKitReconnecting = false;
+      replacementRequired = false;
       this.clearLiveKitRecoveryTimers();
       if (this.liveKitReadyTimer !== undefined) globalThis.clearTimeout(this.liveKitReadyTimer);
       this.liveKitReadyTimer = undefined;
@@ -167,8 +173,9 @@ export class LiveConnection {
         recoverRoom();
       }, delay);
     };
-    const beginRecovery = (): void => {
+    const beginRecovery = (allowReplacement = true): void => {
       if (!current() || !this.sessionID) return;
+      replacementRequired ||= allowReplacement;
       const firstDetection = !this.liveKitReconnecting;
       this.liveKitReconnecting = true;
       this.liveKitReady = false;
@@ -183,7 +190,7 @@ export class LiveConnection {
         this.liveKitRecoveryDeadline = globalThis.setTimeout(() => { if (current()) this.failLiveKitAgent('reconnect_failed'); },
           MURAL_RECOVERY_WINDOW_MS);
       }
-      scheduleRecovery(MURAL_RECOVERY_FALLBACK_MS);
+      if (replacementRequired) scheduleRecovery(MURAL_RECOVERY_FALLBACK_MS);
     };
     const openRoom = async (): Promise<Room | undefined> => {
       const room = new LiveKitRoom({ adaptiveStream: true, dynacast: true,
@@ -221,12 +228,15 @@ export class LiveConnection {
           if (current() && this.room === room && !this.liveKitReconnecting) this.failLiveKitAgent();
         }, 1_000);
       });
-      room.on(RoomEvent.SignalReconnecting, () => { if (current() && this.room === room) beginRecovery(); });
+      room.on(RoomEvent.SignalReconnecting, () => { if (current() && this.room === room) beginRecovery(false); });
       room.on(RoomEvent.Reconnecting, () => { if (current() && this.room === room) beginRecovery(); });
       room.on(RoomEvent.Reconnected, () => {
         if (!current() || this.room !== room) return;
         if (mediaReady(room)) finishRecovery(room);
-        else if (this.liveKitReconnecting) this.armLiveKitReadyTimeout(true, recoverRoom);
+        else if (this.liveKitReconnecting) {
+          replacementRequired = true;
+          this.armLiveKitReadyTimeout(true, recoverRoom);
+        }
       });
       room.on(RoomEvent.Disconnected, reason => {
         if (current() && this.room === room && this.sessionID) {
@@ -259,7 +269,7 @@ export class LiveConnection {
       }
     };
     const recoverRoom = (): void => {
-      if (!current() || !this.liveKitReconnecting || this.liveKitRecovery) return;
+      if (!current() || !this.liveKitReconnecting || !replacementRequired || this.liveKitRecovery) return;
       if (navigator.onLine === false) {
         scheduleRecovery(MURAL_RECOVERY_RETRY_MS);
         return;
