@@ -30,7 +30,9 @@
 - 候选 Compose 增加独立重放服务与共享持久卷；候选 preflight 验证专用 32 字节密钥格式、卷绝对路径与 UID 10001/0700，verify 检查重放容器。**这些配置仅在 worktree，未写入 VPS 环境，未启动服务。**
 - 本地非计费结果：API `npm run check` PASS、隔离 PostgreSQL 全套 **422/422 PASS**（新增 HTTP 路由拒绝未提交 final、已提交后返回持久回执）；Worker `ruff check` PASS、**31/31 PASS**（新增队列重开、版本化 ACK、密文检查、权限、先失败后重放）；候选 shell 语法、Compose YAML 解析及 Mural `git diff --check` PASS。隔离数据库已停止，目录保留。首次 Python 依赖同步受沙箱网络限制，获准安装锁定依赖后通过；未连接 staging 或供应商。
 
-## 尚未满足的 B2 门槛
+## 第二轮时尚未满足的 B2 门槛（历史快照）
+
+以下是第二轮结束时的记录；后续跨仓验证、PR 与 CI 进展见第三至八轮，不能把本节的“尚未提交”当作当前状态。仍未解决的运行态门槛须以最新增量及发布方案核对。
 
 1. 队列只保障**已经落盘**的 usage/final。若供应商从未产生最终用量，或 Worker 在回调任务落盘前突然被杀，仍可能只有前一次累计用量；这需要运营对账未知项及额外的进程终止注入验证，不能声称数学意义上“所有 final 绝不丢失”。
 2. HTTP 路由回执形状和未提交时的 409 已通过模拟服务测试；仍需独立进程重启及 API/Worker 组合故障矩阵。目前的“API 提交后回包丢失”由同值重放模拟，跨进程重放通过 Worker 单元测试，二者尚未联成完整端到端实验。旧 Worker→新 API 可兼容；新 Worker→旧 API 因缺少 `committed`/`acknowledgedMilliseconds` 必须 fail-closed，部署必须 API 先于 Worker。
