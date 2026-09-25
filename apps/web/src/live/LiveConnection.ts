@@ -42,6 +42,7 @@ export class LiveConnection {
   private pendingAdmission?: Promise<LiveSessionResult>;
   private closingAdmission?: Promise<LiveSessionResult>;
   private admissionUncertain = false;
+  private admissionRequestID?: string;
 
   private reduceRecovery(update: RecoveryUpdate): void {
     if (!this.recoveryState) return;
@@ -73,6 +74,7 @@ export class LiveConnection {
   ) {}
 
   async connect(language: AvailableLanguage, inputDeviceID?: string): Promise<void> {
+    if (this.admissionUncertain) throw new Error('Previous session admission is unconfirmed. Retry closing first.');
     this.disconnect();
     this.closed = false;
     const generation = this.generation;
@@ -96,9 +98,13 @@ export class LiveConnection {
       if (!capabilities.hostedMinutes) throw new Error('Hosted voice is not available.');
       if (this.closed || generation !== this.generation) return;
       if (capabilities.transport === 'livekit-room') await this.connectLiveKit(language, generation);
-      else await this.connectWebRTC(language);
+      else await this.connectWebRTC(language, generation);
     } catch (error) {
       if (generation !== this.generation) return;
+      if (this.admissionUncertain) {
+        this.close();
+        throw error;
+      }
       this.onTiming('failed');
       this.disconnect();
       this.onState('failed');
@@ -106,22 +112,24 @@ export class LiveConnection {
     }
   }
 
-  private async connectWebRTC(language: AvailableLanguage): Promise<void> {
+  private async connectWebRTC(language: AvailableLanguage, generation: number): Promise<void> {
+      const current = () => !this.closed && generation === this.generation;
       const local = this.local;
       if (!local) throw new Error('No local microphone stream.');
       const peer = new RTCPeerConnection();
       this.peer = peer;
       for (const track of local.getTracks()) peer.addTrack(track, local);
       peer.ontrack = ({ track }) => {
+        if (!current() || this.peer !== peer) return;
         this.remote.addTrack(track);
         this.onRemoteStream(this.remote);
       };
       peer.onconnectionstatechange = () => {
-        if (!this.closed && ['failed', 'disconnected'].includes(peer.connectionState)) this.onState('failed');
+        if (current() && this.peer === peer && ['failed', 'disconnected'].includes(peer.connectionState)) this.onState('failed');
       };
       const channel = peer.createDataChannel('oai-events', { ordered: true });
       this.channel = channel;
-      channel.onopen = () => this.onState('connecting');
+      channel.onopen = () => { if (current() && this.channel === channel) this.onState('connecting'); };
       channel.onmessage = ({ data }) => {
         if (this.closed || this.channel !== channel) return;
         if (typeof data !== 'string' || data.length > 262_144) return;
@@ -148,20 +156,41 @@ export class LiveConnection {
         } catch { /* Ignore malformed provider events. */ }
       };
       const offer = await peer.createOffer({ offerToReceiveAudio: true });
+      if (!current()) return;
       await peer.setLocalDescription(offer);
+      if (!current()) return;
       await this.waitForICE(peer);
+      if (!current()) return;
       if (!peer.localDescription?.sdp) throw new Error('No local SDP offer.');
-      const result = await this.api.createLiveSession({
+      const result = await this.admit({
         sdp: peer.localDescription.sdp,
         language: providerLocale(language),
         requestedMilliseconds: 15 * 60_000,
-      }, crypto.randomUUID());
-      if (this.closed) return;
+      }, generation);
+      if (!result || !current()) return;
       this.sessionID = result.sessionID;
       this.onSession(result.sessionID);
       if (result.transport.type !== 'webrtc') throw new Error('Mural returned an unexpected live transport.');
       await peer.setRemoteDescription({ type: 'answer', sdp: result.transport.sdp });
+      if (!current()) return;
       this.onEvent({ type: 'mural.session.created', session: { id: result.sessionID } });
+  }
+
+  private async admit(input: Parameters<MuralAPI['createLiveSession']>[0], generation: number): Promise<LiveSessionResult | undefined> {
+    const requestID = crypto.randomUUID();
+    this.admissionRequestID = requestID;
+    this.admissionUncertain = true;
+    const admission = this.api.createLiveSession(input, requestID);
+    this.pendingAdmission = admission;
+    let result: LiveSessionResult;
+    try { result = await admission; }
+    finally { if (this.pendingAdmission === admission) this.pendingAdmission = undefined; }
+    if (this.closed || generation !== this.generation) {
+      if (this.closingAdmission !== admission) void this.api.closeLiveSession(result.sessionID).catch(() => {});
+      return undefined;
+    }
+    this.admissionUncertain = false;
+    return result;
   }
 
   private async connectLiveKit(language: AvailableLanguage, generation: number): Promise<void> {
@@ -169,16 +198,8 @@ export class LiveConnection {
     if (this.closed || generation !== this.generation) return;
     const requestedAt = performance.now();
     const requestedWallTime = Date.now();
-    const admission = this.api.createLiveSession({ language: providerLocale(language),
-      requestedMilliseconds: 15 * 60_000 }, crypto.randomUUID());
-    this.pendingAdmission = admission;
-    let result: LiveSessionResult;
-    try { result = await admission; }
-    finally { if (this.pendingAdmission === admission) this.pendingAdmission = undefined; }
-    if (this.closed || generation !== this.generation) {
-      if (this.closingAdmission !== admission) void this.api.closeLiveSession(result.sessionID).catch(() => {});
-      return;
-    }
+    const result = await this.admit({ language: providerLocale(language), requestedMilliseconds: 15 * 60_000 }, generation);
+    if (!result || this.closed || generation !== this.generation) return;
     this.sessionID = result.sessionID;
     this.onSession(result.sessionID);
     if (result.transport.type !== 'livekit-room') throw new Error('Mural returned an unexpected live transport.');
@@ -245,7 +266,7 @@ export class LiveConnection {
         }
       }).finally(() => {
         checkingRecovery = false;
-        if (current() && this.liveKitReconnecting && revision !== recoveryRevision && this.room)
+        if (current() && this.liveKitReconnecting && (revision !== recoveryRevision || this.room !== room) && this.room)
           finishRecovery(this.room);
       });
     };
@@ -488,27 +509,33 @@ export class LiveConnection {
   }
 
   async sendText(text: string): Promise<boolean> {
+    const generation = this.generation;
+    const sessionID = this.sessionID;
+    const room = this.room;
+    const language = this.language;
     const clean = text.trim().slice(0, 2_000);
     const livekit = this.room?.state === 'connected';
-    if (!clean || (!livekit && this.channel?.readyState !== 'open') || !this.sessionID || !this.language) return false;
+    if (this.closed || !clean || (!livekit && this.channel?.readyState !== 'open') || !sessionID || !language) return false;
     const priorContext = this.context.slice(-10);
     const eventID = crypto.randomUUID();
     this.context.push({ speaker: 'user', text: clean });
     this.context = this.context.slice(-10);
     this.onEvent({ type: 'session.transcript.appended', event_id: eventID, speaker: 'user', text: clean, source: 'typed' });
-    await this.persistEvent(this.sessionID, { eventID, speaker: 'user', text: clean, source: 'typed' });
+    await this.persistEvent(sessionID, { eventID, speaker: 'user', text: clean, source: 'typed' });
+    if (this.closed || generation !== this.generation || sessionID !== this.sessionID) return false;
     if (livekit) {
-      await this.room!.localParticipant.sendText(clean, { topic: 'lk.chat' });
+      if (!room || room !== this.room || room.state !== 'connected') return false;
+      await room.localParticipant.sendText(clean, { topic: 'lk.chat' });
       return true;
     }
     const result = await this.api.createModelTask<{ kind: 'teachingReply'; text: string }>({
       kind: 'teachingReply',
-      funding: { type: 'liveSession', sessionID: this.sessionID },
-      language: providerLocale(this.language),
+      funding: { type: 'liveSession', sessionID },
+      language: providerLocale(language),
       text: clean,
       context: priorContext,
     }, crypto.randomUUID());
-    if (this.closed || this.channel?.readyState !== 'open') return false;
+    if (this.closed || generation !== this.generation || this.channel?.readyState !== 'open') return false;
     this.channel.send(JSON.stringify({ type: 'session.commentary.append', event_id: crypto.randomUUID(), content: result.text }));
     return true;
   }
@@ -532,14 +559,14 @@ export class LiveConnection {
     this.peer?.close();
     const sessionID = this.sessionID;
     const admission = this.pendingAdmission;
-    if (!sessionID && !admission && this.admissionUncertain) {
-      this.onEvent({ type: 'mural.live.close_pending' });
-      return;
-    }
-    if (!sessionID && !admission) { this.disconnect(); return; }
+    if (!sessionID && !admission && !this.admissionUncertain) { this.disconnect(); return; }
     this.admissionUncertain = !sessionID;
     this.closingAdmission = admission;
-    const target = sessionID ? Promise.resolve(sessionID) : admission!.then(result => result.sessionID);
+    const target = sessionID ? Promise.resolve(sessionID) : admission ? admission.then(result => result.sessionID) :
+      this.api.liveSessionByRequest(this.admissionRequestID!).then(result => {
+        if (!result.session) throw new Error('Admission remains unknown.');
+        return result.session.sessionID;
+      });
     const request = target.then(async id => {
       if (generation === this.generation) {
         this.admissionUncertain = false;

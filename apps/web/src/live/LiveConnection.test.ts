@@ -25,6 +25,7 @@ vi.mock('livekit-client', () => {
     state = 'disconnected';
     remoteParticipants = new Map();
     localParticipant = {
+      sendText: vi.fn().mockResolvedValue(undefined),
       audioTrackPublications: new Map(),
       publishTrack: async (track: { mediaStreamTrack: FakeTrack }) => {
         if (track.mediaStreamTrack.readyState !== 'live') throw new Error('microphone track already ended');
@@ -98,6 +99,8 @@ function harness() {
   const closeLiveSession = vi.fn().mockResolvedValue({ sessionID: 'session-1', state: 'closed' });
   const liveSessionStatus = vi.fn().mockImplementation(async () => ({ sessionID: 'session-1',
     state: 'active', deadline: new Date(Date.now() + 60_000).toISOString() }));
+  const liveSessionByRequest = vi.fn().mockResolvedValue({ session: null });
+  const appendConversationEvent = vi.fn().mockResolvedValue({ accepted: true, duplicate: false });
   const api = {
     liveCapabilities: vi.fn().mockResolvedValue({ hostedMinutes: true, transport: 'livekit-room' }),
     createLiveSession: vi.fn().mockImplementation(async () => ({ sessionID: 'session-1',
@@ -106,6 +109,8 @@ function harness() {
     } })),
     closeLiveSession,
     liveSessionStatus,
+    liveSessionByRequest,
+    appendConversationEvent,
   } as unknown as MuralAPI;
   const states: LiveState[] = [];
   const timings: TimingKind[] = [];
@@ -121,7 +126,9 @@ function harness() {
     room.emit(RoomEvent.TrackSubscribed, agentAudio, {}, { identity: 'agent' });
   };
   return { connection, states, timings, closeLiveSession, liveSessionStatus, publishAgent, microphone,
-    createLiveSession: vi.mocked(api.createLiveSession) };
+    createLiveSession: vi.mocked(api.createLiveSession), liveSessionByRequest,
+    appendConversationEvent,
+    liveCapabilities: vi.mocked(api.liveCapabilities) };
 }
 
 describe('LiveKit reconnect lifecycle', () => {
@@ -129,6 +136,70 @@ describe('LiveKit reconnect lifecycle', () => {
     vi.useFakeTimers(); mock.rooms.length = 0; mock.rejectedRoomNumbers.clear(); mock.deferredConnects.clear();
   });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('does not deliver typed text after Stop while history persistence is pending', async () => {
+    const h = harness();
+    await h.connection.connect('en');
+    h.publishAgent(mock.rooms[0]!);
+    let resolve!: () => void;
+    h.appendConversationEvent.mockReturnValue(new Promise<void>(done => { resolve = done; }));
+    const sending = h.connection.sendText('synthetic test');
+    await vi.advanceTimersByTimeAsync(0);
+    h.connection.close();
+    resolve();
+    expect(await sending).toBe(false);
+    const participant = mock.rooms[0]!.localParticipant as unknown as { sendText: ReturnType<typeof vi.fn> };
+    expect(participant.sendText).not.toHaveBeenCalled();
+  });
+
+  it('resolves unknown admission by the original request ID without creating another session', async () => {
+    const h = harness();
+    h.createLiveSession.mockRejectedValueOnce(new Error('response lost'));
+    await expect(h.connection.connect('en')).rejects.toThrow('response lost');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.states.at(-1)).toBe('closing');
+    const requestID = h.createLiveSession.mock.calls[0]![1];
+    expect(h.liveSessionByRequest).toHaveBeenCalledWith(requestID);
+    h.liveSessionByRequest.mockResolvedValue({ session: { sessionID: 'session-1' } });
+    h.connection.close();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.states.at(-1)).toBe('idle');
+    expect(h.createLiveSession).toHaveBeenCalledTimes(1);
+    expect(h.closeLiveSession).toHaveBeenCalledWith('session-1');
+  });
+
+  it('does not issue a second Start while admission remains unknown', async () => {
+    const h = harness();
+    h.createLiveSession.mockRejectedValueOnce(new Error('response lost'));
+    await expect(h.connection.connect('en')).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(h.connection.connect('en')).rejects.toThrow('unconfirmed');
+    expect(h.createLiveSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores an old WebRTC offer and data-channel callback after Stop', async () => {
+    const h = harness();
+    h.liveCapabilities.mockResolvedValue({ hostedMinutes: true, transport: 'webrtc' });
+    let offer!: (value: RTCSessionDescriptionInit) => void;
+    const channel = { readyState: 'open', send: vi.fn(), close: vi.fn(), onopen: undefined as undefined | (() => void) };
+    const setLocalDescription = vi.fn();
+    vi.stubGlobal('RTCPeerConnection', class {
+      addTrack() {}
+      createDataChannel() { return channel; }
+      createOffer() { return new Promise<RTCSessionDescriptionInit>(done => { offer = done; }); }
+      setLocalDescription = setLocalDescription;
+      close() {}
+    });
+    const connecting = h.connection.connect('en');
+    await vi.advanceTimersByTimeAsync(0);
+    h.connection.close();
+    channel.onopen?.();
+    offer({ type: 'offer', sdp: 'fixture' });
+    await connecting;
+    expect(h.states.at(-1)).toBe('idle');
+    expect(setLocalDescription).not.toHaveBeenCalled();
+    expect(h.createLiveSession).not.toHaveBeenCalled();
+  });
 
   it('does not claim idle when a stopped admission loses its response', async () => {
     const h = harness();

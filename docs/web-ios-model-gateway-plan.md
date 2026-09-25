@@ -141,6 +141,7 @@ Gate 7 收尾可以独立签结，不要求先完成 B1–B7；反过来，开�
   - 2026-09-25 第一轮：本地候选已修正 Live 创建、状态、capabilities/current 的 schema，并拆分 Responses/legacy-live 检查；定向测试通过。实际 HTTP 契约回归、helper JSON/SSE 和 DTO 生成待办，尚未提交或合并；[证据](../verification/2026-09-25-b3-contract-alignment.md)。
   - 最新候选：上述为首轮历史状态。已补实际路由/隔离 DB、helper JSON/SSE、三端 Live wire DTO 及共享编解码检查；API 全量 428/428、Web 37/37 + mock E2E 2/2 通过。生成范围为 Live 请求/响应，不是全 API SDK；原生应用接入留对应平台阶段。本轮无运行时变更，无需部署；PR/CI/审查待完成，B3 暂不勾选。
 - [ ] B4：统一恢复状态和事件 fixtures；覆盖信令断而媒体通、麦克风重发、迟到事件、Stop 竞态和控制过期。
+  - 第六轮候选：未知准入按原 UUID 鉴权查询，不重放创建；旧 WebRTC await/文字发送竞态已隔离。Web 74/74、mock E2E 2/2、API 428/428（0 skip）、类型/构建/漂移 PASS。新增 API 路由需 API→Web 部署；PR/CI/上线核验待办，不勾完成。细节与失败记录见 [B4 证据](../verification/2026-09-26-b4-recovery-protocol.md)。
   - 第五轮最新：SDK 恢复核查服务端状态，迟到准入关闭失败可重试；响应未知不伪报 idle。Web 70/70、类型/构建、mock E2E 2/2 PASS。未知准入原幂等身份协调、旧 WebRTC 边界与发布仍待办，未部署。
   - 第四轮最新：共享 reducer 已接 LiveKit Active/恢复/Stop 门禁；产品截止转单调时钟且重连不延期。Web 65/65、类型/构建、mock E2E 2/2 PASS。未部署；SDK-only 状态协调、迟到准入关闭可见性和旧 WebRTC 竞态仍待办。
   - 第三轮：后备 Room 重建前查询服务端 active/有效截止；Stop 待 closed 才 idle，失败可 Retry closing。Web 63/63、类型/构建及 mock E2E 2/2 PASS；共享模型正式接入、其他异步竞态和发布验收待办，未部署。下列较早轮次状态保留作历史。

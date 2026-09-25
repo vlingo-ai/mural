@@ -1,5 +1,5 @@
 import type { AccountProfile, AuthChallenge, AuthExchange, ConversationDetail, ConversationSummary, LiveCapabilities, LiveSessionResult, ProviderLocale } from './contracts';
-import type { LiveSessionStatusDTO } from '../../../../shared/contracts/generated/live';
+import type { LiveSessionStatusDTO, CurrentLiveSessionDTO } from '../../../../shared/contracts/generated/live';
 
 type Fetch = typeof globalThis.fetch;
 type ErrorBody = { error?: { code?: string } };
@@ -35,13 +35,17 @@ export class MuralAPI {
     history?: Array<{ speaker: 'user' | 'assistant'; text: string }>;
     requestedMilliseconds?: number;
   }, idempotencyKey: string): Promise<LiveSessionResult> {
-    return this.request('/v1/live/sessions', input, idempotencyKey);
+    return this.sendRequest('/v1/live/sessions', 'POST', input, idempotencyKey, true, AbortSignal.timeout(30_000));
   }
 
   liveCapabilities(): Promise<LiveCapabilities> { return this.get('/v1/live/capabilities'); }
 
   liveSessionStatus(sessionID: string): Promise<LiveSessionStatusDTO> {
     return this.sendRequest(`/v1/live/sessions/${encodeURIComponent(sessionID)}`, 'GET',
+      undefined, undefined, true, AbortSignal.timeout(5_000));
+  }
+  liveSessionByRequest(requestID: string): Promise<CurrentLiveSessionDTO> {
+    return this.sendRequest(`/v1/live/requests/${encodeURIComponent(requestID)}`, 'GET',
       undefined, undefined, true, AbortSignal.timeout(5_000));
   }
 

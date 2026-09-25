@@ -113,3 +113,31 @@ Stop 遇到在途准入保持 closing；拿到会话 ID 后关闭并等待同 ID
 实际服务器版本和运行时发布仍待核对。B4 不签结。
 复用规则：请求返回丢失不等于未准入；未知副作用必须按原幂等身份查证，不能直接重建付费会话。
 剩余主要项：未知准入的有界协调、旧 WebRTC await 边界、回归审查及 PR/CI/部署。
+
+## 第六轮：未知准入查询、旧 WebRTC 边界与候选回归
+
+核对服务端发现原幂等键只防重复创建，重试返回 409，不返回原会话；未采用重放 POST。
+新增鉴权 GET `/v1/live/requests/:id`（原 UUID 请求键），仅查询当前账户，返回既有状态 DTO，
+可查 closed，不返回 provider token/配置。无 schema migration。null 是快照未知，不能自动放行新 Start。
+Web 保存原请求键，创建最多等待 30 秒；Stop 时在途请求返回后确认关闭，响应丢失则每次
+显式 Retry closing 发一个 5 秒上限只读查询，找到原会话后关闭。查询 null/失败仍 closing，
+禁止重建另一付费会话；不自动轮询、不无限发请求。浏览器刷新后的持久恢复不在此内存机制内。
+
+旧 WebRTC 的 offer/local SDP/ICE/创建/remote SDP 逐段检查 generation，旧轨/数据通道回调被隔离；
+两 transport 共用准入跟踪。文字发送跨历史写入等待后重新验证 generation、session 和 Room，
+Stop 后不再发送旧消息或启动模型任务。SDK 状态查询跨 Room 替换的迟到结果也不能阻挡新 Room 再确认。
+
+验证：Web **74/74 PASS**、类型/生产构建 PASS、mock E2E **2/2 PASS**；
+API 类型/生产构建 PASS，全套 **428/428 PASS、0 skip**，启用 B2 私有 Worker 本地跨仓用例。
+全套后增加实际 HTTP 跨账户与非法 UUID 断言，定向 **1/1 PASS**。
+生成漂移、跨端轻量检查、git diff --check PASS。无原生重型构建或真实供应商调用。
+
+失败保留：全套首跑契约路径清单未同步、测试错误预期 close 立即 closed；定向再跑因假 provider
+未发 final 仍超时。补路径及假 final 事件后定向与全套通过，没有把 incomplete 改写成 closed。
+一次只读 sed 用错工作目录失败，重新在 repo 根目录读取；未影响源码或运行状态。
+
+影响：本轮新增服务端接口，因此必须 API→Web 兼容部署；runbook 已更新。UI 变化已告知用户。
+当前仅本地候选，尚未 PR/CI/合并/部署，不将 B4 勾为已上线完成。
+发布剩余：云端 CI/审查、备份与版本核验、API→Edge 部署、非计费上线核验；真实媒体链路属于 B5/另行授权。
+限制：无服务端原子取消 tombstone；null 永远不是取消证明；本地截止依赖客户端初始墙钟，
+服务端/Worker 仍是控制权来源；音轨准备不等于实际双向可闻验证。未新增豁免。

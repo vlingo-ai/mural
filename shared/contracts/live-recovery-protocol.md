@@ -35,13 +35,13 @@ Language-independent examples are in [live-recovery-traces.json](live-recovery-t
   the local bound. These reads are snapshots, not a lock against subsequent server closure.
   A response arriving after expiry cannot revive the same model.
 
-## Implementation sequence / still required
+## Implementation status / release work still required
 
 1. Reference model and common traces (implemented and locally tested).
-2. Web adapter adoption: query existing status, distinguish signal-only reconnect from media loss,
+2. Web adapter adoption (implemented and locally tested): query existing status, distinguish signal-only reconnect from media loss,
    preserve SDK recovery first, guard every async getUserMedia/create/connect/publish completion,
    cancel timers on Stop, handle close failure visibly without falsely claiming settlement.
-3. Add fake-SDK integration tests for that adapter, including status rejection, repeated reconnect,
+3. Fake-SDK integration coverage (implemented; see dated evidence for exact coverage) includes status rejection, repeated reconnect,
    old Room callbacks, microphone permission denial/ended track, Stop at each await boundary,
    pending close retry, control expiry and no duplicate createLiveSession.
 4. Before merge describe the UI change (connecting/closing/error semantics); verify matched server
@@ -49,4 +49,10 @@ Language-independent examples are in [live-recovery-traces.json](live-recovery-t
 5. Native adapters consume these traces in Phase 6 / Android phase; no native runtime change here.
    Real local SDK/media tests are B5, not satisfied by this pure reducer.
 
-No new API endpoint, model route, billing policy or paid test is enabled by this file.
+The candidate adds authenticated `GET /v1/live/requests/:id` for owner-scoped lookup by the
+original UUID admission key, including closed sessions. A null result is an unknown snapshot,
+not cancellation confirmation. Retry closing never repeats admission. The key is currently
+in-memory only; this is not durable cancellation across browser reloads. Deploy the matching API
+before Web/Edge; no migration, Worker change, model route or billing policy change is required.
+No paid test or deployment is authorized by this document. Results and limits are recorded in
+[B4 evidence](../../verification/2026-09-26-b4-recovery-protocol.md).

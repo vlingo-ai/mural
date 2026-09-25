@@ -29,6 +29,24 @@ validation environment, not Phase 5.5C product release infrastructure.
 No deployment has occurred merely because this bundle exists or `docker compose config` passes.
 Mark a gate complete only after recording its evidence in `verification/phase-5-5b/`.
 
+## B4 candidate compatibility gate (not deployed)
+
+The B4 Web candidate requires authenticated `GET /v1/live/requests/:id` to reconcile an
+ambiguous admission using its original UUID idempotency key. Deploy the matching API first,
+then Web/Edge; no new migration or Worker change is required. Do not publish the new Web
+against an API lacking this route. A null lookup is an unknown snapshot, never proof of cancellation.
+Verify unauthenticated rejection, owner-only lookup, unknown UUID -> null, and closed-session lookup
+using isolated fixtures before release. Staging checks must not create paid sessions.
+Record both API and Edge source/image revisions, retain their previous images/configuration,
+check active sessions and take the existing encrypted backup before deployment.
+If rolling back API, roll back the dependent Web first. This section does not assert deployment or
+real-media acceptance; see [B4 evidence](../../verification/2026-09-26-b4-recovery-protocol.md).
+
+User-visible changes: signal-only interruption avoids forced Room replacement; Stop stops local
+audio immediately but remains closing until the server confirms closed. Retry closing also queries
+an unknown admission by its original request ID. A null/error lookup keeps closure unconfirmed;
+it does not create another session. Native app adaptation remains deferred to its platform phase.
+
 ## B2 durable-control deployment
 
 2026-09-25: API `a81c3ba` and the paired Worker/replay were deployed from

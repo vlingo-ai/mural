@@ -27,6 +27,7 @@ test('public contract freezes the Web/iOS/Android product boundary', async () =>
     '/v1/conversations/{sessionID}',
     '/v1/conversations/{sessionID}/events',
     '/v1/live/capabilities',
+    '/v1/live/requests/{requestID}',
     '/v1/live/sessions',
     '/v1/live/sessions/current',
     '/v1/live/sessions/{sessionID}',

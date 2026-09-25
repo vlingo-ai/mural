@@ -428,6 +428,11 @@ export function createApp(services: Services) {
     const account = await authenticate(db, request.headers.authorization, services.hosted.minuteFunded);
     return services.hosted.status(account, uuid((request.params as { id: string }).id));
   });
+  app.get('/v1/live/requests/:id', async request => {
+    if (!services.hosted) throw new ServiceError('hosted_voice_not_ready', 503);
+    const account = await authenticate(db, request.headers.authorization, services.hosted.minuteFunded);
+    return services.hosted.byRequest(account, uuid((request.params as { id: string }).id));
+  });
   app.get('/v1/live/sessions/current', async request => {
     if (!services.hosted?.minuteFunded) throw new ServiceError('hosted_voice_not_ready', 503);
     return services.hosted.current(await authenticate(db, request.headers.authorization, true));

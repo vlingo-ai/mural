@@ -11,6 +11,7 @@ const operations: Record<string, StartupDiagnostic['operation']> = {
   'POST /v1/live/sessions': 'start',
   'GET /v1/live/sessions/current': 'current',
   'GET /v1/live/sessions/:id': 'status',
+  'GET /v1/live/requests/:id': 'status',
   'POST /v1/live/sessions/:id/close': 'close',
 };
 const reasons = new Set(['sign_in_required', 'sign_in_to_continue', 'invalid_request', 'invalid_json',
