@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "note": "Reference protocol only; media means adapter readiness evidence, not audible/provider acceptance.",
+  "traces": [
+    {"name":"initial readiness requires microphone", "events":[
+      {"kind":"control","validUntil":1000,"at":1},
+      {"kind":"signal","connected":true,"at":2},
+      {"kind":"media","microphone":false,"agentAudio":true,"at":3},
+      {"kind":"media","microphone":true,"agentAudio":true,"at":4}
+    ],"phases":["connecting","connecting","connecting","active"]},
+    {"name":"signal loss preserves media evidence without replacement", "active":true,"events":[
+      {"kind":"signal","connected":false,"at":10},
+      {"kind":"tick","at":20},
+      {"kind":"signal","connected":true,"at":30}
+    ],"phases":["recovering","recovering","active"],"roomEpoch":0},
+    {"name":"replacement needs microphone republish", "active":true,"events":[
+      {"kind":"room-replaced","at":10},
+      {"kind":"signal","connected":true,"at":20,"roomEpoch":1},
+      {"kind":"media","microphone":false,"agentAudio":true,"at":30,"roomEpoch":1},
+      {"kind":"media","microphone":true,"agentAudio":true,"at":40,"roomEpoch":1}
+    ],"phases":["recovering","recovering","recovering","active"],"roomEpoch":1},
+    {"name":"old room events cannot reactivate", "active":true,"events":[
+      {"kind":"room-replaced","at":10},
+      {"kind":"signal","connected":true,"at":20},
+      {"kind":"media","microphone":true,"agentAudio":true,"at":30}
+    ],"phases":["recovering","recovering","recovering"],"roomEpoch":1},
+    {"name":"stop wins late recovery; close acknowledgement required", "active":true,"events":[
+      {"kind":"signal","connected":false,"at":10},
+      {"kind":"stop","at":20},
+      {"kind":"signal","connected":true,"at":30},
+      {"kind":"tick","at":40},
+      {"kind":"closed","at":50}
+    ],"phases":["recovering","closing","closing","closing","closed"]},
+    {"name":"expired control cannot be revived by late renewal", "active":true,"events":[
+      {"kind":"control","validUntil":2000,"at":1000},
+      {"kind":"signal","connected":true,"at":1001}
+    ],"phases":["failed","failed"]},
+    {"name":"old product generation ignored", "active":true,"events":[
+      {"kind":"stop","at":10,"generation":0},
+      {"kind":"expired","at":20,"generation":0}
+    ],"phases":["active","active"]},
+    {"name":"agent lost is terminal", "active":true,"events":[
+      {"kind":"agent-lost","at":10},
+      {"kind":"media","microphone":true,"agentAudio":true,"at":20}
+    ],"phases":["failed","failed"]},
+    {"name":"silence is not a failure event", "active":true,"events":[
+      {"kind":"tick","at":50},
+      {"kind":"tick","at":100}
+    ],"phases":["active","active"]},
+    {"name":"media loss blocks active even with healthy signal", "active":true,"events":[
+      {"kind":"media","microphone":true,"agentAudio":false,"at":10},
+      {"kind":"signal","connected":true,"at":20}
+    ],"phases":["recovering","recovering"]}
+  ]
+}
