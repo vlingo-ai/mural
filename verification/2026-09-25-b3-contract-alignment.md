@@ -51,7 +51,7 @@ node --import tsx --test tests/contracts.test.ts tests/gateway-contract-profile.
 ## 限制及后续
 
 1. 第一轮为合成 fixture；第二轮已补实际路由与隔离 DB 校验（见下），非公网部署验证。
-2. helper JSON/SSE 已在第三轮补声明和 fixture；实际 helper 路由 schema 验证待补。内部 Worker 控制协议不能混入公开 bearer API。
+2. helper JSON/SSE 第三轮补声明和 fixture，第四轮补实际路由 schema 校验（假 helper）；不是完整 provider 集成。内部 Worker 控制协议不能混入公开 bearer API。
 3. UTF-8 字节上限、非空白文本和业务条件不能仅靠 JSON 字符长度证明，须保留运行时测试。
 4. 三端 DTO 生成尚未实施；不启用原生功能或重型平台发布测试。
 5. 全量 API、Web、PR CI、审查与合并尚待后续候选验证；不沿用 B2 CI 为 B3 证明。
@@ -89,3 +89,16 @@ SSE 的 wire body 为字符串，每帧 JSON 对象另定义 delta/completed/err
 请求拒绝 fixture 同时调用真实 parseHostedHelperInput；事件仍为合成 fixture，
 尚未验证实际 helper HTTP/SSE 响应与 schema 一致。未改运行时、未部署、无付费调用。
 下一步补 helper 路由集成、三端 DTO 生成和候选完整验证，B3 未完成。
+
+## 第四轮：helper 路由序列化校验
+
+扩展已有 hosted-http.test.ts：实际 Fastify inject 路由、真实隔离认证 DB，
+helper service 为假实现。校验 JSON、SSE delta/completed、部分输出后 error，
+大小写与 q 值 Accept 协商、q=0/非法 q 回退 JSON。流前 429 仍是 JSON 错误。
+核查发现 ErrorResponse 缺既有 helper_session_limit 的 retryable/retryAfterMilliseconds，
+补可选字段并验证实际序列化结果；没有增加自动重试或修改服务器行为。
+
+类型检查 PASS；hosted-http、contracts、gateway-contract-profile 三文件合计
+11/11 PASS，0 FAIL、0 SKIP。测试后停止专用 PostgreSQL；无真实 Cloud/模型调用。
+本轮不代表实际 HostedHelpers 计费端到端或 socket/媒体测试；DTO 与全量 CI 仍待完成。
+复用规则：成功、流中失败与流前限流错误均需契约断言，重试字段缺失不能解释为允许重试。
