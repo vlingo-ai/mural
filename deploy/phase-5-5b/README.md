@@ -29,7 +29,17 @@ validation environment, not Phase 5.5C product release infrastructure.
 No deployment has occurred merely because this bundle exists or `docker compose config` passes.
 Mark a gate complete only after recording its evidence in `verification/phase-5-5b/`.
 
-## B4 candidate compatibility gate (not deployed)
+## B4 compatibility gate and staging deployment
+
+API and Edge revision `8fdfa620e299f2852fc248210e28b4847052b12f` were deployed in that order.
+Public checks, revision/restart verification and authenticated unknown-request lookup smoke passed.
+Owner isolation and closed-request lookup are covered by isolated tests, not this staging smoke.
+The active API/Edge directory is `/home/vlingo-admin/releases/mural-b4-8fdfa62/deploy/phase-5-5b`.
+Future Compose mutations for these components must include both `-f compose.yaml -f b4-images.yaml`
+with this directory's explicit project directory and `.env`: the copied private environment still contains
+the prior API image. Do not run a full-stack `up` from an older release directory.
+Worker/replay, Gateway and database were not replaced in this deployment. Previous images and private
+configuration are retained; exact image IDs and rollback references are in the evidence below.
 
 The B4 Web candidate requires authenticated `GET /v1/live/requests/:id` to reconcile an
 ambiguous admission using its original UUID idempotency key. Deploy the matching API first,
@@ -39,7 +49,7 @@ Verify unauthenticated rejection, owner-only lookup, unknown UUID -> null, and c
 using isolated fixtures before release. Staging checks must not create paid sessions.
 Record both API and Edge source/image revisions, retain their previous images/configuration,
 check active sessions and take the existing encrypted backup before deployment.
-If rolling back API, roll back the dependent Web first. This section does not assert deployment or
+If rolling back API, roll back the dependent Web first. Deployment does not establish
 real-media acceptance; see [B4 evidence](../../verification/2026-09-26-b4-recovery-protocol.md).
 
 User-visible changes: signal-only interruption avoids forced Room replacement; Stop stops local
