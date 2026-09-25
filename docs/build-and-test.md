@@ -13,6 +13,31 @@ Run commands from the repository root unless a step changes directory. The iPhon
 
 ## Run offline checks
 
+### CI stage selection (2026-09-25)
+
+[`.github/ci-stage.json`](../.github/ci-stage.json) is the reviewed CI stage switch:
+Phase 5.5 (including B1–B7 and 5.5C) uses `platform: web`; Phase 6 switches to
+`platform: ios`; the later Android stage switches to `platform: android`.
+Change both `phase` and `platform` in the stage-transition PR. No automatic calendar switch.
+
+Automatic PR/main checks select the active client's jobs from changed executable/build inputs.
+Markdown-only changes skip client builds. API/shared changes also select the active client for
+compatibility and run server/deployment checks. Security and inexpensive shared contract checks
+remain common to every stage; these static checks do not build or launch either native app.
+Inactive native builds, release validation and emulator suites are deferred, even if their paths
+change; a skipped check means NOT_APPLICABLE, never native release acceptance.
+
+Checks and Android workflows expose `workflow_dispatch` with a platform override. For complete
+all-platform validation run **both** workflows with `platform: all`; the Android workflow owns
+its build/emulator jobs. A manual run forces all checks for the selected platform, independent of
+the last diff, and does not change the default stage. Before a native release run that platform's
+full suite plus the existing simulator/device acceptance; `swift-core` alone is not iOS app QA.
+
+`checks-gate` and `android-gate` always evaluate selection and actual job results; failed selection,
+failed/cancelled required jobs, and unexpected skips fail the gate. If branch protection is enabled,
+require these stable aggregate gates along with Contracts/Secrets rather than filtered workflows.
+Do not use `[skip ci]`. Gate configuration is versioned and reviewed like source code.
+
 ```sh
 swift test --package-path apps/ios
 xcodebuild -project apps/ios/Mural.xcodeproj -scheme Mural \

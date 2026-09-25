@@ -91,6 +91,16 @@ staging 可按明确例外签结；生产发布必须重新评审，不能自动
 
 ## 4. 按变更选择测试，避免每次重跑全部付费案例
 
+2026-09-25 CI 阶段规则：Phase 5.5 使用 Web，Phase 6 使用 iOS，之后使用 Android；
+配置入口为 [ci-stage.json](../../.github/ci-stage.json)，执行说明见
+[阶段选择](../build-and-test.md#ci-stage-selection-2026-09-25)。当前阶段的客户端按改动范围验证，
+API/共享输入变更同时验证服务端和当前客户端；安全与轻量共享契约检查始终保留。
+纯 Markdown 不触发客户端构建；Android 发布文档在 Android 阶段仅触发轻量发布校验。
+未启用平台标记 NOT_APPLICABLE，不能写为测试 PASS，也不能用于对应平台发布签结。
+阶段转换和原生发布须显式启用完整平台检查；手动全平台需运行 Checks 与 Android 两条工作流。
+范围解析错误、必选任务失败/取消/意外跳过必须由汇总门禁阻断；不使用整个必需工作流跳过来绕开失败。
+本轮旧模拟器失败保留为历史 FAIL，阶段策略调整并不证明模拟器缺陷已修复。
+
 | 变更类型 | 必选非计费验证 | 按需真实验证 |
 | --- | --- | --- |
 | 文档、纯样式 | 链接/构建、受影响 UI 检查 | 无；若改变麦克风/状态/授权交互则升级为媒体变更 |
@@ -280,6 +290,7 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-25：按阶段及改动范围选择 CI | [范围规则与验证](../../verification/2026-09-25-ci-stage-selection.md) | Web/iOS/Android 阶段切换、手动覆盖、文档跳过和汇总门禁已实现；本地 66 项 Python 测试（含 12 项选择测试）、契约和 YAML 解析 PASS。候选 CI 待核对；无需 VPS 部署，无付费测试 | 新增第 4 节阶段规则；旧 Android 模拟器失败仍保留，阶段延期不冒充平台通过；原生发布前必须启用完整平台验证 |
 | 2026-09-25：B2 第九轮重放公平性 | [B2 分次证据](../../verification/2026-09-25-b2-control-receipts.md)、[Worker 草稿 PR #18](https://github.com/vlingo-ai/model-gateway/pull/18)；Worker `c56c39c` | 修复固定最前 100 条永久失败时饿死后续记录；按会话 ID 分页、回绕，单轮上限仍 100。Worker lint、格式、全套 38/38 非计费测试 PASS，含第 101 条可交付与回绕；更新后的 Worker PR 三项 CI PASS。API 未改，两仓未合并、未发布镜像或部署；**B2 未完成** | USAGE-01 新增永久失败前批的公平交付/回绕回归；永久 4xx 仍需人工对账，待投递非零阻断发布签结。无付费测试或新豁免 |
 | 2026-09-25：文档基准对齐候选 | [文档验证记录](../../verification/2026-09-25-documentation-alignment.md)；独立文档工作区 | 将三端范围、Gate 7/B1/B2 证据与本方案整理为独立候选；资源清理私有逐文件清单不进入仓库。100 份候选 Markdown 的 533 个相对链接缺失 0，差异空白和两个脚本语法检查 PASS。首次 CI 密钥扫描把旧 API Git 提交号误报两次；精确白名单后本地完整历史扫描及 CI 复跑均 PASS。跨 PR 审查消除了重复 B2 手册段与同名证据 `add/add` 冲突；最终合并树无冲突。一轮 Android 模拟器任务中断且报单测失败，须重跑确认；未合并、未部署或付费测试；**B2 未完成** | 纯文档迭代也保留验证证据；发布前检查跨 PR 的同文件最终版本，不能将代码 PR 绿色 CI 当作文档已合并或 staging 已验收 |
 | 2026-09-25：B2 第八轮 PR CI 修复与复核 | [B2 分次证据](../../verification/2026-09-25-b2-control-receipts.md)、[Mural PR #39](https://github.com/vlingo-ai/mural/pull/39)、[Worker PR #18](https://github.com/vlingo-ai/model-gateway/pull/18) | Worker 首次 CI 的 Ruff 格式门禁失败，机械格式化 `672aeb6` 后 [run 36104762272](https://github.com/vlingo-ai/model-gateway/actions/runs/36104762272) 三 job 全绿；本地 37/37。Mural 首次 CI 的部署 Compose config 因 `.env.example` 缺少新必填项失败，补占位符 `93622be`；[run 36104846953](https://github.com/vlingo-ai/mural/actions/runs/36104846953) 的 API server 因 PR 分支遗漏旧解析器测试断言更新而失败。`2c56b8c` 修正后本地类型检查和该文件 8/8 PASS，[run 36105390306](https://github.com/vlingo-ai/mural/actions/runs/36105390306) 的 Web、Swift、API server、部署脚本均 PASS；契约与密钥扫描亦 PASS。本地无 Docker，Compose config 为 NOT_RUN；跨仓 HTTP 用例不在 CI，另有本地 423/423 证据。未合并、未发布镜像、未迁移或部署，**B2 未完成** | 已复核并固化第 5 节 PR 前格式、锁定依赖、Compose 配置和候选 diff/解析器测试门禁；CI 通过与可选跨仓用例执行、真实 Linux 卷权限及 staging 验收分开记。文档基准仍待受控 PR 对齐主线，无新付费或豁免 |

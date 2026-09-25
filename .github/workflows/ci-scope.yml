@@ -1,0 +1,45 @@
+name: CI scope
+on:
+  workflow_call:
+    inputs:
+      platform:
+        type: string
+        default: active
+    outputs:
+      web:
+        value: ${{ jobs.scope.outputs.web }}
+      swift:
+        value: ${{ jobs.scope.outputs.swift }}
+      android:
+        value: ${{ jobs.scope.outputs.android }}
+      android_release:
+        value: ${{ jobs.scope.outputs.android_release }}
+      server:
+        value: ${{ jobs.scope.outputs.server }}
+      deployment:
+        value: ${{ jobs.scope.outputs.deployment }}
+permissions:
+  contents: read
+jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      web: ${{ steps.select.outputs.web }}
+      swift: ${{ steps.select.outputs.swift }}
+      android: ${{ steps.select.outputs.android }}
+      android_release: ${{ steps.select.outputs.android_release }}
+      server: ${{ steps.select.outputs.server }}
+      deployment: ${{ steps.select.outputs.deployment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - run: python3 -m unittest scripts.tests.test_ci_scope -v
+      - id: select
+        env:
+          CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_PLATFORM: ${{ inputs.platform }}
+        run: python3 scripts/ci_scope.py --platform "$CI_PLATFORM"
