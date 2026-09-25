@@ -183,3 +183,14 @@ round-trip 后仍保留 null 或缺失，不以能解码代替语义一致。
 本轮源码/测试/文档上传目的地。未绕过，未上传、未创建 PR、未运行本轮远端 CI 或合并。
 改为仅保存本地提交。B3 本地开发完成不等于 PR/CI/合并签结完成。
 复用规则：成功、流中失败与流前限流错误均需契约断言，重试字段缺失不能解释为允许重试。
+
+## 第九轮：授权上传与镜像构建边界修正
+
+用户明确授权后，候选 `6a6958e` 已推送并创建 [PR #43](https://github.com/vlingo-ai/mural/pull/43)。
+首轮云端 Web、contracts、gitleaks PASS；deployment 镜像检查 FAIL：
+API Docker 上下文不含仓库级 shared，新增测试类型引用无法解析。
+修正为独立 tsconfig.build.json 仅编译 src；npm run check 仍包含全部测试类型断言。
+Docker 不再复制测试目录，运行入口仍为 dist/src/main.js，未改变运行时业务代码。
+本地完整类型检查及新生产构建 PASS；镜像复验以修正后云端 CI 为准。
+复用规则：仓库全量类型检查与受限 Docker 上下文构建分别验证，测试依赖不可隐式进入生产构建。
+无合并、部署或付费调用；不能将 CI 镜像构建称为部署成功。
