@@ -194,3 +194,9 @@ Docker 不再复制测试目录，运行入口仍为 dist/src/main.js，未改�
 本地完整类型检查及新生产构建 PASS；镜像复验以修正后云端 CI 为准。
 复用规则：仓库全量类型检查与受限 Docker 上下文构建分别验证，测试依赖不可隐式进入生产构建。
 无合并、部署或付费调用；不能将 CI 镜像构建称为部署成功。
+
+修复提交 `0c1dc5a` 云端复验：[Checks run](https://github.com/vlingo-ai/mural/actions/runs/36156951956)
+的 server、web、phase-5-5b-deployment、checks-gate 全部 PASS；contracts、gitleaks 和 android-gate 同样 PASS。
+服务器 428 项中 427 PASS、1 SKIP、0 FAIL；唯一跳过是需要私有 Worker 本地路径的 B2 跨仓测试，
+本地第八轮已执行该项，不能把 CI 写成 428 全通过。原生重型任务按阶段跳过。
+后续提交仅归集此证据与计划状态，不改变已验证代码；新 HEAD 的检查状态应单独查看 PR。
