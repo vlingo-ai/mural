@@ -141,3 +141,12 @@ API 类型/生产构建 PASS，全套 **428/428 PASS、0 skip**，启用 B2 私�
 发布剩余：云端 CI/审查、备份与版本核验、API→Edge 部署、非计费上线核验；真实媒体链路属于 B5/另行授权。
 限制：无服务端原子取消 tombstone；null 永远不是取消证明；本地截止依赖客户端初始墙钟，
 服务端/Worker 仍是控制权来源；音轨准备不等于实际双向可闻验证。未新增豁免。
+
+## 第七轮：草稿 PR 与镜像上下文修复
+
+候选 `e0f35b6` 已推送至 [草稿 PR #44](https://github.com/vlingo-ai/mural/pull/44)。
+首轮 [Checks](https://github.com/vlingo-ai/mural/actions/runs/36162740122) 的 Edge 构建失败：
+原 Dockerfile 将 Web 展平到 /app 且未复制 shared，新增 DTO 和轨迹 JSON 的相对导入无法解析。
+修复为保持 /app/apps/web 与 /app/shared/contracts 的仓库层级，同时调整最终 dist 复制路径。
+本机无 Docker，此修复须由后续云端镜像构建确认；不把本地 Vite 构建作为 Docker 成功证据。
+契约与密钥扫描首轮 PASS；其余及修复后 CI 待核对。未合并、未部署、无付费测试。
