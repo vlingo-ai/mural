@@ -164,9 +164,33 @@
       }
     },
     "/v1/conversations/{sessionID}/events": {
+      "get": {
+        "operationId": "conversationEventsPage",
+        "summary": "Read owner-scoped append-only history after a session-scoped cursor",
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionID" },
+          { "name": "cursor", "in": "query", "schema": { "type": "string", "maxLength": 128 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Committed events; retain nextCursor even when hasMore is false for later polling",
+            "content": { "application/json": { "schema": {
+              "type": "object", "additionalProperties": false,
+              "required": ["events", "nextCursor", "hasMore"],
+              "properties": {
+                "events": { "$ref": "#/components/schemas/ConversationDetail/properties/events" },
+                "nextCursor": { "type": "string", "maxLength": 128 },
+                "hasMore": { "type": "boolean" }
+              }
+            } } }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      },
       "post": {
         "operationId": "appendConversationEvent",
-        "summary": "Idempotently append a bounded frontend-visible transcript fragment",
+        "summary": "Idempotently append a bounded frontend-visible transcript fragment; conflicting reuse returns 409",
         "parameters": [
           {
             "$ref": "#/components/parameters/SessionID"

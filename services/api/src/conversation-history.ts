@@ -27,7 +27,44 @@ export async function appendConversationEvent(db: Database, account: string, ses
   if (result.rowCount) return { accepted: true, duplicate: false, createdAt: (result.rows[0].created_at as Date).toISOString() };
   if (!(await db.query('SELECT 1 FROM hosted_sessions WHERE id=$1 AND account_id=$2', [sessionID, account])).rowCount)
     throw new ServiceError('conversation_not_found', 404);
+  const previous = (await db.query(`SELECT speaker,text,source FROM conversation_events
+    WHERE session_id=$1 AND provider_event_id=$2`, [sessionID, event.eventID])).rows[0];
+  if (!previous || previous.speaker !== event.speaker || previous.text !== event.text || previous.source !== event.source)
+    throw new ServiceError('conversation_event_conflict', 409);
   return { accepted: true, duplicate: true };
+}
+
+export function parseHistoryPage(value: unknown, sessionID: string): { after: string; limit: number } {
+  const query = value as Record<string, unknown>;
+  if (!query || typeof query !== 'object' || Array.isArray(query) || Object.keys(query).some(key => !['cursor', 'limit'].includes(key)))
+    throw new ServiceError('invalid_history_page');
+  const limit = query.limit === undefined ? 50 : Number(query.limit);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100 ||
+      (query.limit !== undefined && (typeof query.limit !== 'string' || !/^[1-9][0-9]*$/.test(query.limit))))
+    throw new ServiceError('invalid_history_page');
+  if (query.cursor === undefined) return { after: '0', limit };
+  if (typeof query.cursor !== 'string' || query.cursor.length > 128 || !/^[A-Za-z0-9_-]+$/.test(query.cursor))
+    throw new ServiceError('invalid_history_page');
+  const decoded = Buffer.from(query.cursor, 'base64url').toString('utf8');
+  const [version, owner, after, extra] = decoded.split(':');
+  if (version !== '1' || owner !== sessionID || extra !== undefined || after === undefined || !/^(0|[1-9][0-9]{0,18})$/.test(after) ||
+      BigInt(after) > 9223372036854775807n || Buffer.from(decoded).toString('base64url') !== query.cursor)
+    throw new ServiceError('invalid_history_page');
+  return { after, limit };
+}
+
+export async function conversationEventsPage(db: Database, account: string, sessionID: string, query: unknown) {
+  const { after, limit } = parseHistoryPage(query, sessionID);
+  if (!(await db.query('SELECT 1 FROM hosted_sessions WHERE id=$1 AND account_id=$2', [sessionID, account])).rowCount)
+    throw new ServiceError('conversation_not_found', 404);
+  const rows = (await db.query(`SELECT provider_event_id,speaker,text,source,created_at,position
+    FROM conversation_events WHERE session_id=$1 AND position>$2::bigint ORDER BY position LIMIT $3`,
+  [sessionID, after, limit + 1])).rows;
+  const page = rows.slice(0, limit);
+  const position = page.at(-1)?.position ?? after;
+  return { events: page.map(row => ({ eventID: row.provider_event_id as string, speaker: row.speaker as string,
+    text: row.text as string, source: row.source as string, createdAt: (row.created_at as Date).toISOString() })),
+  nextCursor: Buffer.from(`1:${sessionID}:${position}`).toString('base64url'), hasMore: rows.length > limit };
 }
 
 export async function listConversations(db: Database, account: string, limit = 20) {

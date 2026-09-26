@@ -5,7 +5,18 @@ import { createApp } from '../src/app.js';
 import { digest } from '../src/auth.js';
 import { connectDatabase } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
-import { parseConversationEvent } from '../src/conversation-history.js';
+import { parseConversationEvent, parseHistoryPage, conversationEventsPage } from '../src/conversation-history.js';
+
+test('history cursor is bounded and session scoped', () => {
+  const id = randomUUID();
+  assert.deepEqual(parseHistoryPage({}, id), { after: '0', limit: 50 });
+  const cursor = Buffer.from(`1:${id}:9007199254740993`).toString('base64url');
+  assert.equal(parseHistoryPage({ cursor, limit: '1' }, id).after, '9007199254740993');
+  for (const query of [{ cursor: 'bad' }, { cursor, limit: '101' }, { limit: '1.0' },
+    { limit: ['1'] }, { unknown: true }, { cursor: Buffer.from(`1:${id}:9223372036854775808`).toString('base64url') }])
+    assert.throws(() => parseHistoryPage(query, id), { code: 'invalid_history_page' });
+  assert.throws(() => parseHistoryPage({ cursor }, randomUUID()), { code: 'invalid_history_page' });
+});
 
 test('conversation event parser keeps only bounded transcript evidence', () => {
   assert.deepEqual(parseConversationEvent({ eventID: 'live.event-1', speaker: 'user', text: '  hello  ', source: 'live' }),
@@ -54,11 +65,45 @@ integration('conversation history is owner-scoped, idempotent and returned in se
     const duplicate = await app.inject({ method: 'POST', url: `/v1/conversations/${session}/events`, headers, payload });
     assert.equal(first.statusCode, 200); assert.equal(first.json().duplicate, false);
     assert.deepEqual(duplicate.json(), { accepted: true, duplicate: true });
+    const conflict = await app.inject({ method: 'POST', url: `/v1/conversations/${session}/events`, headers,
+      payload: { ...payload, text: 'Conflicting synthetic text' } });
+    assert.equal(conflict.statusCode, 409);
     const detail = await app.inject({ method: 'GET', url: `/v1/conversations/${session}`, headers });
     assert.equal(detail.statusCode, 200); assert.equal(detail.json().events.length, 1);
     assert.equal(detail.json().events[0].text, 'Hello'); assert.equal(detail.json().language, 'en');
     const list = await app.inject({ method: 'GET', url: '/v1/conversations', headers });
     assert.equal(list.statusCode, 200); assert.equal(list.json().conversations[0].preview, 'Hello');
     assert.equal((await app.inject({ method: 'GET', url: `/v1/conversations/${randomUUID()}`, headers })).statusCode, 404);
+    for (let i = 2; i <= 4; i++) assert.equal((await app.inject({ method: 'POST',
+      url: `/v1/conversations/${session}/events`, headers, payload: { ...payload, eventID: `event-${i}` } })).statusCode, 200);
+    const page = await app.inject({ method: 'GET', url: `/v1/conversations/${session}/events?limit=2`, headers });
+    assert.equal(page.statusCode, 200); assert.equal(page.json().hasMore, true);
+    assert.equal(page.json().events.length, 2);
+    const second = await app.inject({ method: 'GET',
+      url: `/v1/conversations/${session}/events?limit=2&cursor=${page.json().nextCursor}`, headers });
+    assert.equal(second.json().hasMore, false);
+    assert.deepEqual(second.json().events.map((e: {eventID: string}) => e.eventID), ['event-3', 'event-4']);
+    const empty = await conversationEventsPage(db!, account, session, { cursor: second.json().nextCursor });
+    assert.deepEqual(empty.events, []); assert.equal(empty.nextCursor, second.json().nextCursor);
+    await assert.rejects(conversationEventsPage(db!, other, session, {}), { code: 'conversation_not_found' });
+    assert.equal((await app.inject({ method: 'GET', url: `/v1/conversations/${session}/events?limit=0`, headers })).statusCode, 400);
+
+    // One writer holds the allocation lock until commit; a second cannot publish
+    // a higher cursor before it. Read during the transaction sees no new events.
+    const a = await db!.connect(), b = await db!.connect();
+    try {
+      await a.query('BEGIN'); await b.query('BEGIN');
+      const insert = `INSERT INTO conversation_events(id,session_id,provider_event_id,speaker,text,source)
+        VALUES($1,$2,$3,'user','Synthetic concurrency fixture','live') RETURNING position`;
+      const firstPosition = (await a.query(insert, [randomUUID(), session, 'concurrent-a'])).rows[0].position;
+      const pending = b.query(insert, [randomUUID(), session, 'concurrent-b']);
+      assert.deepEqual((await conversationEventsPage(db!, account, session, { cursor: empty.nextCursor })).events, []);
+      await a.query('COMMIT');
+      const secondPosition = (await pending).rows[0].position;
+      assert.equal(BigInt(secondPosition), BigInt(firstPosition) + 1n);
+      await b.query('COMMIT');
+      const recovered = await conversationEventsPage(db!, account, session, { cursor: empty.nextCursor });
+      assert.deepEqual(recovered.events.map(e => e.eventID), ['concurrent-a', 'concurrent-b']);
+    } finally { await a.query('ROLLBACK'); await b.query('ROLLBACK'); a.release(); b.release(); }
   } finally { await app.close(); }
 });
