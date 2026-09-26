@@ -239,3 +239,19 @@ validation resolved the redacted-address failure without accepting an unchecked 
 Reusable rule: browser telemetry may omit addresses; corroborate the selected port
 against isolated kernel state rather than assuming a missing field is a real address.
 This is short independent direction-loss coverage, not long network outage acceptance.
+
+## Stability follow-up: full run invalidates stable-pass claim
+
+Run 36227249800 (`06228b4`, documentation-only successor) was allowed to finish
+without another push cancelling it. Server and deployment checks passed, but all
+eight media cases failed at initial peer connect. First-peer ICE gathering completed
+with candidates, unlike the earlier empty-candidate failure. Console formatting hid
+candidate details as `[Array]`; switched failure output to JSON so sanitized addresses
+and types are actually available. No speculative topology fix or retry-to-green.
+Previous eight-case PASS remains historical evidence, not stable acceptance.
+
+Also corrected scope interpretation: B5's baseline is real local LiveKit/SDK/synthetic
+peer integration. Reliable final-history delivery/cursor work belongs to B6; full
+Worker/API/history integration is a documented boundary, not a newly added B5 gate.
+Current B5 blocker is media harness reliability and final review/green gate.
+Future evidence commits should not cancel an unfinished server check.
