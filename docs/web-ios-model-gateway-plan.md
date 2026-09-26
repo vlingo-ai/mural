@@ -153,7 +153,7 @@ Gate 7 收尾可以独立签结，不要求先完成 B1–B7；反过来，开�
   - 2026-09-26 PR #49 已合并为 `63a65d2`。最终候选 `70c515d` 完整适用 CI PASS，真实媒体三轮 24/24、零重试，Web 74/74、原 E2E 2/2；原生重型检查按范围跳过。仅测试/CI 改动，无需部署。Mac 本地网卡相关建连不稳定、真实 Wi-Fi 长断网和 TCP fallback 仍是记录在案的边界，不宣称已解决；详见 [B5 证据](../verification/2026-09-26-b5-local-media.md)。
 - [x] B4 后独立小迭代：hosted helper 升级 GPT-6 Luna。PR #46 已合并并部署 API 与四条 Gateway 路由；API 本地 428 PASS/1 SKIP、适用 CI 和非计费上线检查通过。另经授权执行一次 translation 路由真实 smoke，通过实际模型/usage/固定回复核对；不代表其他路由、全面质量或 Mural 用户结算端到端验收。不改 GPT-Live-1、原生 BYOK 或历史账目，不自动追加付费测试。[证据](../verification/2026-09-26-gpt6-luna-upgrade.md)。
 - [ ] B6：Worker→API 最终历史可靠交付和 cursor 补取，覆盖浏览器掉线/刷新；原生迁移保留本地历史。
-  - 本地候选已接入 Worker 最终项持久化/顺序重放、API 逐会话历史写入方与可信回执、Web cursor 补取；API 433/433（含跨仓故障）、Worker 49/49、Web 78/78 与浏览器回归通过，见 [B6 记录](../verification/2026-09-26-b6-history-delivery.md)。开关默认关闭；CI、发布与 staging 核验未完成，不提前勾选。
+  - 候选已接入 Worker 最终项持久化/顺序重放、API 逐会话历史写入方与可信回执、Web cursor 补取；本地 API 433/433（含跨仓故障）、Worker 49/49、Web 78/78 通过；两仓代码候选 CI 全绿（含真实本地媒体 24/24），见 [B6 记录](../verification/2026-09-26-b6-history-delivery.md)。PR #50/#19 尚未合并，开关默认关闭；发布与 staging 核验未完成，不提前勾选。
 - [ ] B7：无正文事件/耗时指标；验证脚本对不健康/Worker 未注册失败退出；发布 manifest、digest 与恢复演练。发布工程子项与验证方案 A2 联动：把 API 纳入与 Worker 一致的受控 CI 构建、测试、私有镜像发布及 digest 固定流程，VPS 改为只拉取经验证的候选镜像；设计专用最小权限的私有镜像只读拉取身份，不把个人 Mac 凭据当作长期部署依赖。
 
 2026-09-25 用户采纳的构建方式决策：**B1 不为形式统一而重建已验证的 API/Worker 镜像**，维持当前 API 本地构建、Worker Actions 发布的候选及各自证据；后续按 B7/A2 统一流水线，不追溯增加 B1 或 Gate 7 门槛。该后续任务的验收须证明 API/Worker 各自的源码 commit、CI 测试 run、镜像平台和 registry digest 可追溯，部署按 digest 而非浮动 tag，失败/权限不足时停在部署前，旧镜像和私有配置可回滚；不得把本地 image ID 冒充 registry digest，也不得因源码仓库公开而自动公开 API 镜像。流水线合并、镜像发布、VPS 拉取和运行验证分别记录，不能互相代替。

@@ -300,6 +300,10 @@ Worker **49/49**、Web **78/78**、Chrome E2E **3/3**、类型/构建/lint PASS�
 HISTORY-01 补充：同会话仅最早未 ACK 项可投递，其他会话公平推进；旧页面写入不得重复，
 切账户/会话忽略迟到响应，退出立即清空界面，刷新从零补取；SDK 未产出 final 不能冒充已可靠交付。
 默认开关关闭，CI/镜像/部署未完成；上线前说明自动补取与 pending 提示的 UI 变化，B6 不签结。
+同轮候选后续：Mural `ffafa7c` / PR #50 的 CI `36230997321` 全绿，真实本地媒体 24/24；
+Worker `8dde42b` / PR #19 的 CI `36231000531` 全绿，非 root 容器历史卷重开通过。
+公共 API CI 为 431 PASS/2 SKIP，跨仓两例以本地 433/433 证据补充；不混淆执行环境。
+本段是无运行时变化的证据更新。VPS 只读 sudo 预检需操作员密码，尚未合并/发布/部署，B6 不签结。
 
 2026-09-26 B6 第三轮（[证据](../../verification/2026-09-26-b6-history-delivery.md#third-iteration-replay-service-and-release-backlog)）：
 Worker 后台历史重放、用量独立循环、统一积压检查与持久递增队列顺序在本地实现；46/46、lint/format PASS。

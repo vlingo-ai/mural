@@ -172,3 +172,24 @@ review/images and staging remain pending. No paid calls. SDK finals never emitte
 or lost before capture cannot be recovered; conflicting final revisions fail rather
 than overwrite. Failed rows remain encrypted for operator handling. Default flag is
 off; B6 is not signed off.
+
+## Candidate CI and deployment boundary
+
+Draft PRs: [Mural #50](https://github.com/vlingo-ai/mural/pull/50), candidate
+`ffafa7c`; [Worker #19](https://github.com/vlingo-ai/model-gateway/pull/19), `8dde42b`.
+[Mural run 36230997321](https://github.com/vlingo-ai/mural/actions/runs/36230997321)
+PASS: Web 78/78, browser E2E 3/3, isolated real LiveKit media 24/24 (three repeats,
+zero retries), API 431 PASS/2 SKIP/0 FAIL, API/Web image builds and Compose validation.
+The two cross-repository cases are intentionally not configured in public CI; they
+were run locally with 433/433 zero skips, not falsely counted as CI PASS. Contracts,
+gitleaks and stage gates passed; native clients were not applicable for this phase.
+[Worker run 36231000531](https://github.com/vlingo-ai/model-gateway/actions/runs/36231000531)
+PASS, including 49/49 tests and both isolated non-root container history/usage volume
+seed/reopen checks. Existing media regression uses synthetic local media, not Cloud.
+
+No merge, published release image or staging deployment yet. SSH read-only preflight
+reached the VPS, but sudo requires the operator password. No service was changed.
+Next: review/freeze paired candidates, operator-assisted idle/version/backlog/backup
+gates, publish/build immutable candidates, compatible rollout and non-billable checks.
+Real provider acceptance is not authorized by these CI results. This documentation
+follow-up changes no runtime code; its CI is distinct from the verified candidates.
