@@ -30,7 +30,7 @@ the suite in a Linux network namespace with loopback and an unconnected dummy NI
 share the namespace; the test processes run as the ordinary runner user. The runner's
 own network is unchanged. Failure to create the namespace fails the job (no fallback).
 The first loopback-only Linux run failed: browser ICE candidates were empty. The dummy
-NIC candidate is pending Linux verification; local macOS results do not validate it.
+NIC topology passed all six media cases in GitHub Linux run 36225537205 (16.5 seconds).
 Independent network fault injection is pending.
 
 Stop-during-recovery observes five seconds after Idle for stale Active transitions;

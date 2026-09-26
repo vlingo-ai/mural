@@ -328,6 +328,10 @@ Connecting→Active、恢复后新下行音频及持续上行能量、重复 Sto
 类型及 diff 检查通过。隔离拓扑不变，等待 Linux 运行定位，尚未声称修复。
 诊断运行 `36225322469` 再次 6/6 FAIL；首个 peer 候选列表为空，定位到候选收集阶段。
 下一候选在命名空间增加无外联 dummy 网卡供 ICE 枚举；保留出口隔离，等待 CI 验证，不宣称已修复。
+候选 `c09407c` 的 Linux 运行 `36225537205`：Web job PASS，媒体 **6/6 PASS（16.5 秒，零重试）**、
+单元 74/74、E2E 2/2 通过；无外联 dummy 拓扑解决本次建连失败，媒体断言未放宽。
+复用规则：隔离 WebRTC 环境既要无外部出口，也需可枚举本地 ICE 接口。服务端当时仍运行，
+不声称全部门禁通过；真实网络故障/完整 Worker/API/历史集成仍待补齐，B5 未完成。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，

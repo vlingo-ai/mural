@@ -166,3 +166,16 @@ not decoded audio. Candidate fix adds an unconnected dummy NIC with documentatio
 address 192.0.2.1/24 and default route to that dummy inside the network namespace.
 There is no host veth or external uplink. The original runner network is unchanged.
 This topology change is a hypothesis pending CI, not yet a verified repair.
+
+Candidate `c09407c`, [run 36225537205](https://github.com/vlingo-ai/mural/actions/runs/36225537205):
+Linux Web job **PASS**. Media **6/6 PASS**, zero retries, 16.5 seconds; unit tests
+74/74 and existing E2E 2/2 PASS. Logs show only loopback plus the dummy interface
+inside the namespace, with default route pointing to dummy; no external uplink added.
+Changing topology without weakening media assertions resolved this CI connection
+failure. This supports the candidate-gathering diagnosis, not a claim about all
+Chromium versions or every loopback environment. Deployment build checks passed;
+server job still running when this evidence was captured, so no overall green claim.
+Reusable rule: isolated WebRTC tests need an ICE-enumerable local interface as well
+as no external uplink. Preserve candidate/transport and real decoded audio assertions.
+B5 still lacks independent network packet faults and full Worker/API/history coverage.
+No merge, staging deployment or paid calls occurred.
