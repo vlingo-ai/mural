@@ -320,6 +320,10 @@ Connecting→Active、恢复后新下行音频及持续上行能量、重复 Sto
 保持 checks-gate 与平台范围策略，GitHub 实跑尚未验证。首次单元回归因 Vitest 误收集 Playwright 用例失败，
 修正收集范围后 **74/74 PASS**，类型/构建/YAML 解析/diff 检查通过；actionlint 未安装，未作该项验证。
 复用规则：新增测试框架必须回归原有测试与构建；工作流语法通过不等于 CI 执行通过。B5 仍未完成，无部署或付费。
+同日第七轮：[PR #49](https://github.com/vlingo-ai/mural/pull/49) 候选 `90188ce` 首次 Linux CI：
+原有 Web 单元/构建/E2E、LiveKit 下载校验通过；隔离媒体 **6/6 FAIL**，均在首次 WebRTC 建连超时，
+尚未触达音频/恢复断言。保持隔离与失败门禁，不合并；下一步诊断命名空间内 ICE 候选/连接，
+不以本地 macOS 通过代替 Linux 结果。详细失败证据已归集，无 staging 部署或付费调用。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，

@@ -133,3 +133,21 @@ Reusable release rule: adding a new test runner requires the existing unit/build
 checks as well as the new suite; syntax-valid CI is not executed CI. Linux workflow
 execution and network failure cases remain outstanding. No production runtime change
 or deployment is needed for test discovery/CI configuration, and no paid calls occurred.
+
+## Seventh iteration: first GitHub Linux execution failed
+
+Candidate `90188ce`, [PR #49](https://github.com/vlingo-ai/mural/pull/49),
+[Checks run](https://github.com/vlingo-ai/mural/actions/runs/36224843775).
+Web unit/build/existing E2E and checksum-pinned LiveKit installation passed.
+The namespace media step ran but **6/6 cases failed** at initial peer connection:
+`could not establish pc connection`. Media/recovery assertions were not reached.
+The local macOS 18/18 result does not establish Linux compatibility. Exact cause
+within the loopback-only Linux/browser/server combination remains undiagnosed.
+No isolation bypass, retries-to-green or merge was performed. Deployment configuration
+and Docker build checks passed; these did not deploy anything to staging.
+
+PR creation initially failed because gh's default repository resolved to upstream;
+explicit `--repo vlingo-ai/mural` successfully targeted the user's fork. No upstream
+PR was created. Future repository mutations must specify the intended fork explicitly.
+Next: capture sanitized ICE gathering/candidate/pair diagnostics inside the namespace,
+then validate a safe isolated topology before claiming B5 CI acceptance.
