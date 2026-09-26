@@ -41,6 +41,10 @@ API uses `.env` + `compose.yaml` + `luna-images.yaml`; Gateway uses `gateway.env
 `gateway-compose.yaml` + `luna-images.yaml`. Always specify the matching files and target
 only the intended service with `--no-deps --no-build`; copied env files alone retain old values.
 Edge remains in the B4 directory; Worker/replay and database are unchanged.
+Subsequent separately authorized single translation-route smoke passed with actual
+OpenAI / `gpt-6-luna`, completed response and matching synthetic reply. It bypassed the
+Mural user ledger; other routes, broad quality and end-to-end settlement remain unverified.
+The one-request authorization is consumed; do not rerun the one-shot test.
 
 Upgrade only hosted Responses helpers; GPT-Live-1, Worker, native BYOK, public entitlements and
 historical ledger snapshots stay unchanged. The four Gateway settings `OPENAI_MODEL_TRANSLATION_FAST`,
