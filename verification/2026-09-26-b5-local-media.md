@@ -286,3 +286,15 @@ Targeted local baseline passed 1/1; subsequent repeat run failed two initial con
 was interrupted in the third case, and left 15 not run. Diagnostics showed only a
 10.10.10.6 host candidate. Local network-dependent instability remains unresolved;
 the isolated Linux result must be evaluated separately. TypeScript PASS.
+
+Linux candidate `ffbbe57`, run 36228309829: real media **24/24 PASS** across three
+repeats with zero retries (1.1 minutes); Web unit **74/74**, existing E2E **2/2**,
+build and deployment build checks PASS. Native transport correlation resolves the
+empty remote stats regression without granting microphone permission or inventing
+an address. Server/aggregate completion is recorded separately below. Mac bundled
+Chromium comparison could not launch because its executable was not installed;
+NOT_RUN, not a media result. No product runtime, provider call or staging deployment.
+
+Run 36228309829 completed SUCCESS including server and checks-gate; contracts and
+secret scan also passed. Native platform heavy jobs were scope-skipped, not tested.
+Documentation follow-up has no runtime changes and its own CI must be checked.

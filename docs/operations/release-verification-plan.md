@@ -362,6 +362,12 @@ Connecting→Active、恢复后新下行音频及持续上行能量、重复 Sto
 权限实验本地 6/6 建连失败，已撤回；改以原生 selected ICE transport 与 RTP stats 的端口/协议交叉核验地址。
 定向基线 1/1 PASS，但后续本地重复运行 2 FAIL/1 中断/15 未执行，仅收集到非回环 host 候选；
 本机网络相关不稳定尚未解决，不能替代隔离 Linux 结果。类型 PASS；保留失败及限制，不签结 B5。
+`ffbbe57` 的 Linux CI `36228309829`：三轮真实媒体 **24/24 PASS，零重试（1.1 分钟）**，
+Web 单元 74/74、原 E2E 2/2 与构建通过；原生 ICE transport 关联修复空地址断言，不猜地址或放宽门禁。
+复用规则：浏览器统计字段缺失须获取独立、可关联的原生证据；本机网卡差异与隔离 CI 分开记。
+Mac 固定 Chromium 对比因本机未安装浏览器而未执行。仅测试工具变更，无需服务端部署，无付费调用。
+上述代码候选完整 Checks（含 server、checks-gate）、契约与扫描均 PASS；原生重型检查按范围跳过。
+后续文档归集提交不沿用代码候选的 CI 状态；未合并、未部署，Mac 网络依赖限制仍保留。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，
