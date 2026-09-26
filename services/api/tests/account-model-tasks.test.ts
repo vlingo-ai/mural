@@ -60,11 +60,11 @@ integration('account-funded topic search settles trusted usage through the publi
       sources: [{ title: 'Example', url: 'https://example.com/current' }],
       usage: { inputTokens: 100, outputTokens: 40, searchCalls: 1 } });
     assert.equal((await app.inject(request)).statusCode, 409); assert.equal(calls, 1);
-    assert.deepEqual(await paidAIBalance(db!, owner.account), { balanceNanoUSD: '1989934100', reservedNanoUSD: '0',
-      availableNanoUSD: '1989934100', cashProvenanceVerified: true });
+    assert.deepEqual(await paidAIBalance(db!, owner.account), { balanceNanoUSD: '1989971050', reservedNanoUSD: '0',
+      availableNanoUSD: '1989971050', cashProvenanceVerified: true });
     const stored = (await db!.query('SELECT state,purpose,search_requested,input_tokens,output_tokens,search_calls,cost_nano FROM account_model_tasks')).rows[0];
     assert.deepEqual(stored, { state: 'settled', purpose: 'topic', search_requested: true, input_tokens: '100',
-      output_tokens: '40', search_calls: 1, cost_nano: '10065900' });
+      output_tokens: '40', search_calls: 1, cost_nano: '10028950' });
     await assert.rejects(db!.query('UPDATE account_model_tasks SET hold_nano=1'));
   } finally { await app.close(); }
 });

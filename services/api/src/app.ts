@@ -18,7 +18,7 @@ import { stripeOrderByKey, type MinutePurchases } from './minute-purchases.js';
 import type { AIValuePurchases, PurchaseFulfillmentRouter } from './ai-value-purchases.js';
 import type { StripeMinuteProvider } from './stripe-minute-provider.js';
 import type { PlayMinuteProvider } from './play-minute-provider.js';
-import { HOSTED_HELPER_BODY_LIMIT, type HostedHelpers } from './hosted-helpers.js';
+import { HOSTED_HELPER_BODY_LIMIT, HOSTED_HELPER_MODEL, HOSTED_HELPER_RATE_VERSION, type HostedHelpers } from './hosted-helpers.js';
 import { Diagnostics, errorReference } from './diagnostics.js';
 import { startupDiagnostic, type StartupDiagnostic } from './startup-diagnostics.js';
 import { supportsPublicLanguage } from './live-provider.js';
@@ -181,7 +181,10 @@ export function createApp(services: Services) {
   app.get('/v1/pricing', async () => ({ currency: 'USD', rateVersion: RATE_VERSION, moneyUnit: 'nanoUSD',
     nanoUSDPerDollar: '1000000000', creditNanoUSD: '10000000', serviceFeePercent: (await aiPricingPolicy(db)).serviceFeeBasisPoints / 100,
     voice: { model: 'gpt-live-1', perMinuteNanoUSD: '50000000', billingUnit: 'active-session-seconds' },
-    text: { model: 'gpt-5.6-luna', inputPerTokenNanoUSD: '200', cachedInputPerTokenNanoUSD: '20', outputPerTokenNanoUSD: '1200' },
+    text: { model: HOSTED_HELPER_MODEL, rateVersion: HOSTED_HELPER_RATE_VERSION,
+      inputPerTokenNanoUSD: '100', cachedInputPerTokenNanoUSD: '10', cacheWritePerTokenNanoUSD: '125',
+      outputPerTokenNanoUSD: '500', longContextThresholdTokens: 272000,
+      longContextInputMultiplier: 2, longContextOutputPerTokenNanoUSD: '750' },
     searchPerCallNanoUSD: '10000000', paymentFees: 'quoted separately at checkout', hostedVoiceAvailable: featureState().hostedVoice,
     consumerUnit: 'prepaid-ai-value', consumerBillingBasis: 'actual-ai-usage', freeAllowanceUnit:'conversation-minutes',
     paidMinuteEstimatesOnly:true,minutePacks: [], minutePurchasesAvailable: false }));

@@ -199,6 +199,14 @@ integration('minute API requires identity, exposes no grant route and leaves pur
     const unavailable = await app.inject({ method: 'POST', url: '/v1/minutes/welcome', payload: {}, headers: authHeaders });
     assert.equal(unavailable.statusCode, 200);
     assert.deepEqual(unavailable.json(), { available: false, reason: 'temporarily_unavailable', grantedMilliseconds: 0 });
-    assert.equal((await app.inject({ url: '/v1/pricing', headers })).json().minutePurchasesAvailable, false);
+    const pricing = (await app.inject({ url: '/v1/pricing', headers })).json();
+    assert.equal(pricing.minutePurchasesAvailable, false);
+    assert.equal(pricing.voice.model, 'gpt-live-1');
+    assert.equal(pricing.text.model, 'gpt-6-luna');
+    assert.equal(pricing.text.inputPerTokenNanoUSD, '100');
+    assert.equal(pricing.text.cachedInputPerTokenNanoUSD, '10');
+    assert.equal(pricing.text.cacheWritePerTokenNanoUSD, '125');
+    assert.equal(pricing.text.outputPerTokenNanoUSD, '500');
+    assert.match(pricing.text.rateVersion, /gpt6-luna-2026-09-22/);
   } finally { await app.close(); await f.cleanup(); }
 });

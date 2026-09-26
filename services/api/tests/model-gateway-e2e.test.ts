@@ -52,7 +52,7 @@ test('public Mural routes keep OpenAI Live separate from one healthy Gateway for
     } else if (request.url === '/v1/responses') {
       response.end(JSON.stringify({ object: 'gateway.response', id: 'gateway_response_e2e', status: 'completed',
         model: body.model, output_text: 'Good morning.', output_json: null,
-        provider: { name: 'fixture', model: 'fixture-response' }, usage: { input_tokens: 30,
+        provider: { name: 'openai', model: 'gpt-6-luna' }, usage: { input_tokens: 30,
           cached_input_tokens: 5, cache_write_input_tokens: 4, output_tokens: 3,
           reasoning_output_tokens: 0, total_tokens: 33, web_search_calls: 0 }, sources: [], finish_reason: null }));
     } else { response.writeHead(404); response.end(); }

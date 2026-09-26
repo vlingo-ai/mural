@@ -5,8 +5,9 @@ import { RATE_VERSION } from './pricing.js';
 import { randomUUID } from 'node:crypto';
 import { appendEntry, lockPaidWallet, lockWallet, reservePaidInTransaction, settlePaidInTransaction } from './ledger.js';
 
-export const HOSTED_HELPER_MODEL = 'gpt-5.6-luna';
-export const HOSTED_HELPER_RATE_VERSION = `${RATE_VERSION}-helper-cache-write-long-context-v1`;
+export const HOSTED_HELPER_MODEL = 'gpt-6-luna';
+// Keep the accounting-policy suffix accepted by the existing reservation constraint.
+export const HOSTED_HELPER_RATE_VERSION = `${RATE_VERSION}-gpt6-luna-2026-09-22-helper-cache-write-long-context-v1`;
 export const HOSTED_HELPER_BODY_LIMIT = 65_536;
 export const HOSTED_HELPER_PURPOSES = ['meaning', 'assessment', 'lookup', 'delegation', 'typed_reply', 'topic', 'help'] as const;
 export type HostedHelperPurpose = typeof HOSTED_HELPER_PURPOSES[number];
@@ -110,9 +111,9 @@ export function hostedHelperCost(usage: HostedHelperUsage): bigint {
   const values = [usage.inputTokens, usage.cachedInputTokens, usage.cacheWriteTokens, usage.outputTokens, usage.searchCalls];
   if (values.some(value => !integer(value, 0, 100_000_000)) || usage.cachedInputTokens + usage.cacheWriteTokens > usage.inputTokens) throw new ServiceError('helper_usage_invalid', 502);
   const long = usage.inputTokens > 272_000;
-  const input = BigInt(usage.inputTokens - usage.cachedInputTokens - usage.cacheWriteTokens) * 200n +
-    BigInt(usage.cachedInputTokens) * 20n + BigInt(usage.cacheWriteTokens) * 250n;
-  return input * (long ? 2n : 1n) + BigInt(usage.outputTokens) * (long ? 1800n : 1200n) + BigInt(usage.searchCalls) * 10_000_000n;
+  const input = BigInt(usage.inputTokens - usage.cachedInputTokens - usage.cacheWriteTokens) * 100n +
+    BigInt(usage.cachedInputTokens) * 10n + BigInt(usage.cacheWriteTokens) * 125n;
+  return input * (long ? 2n : 1n) + BigInt(usage.outputTokens) * (long ? 750n : 500n) + BigInt(usage.searchCalls) * 10_000_000n;
 }
 export async function hostedHelperExposure(sql: Pick<PoolClient, 'query'>): Promise<bigint> {
   return BigInt((await sql.query('SELECT COALESCE(sum(liability_nano),0) AS total FROM hosted_helper_sessions')).rows[0].total);

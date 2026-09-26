@@ -7,6 +7,7 @@ import type {
   HostedResponsesTransport,
 } from '../hosted-helpers.js';
 import { ModelGatewayClient } from './client.js';
+import { HOSTED_HELPER_MODEL } from '../hosted-helpers.js';
 
 type JSONRecord = Record<string, any>;
 
@@ -55,7 +56,7 @@ export class ModelGatewayResponsesTransport implements HostedResponsesTransport 
   #legacyResponse(raw: unknown, model: string) {
     if (!object(raw) || raw.object !== 'gateway.response' || raw.model !== model || typeof raw.id !== 'string' ||
         !raw.id || Buffer.byteLength(raw.id) > 256 || !['completed', 'incomplete', 'failed'].includes(raw.status) ||
-        !object(raw.provider) || typeof raw.provider.name !== 'string' || typeof raw.provider.model !== 'string' ||
+        !object(raw.provider) || raw.provider.name !== 'openai' || raw.provider.model !== HOSTED_HELPER_MODEL ||
         !object(raw.usage) || !integer(raw.usage.input_tokens) || !integer(raw.usage.cached_input_tokens) ||
         !integer(raw.usage.cache_write_input_tokens) || !integer(raw.usage.output_tokens) ||
         !integer(raw.usage.web_search_calls, 100) || raw.usage.cached_input_tokens + raw.usage.cache_write_input_tokens > raw.usage.input_tokens ||
@@ -70,7 +71,7 @@ export class ModelGatewayResponsesTransport implements HostedResponsesTransport 
       });
       output.push({ type: 'message' as const, content: [{ type: 'output_text' as const, text, annotations }] } as any);
     }
-    return { id: `resp_gateway_${createHash('sha256').update(raw.id).digest('base64url')}`, model: 'gpt-5.6-luna',
+    return { id: `resp_gateway_${createHash('sha256').update(raw.id).digest('base64url')}`, model: HOSTED_HELPER_MODEL,
       status: raw.status, usage: { input_tokens: raw.usage.input_tokens, input_tokens_details: {
         cached_tokens: raw.usage.cached_input_tokens, cache_write_tokens: raw.usage.cache_write_input_tokens },
       output_tokens: raw.usage.output_tokens }, output };

@@ -59,9 +59,9 @@ test('helper body fixes provider, persistence, tier, output and tools independen
 });
 
 test('helper pricing handles cache reads, cache writes and the long-context threshold', () => {
-  assert.equal(hostedHelperCost({ inputTokens: 100, cachedInputTokens: 20, cacheWriteTokens: 30, outputTokens: 40, searchCalls: 1 }), 10_065_900n);
-  assert.equal(hostedHelperCost({ inputTokens: 272_000, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 10, searchCalls: 0 }), 54_412_000n);
-  assert.equal(hostedHelperCost({ inputTokens: 272_001, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 10, searchCalls: 0 }), 108_818_400n);
+  assert.equal(hostedHelperCost({ inputTokens: 100, cachedInputTokens: 20, cacheWriteTokens: 30, outputTokens: 40, searchCalls: 1 }), 10_028_950n);
+  assert.equal(hostedHelperCost({ inputTokens: 272_000, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 10, searchCalls: 0 }), 27_205_000n);
+  assert.equal(hostedHelperCost({ inputTokens: 272_001, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 10, searchCalls: 0 }), 54_407_700n);
   for (const usage of [{ inputTokens: -1, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 1, searchCalls: 0 },
     { inputTokens: 10, cachedInputTokens: 8, cacheWriteTokens: 8, outputTokens: 1, searchCalls: 0 }])
     assert.throws(() => hostedHelperCost(usage), { code: 'helper_usage_invalid' });
@@ -113,8 +113,8 @@ integration('streamed meaning reserves before deltas and settles once after term
   };
   const result = await f.controller().request(f.account, f.sessionID, request, text => seen.push(text));
   assert.deepEqual(seen, ['Private', 'Private generated meaning.']);
-  assert.equal(result.costNanoUSD, '65900');
-  assert.deepEqual((await db!.query('SELECT state,cost_nano FROM hosted_helper_requests')).rows, [{ state: 'settled', cost_nano: '65900' }]);
+  assert.equal(result.costNanoUSD, '28950');
+  assert.deepEqual((await db!.query('SELECT state,cost_nano FROM hosted_helper_requests')).rows, [{ state: 'settled', cost_nano: '28950' }]);
   await assert.rejects(f.controller().request(f.account, f.sessionID, request, () => {}), { code: 'helper_request_already_attempted' });
   assert.equal(f.transport.calls.length, 1);
 });
@@ -135,7 +135,7 @@ integration('helper funding and one-shot attempt are committed before the provid
     return response();
   };
   const result = await f.controller().request(f.account, f.sessionID, input());
-  assert.equal(result.text, 'Private generated meaning.'); assert.equal(result.costNanoUSD, '65900');
+  assert.equal(result.text, 'Private generated meaning.'); assert.equal(result.costNanoUSD, '28950');
   assert.equal(result.rateVersion, HOSTED_HELPER_RATE_VERSION); assert.equal(f.transport.calls.length, 1);
   const records = JSON.stringify((await db!.query(`SELECT row_to_json(h) AS row FROM hosted_helper_requests h
     UNION ALL SELECT row_to_json(s) FROM hosted_helper_sessions s`)).rows);
@@ -153,6 +153,21 @@ integration('ownership, deleted accounts and a reversed minute reservation canno
   await db!.query('UPDATE accounts SET deleted_at=now() WHERE id=$1', [other.account]);
   await assert.rejects(gateway.request(other.account, other.sessionID, input()), { code: 'live_session_not_found' });
   assert.equal(f.transport.calls.length, 0);
+});
+
+integration('Luna upgrade refuses old-rate helper budgets without rewriting them or calling the provider', async () => {
+  const f = await seed();
+  const oldRate = 'openai-2026-09-12-helper-cache-write-long-context-v1';
+  await db!.query(`INSERT INTO hosted_helper_sessions(session_id,reserved_ms,per_minute_nano,budget_nano,
+    liability_nano,request_limit,search_limit,concurrency_limit,post_session_ms,framing_tokens,
+    search_input_tokens,timeout_ms,rate_version,activation_pending,expires_at)
+    VALUES($1,600000,100000000,1000000000,1000000000,100,1,2,120000,4096,1050000,1000,$2,false,now()+interval '10 minutes')`,
+    [f.sessionID, oldRate]);
+  const before = (await db!.query('SELECT * FROM hosted_helper_sessions')).rows;
+  await assert.rejects(f.controller().request(f.account, f.sessionID, input()), { code: 'helper_rate_review_required' });
+  assert.equal(f.transport.calls.length, 0);
+  assert.deepEqual((await db!.query('SELECT * FROM hosted_helper_sessions')).rows, before);
+  assert.equal((await db!.query('SELECT count(*) FROM hosted_helper_requests')).rows[0].count, '0');
 });
 
 integration('dollar-funded voice sessions cannot use minute-funded helpers', async () => {
@@ -297,7 +312,7 @@ integration('malformed provider usage cannot release funding; known refusals and
 
 integration('provider limit violations record the actual liability and stop new helper admissions', async () => {
   const f = await seed();
-  f.transport.handler = async () => response({ usage: { input_tokens: 3_000_000,
+  f.transport.handler = async () => response({ usage: { input_tokens: 6_000_000,
     input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 }, output_tokens: 3000 } });
   await assert.rejects(f.controller().request(f.account, f.sessionID, input()), { code: 'helper_provider_limit_exceeded' });
   assert.ok(await hostedHelperExposure(db!) > 1_000_000_000n);
@@ -369,7 +384,7 @@ integration('helper runtime privileges allow settlement but forbid rewriting bud
 });
 
 integration('earned helpers cannot front-load a ten-minute reservation and grow only from authoritative voice time', async () => {
-  const f = await seed(600_000,true), gateway=f.controller({helperBudgetNanoPerMinute:50_000_000n});
+  const f = await seed(600_000,true), gateway=f.controller({helperBudgetNanoPerMinute:50_000_000n,inputFramingTokenAllowance:65_536});
   await transaction(db!,sql=>gateway.reserveSessionBudget(sql,f.account,f.sessionID));
   const large=input({instructions:'a'.repeat(16_384),input:'b'.repeat(24_576)});
   await assert.rejects(gateway.request(f.account,f.sessionID,large),{code:'helper_budget_exhausted'});
@@ -415,7 +430,7 @@ integration('earned request retry metadata uses the persisted policy and never r
 });
 
 integration('twenty-four shared requests per minute retain the same earned dollar budget', async () => {
-  const f = await seed(600_000, true), gateway = f.controller({ maxRequestsPerMinute: 24, helperBudgetNanoPerMinute: 50_000_000n });
+  const f = await seed(600_000, true), gateway = f.controller({ maxRequestsPerMinute: 24, helperBudgetNanoPerMinute: 50_000_000n, inputFramingTokenAllowance: 65_536 });
   await db!.query('UPDATE hosted_sessions SET observed_ms=6000 WHERE id=$1', [f.sessionID]);
   for (let i = 0; i < 6; i++) await gateway.request(f.account, f.sessionID, input({ purpose: i % 2 ? 'typed_reply' : 'meaning' }));
   await assert.rejects(gateway.request(f.account, f.sessionID, input()),
@@ -472,11 +487,11 @@ test('helper admission retry delay rejects unbounded or malformed values', () =>
 });
 
 integration('sub-minimum residues cannot spend the full fifteen-second helper allowance', async () => {
-  const f=await seed(2_000,true), gateway=f.controller({helperBudgetNanoPerMinute:50_000_000n});
+  const f=await seed(1_000,true), gateway=f.controller({helperBudgetNanoPerMinute:50_000_000n});
   await assert.rejects(gateway.request(f.account,f.sessionID,input()),{code:'helper_budget_exhausted'});
   assert.equal(f.transport.calls.length,0);
-  await db!.query("UPDATE hosted_sessions SET state='closed',charged_ms=2000 WHERE id=$1",[f.sessionID]);
-  await db!.query("UPDATE minute_reservations SET state='settled',used_ms=2000 WHERE id=$1",[f.reservationID]);
+  await db!.query("UPDATE hosted_sessions SET state='closed',charged_ms=1000 WHERE id=$1",[f.sessionID]);
+  await db!.query("UPDATE minute_reservations SET state='settled',used_ms=1000 WHERE id=$1",[f.reservationID]);
   await assert.rejects(gateway.request(f.account,f.sessionID,input({purpose:'assessment',schema:schemaValue})),{code:'helper_budget_exhausted'});
   assert.equal(f.transport.calls.length,0);
 });
