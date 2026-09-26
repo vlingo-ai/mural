@@ -193,3 +193,24 @@ Next: review/freeze paired candidates, operator-assisted idle/version/backlog/ba
 gates, publish/build immutable candidates, compatible rollout and non-billable checks.
 Real provider acceptance is not authorized by these CI results. This documentation
 follow-up changes no runtime code; its CI is distinct from the verified candidates.
+
+## Media redaction regression and preflight
+
+Latest documentation candidate aa83bbd failed Web CI run 36231288034: real media
+15 PASS / 9 FAIL. All three repeats failed the same route-evidence assertions;
+nonempty `redacted-ip.invalid` in stats bypassed the native-pair fallback. Prior
+24/24 success does not override this failure. Worker checks remain successful.
+
+Test-only fix validates IPv4 evidence, correlates both ports and both protocols,
+and rejects conflicting addresses. No configured loopback substitution is used;
+unknown addresses still fail the existing route assertion. Added 13 regression
+cases: redaction/empty/mDNS/invalid addresses, missing evidence, mismatched pairs,
+conflicts and genuine non-loopback values. Local Web 91/91 and types PASS.
+Full isolated Linux media rerun is pending; no production code or gate weakened.
+
+Operator preflight: DB non-closed sessions 0; deployed usage outbox pending 0;
+user confirmed current Cloud concurrent Agent sessions 0. Encrypted backup
+postgres-20260926T090347Z.sql.gz.age copied offsite to Mac: SHA256 matches,
+age decrypt + gzip integrity PASS. This is not a restore drill. Actual component
+release wrappers/images were inspected; existing GPT-6 settings remain untouched.
+Idle checks must be refreshed before rollout. No B6 merge/deployment/activation.

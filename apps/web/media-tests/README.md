@@ -43,6 +43,9 @@ actual namespace UDP socket and kernel route; missing/mismatched evidence fails 
 CI runs all eight cases three times with zero retries. Browser stats can hide remote
 addresses too: the fixture correlates the native selected ICE transport pair by
 ports and protocol rather than substituting a configured address. Empty evidence fails.
+Nonempty redaction placeholders are also treated as unavailable evidence. Both
+ports and protocols must match; conflicting valid IPv4 addresses fail closed.
+The IPv4-only resolver has unit coverage in src/live/route-evidence.test.js.
 Historical single-run passes do not establish stability; see the dated evidence for
 later failures and current results. Local Mac interface selection can also cause
 initial ICE failure; do not change the user's VPN or treat that failure as a PASS.

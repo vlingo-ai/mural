@@ -1,3 +1,4 @@
+import { resolveMediaRoute } from './route-evidence.js';
 // Test-only instrumentation; all media and connections still use native WebRTC.
 const NativePeer = window.RTCPeerConnection;
 const peers = new Set();
@@ -36,13 +37,9 @@ window.rtcMediaRoute = async (direction) => {
       // transport pair, and require its ports/protocol to match the RTP stats.
       const transports = [...peer.getSenders(), ...peer.getReceivers()]
         .map(endpoint => endpoint.transport?.iceTransport);
-      const nativePair = transports.map(transport => transport?.getSelectedCandidatePair())
-        .find(candidate => candidate?.local.port === local?.port &&
-          candidate?.remote.port === remote?.port && candidate?.local.protocol === local?.protocol);
-      if (local && remote) return { protocol: local.protocol,
-        localPort: local.port, remotePort: remote.port,
-        localAddress: local.address || local.ip || nativePair?.local.address,
-        remoteAddress: remote.address || remote.ip || nativePair?.remote.address };
+      const route = resolveMediaRoute(local, remote,
+        transports.map(transport => transport?.getSelectedCandidatePair()));
+      if (route) return route;
     }
   }
   return null;
