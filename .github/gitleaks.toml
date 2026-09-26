@@ -1,6 +1,13 @@
 [extend]
 useDefault = true
 
+[[allowlists]]
+description = "Reviewed non-secret local Docker rollback tag in the Luna release evidence."
+condition = "AND"
+paths = ['''^verification/2026-09-26-gpt6-luna-upgrade\.md$''']
+regexTarget = "match"
+regexes = ['''vlingo-api-rollback:mural-before-gpt6-luna-gLS2Od''']
+
 [[rules]]
 id = "generic-api-key"
 

@@ -58,6 +58,9 @@ Local image retention tags `vlingo-api-rollback:mural-before-gpt6-luna-gLS2Od` a
 `sha256:dd19b57a7b46dfeac8bc050ca30810d132ff743a1c0de9cab3ae0fedecf8c175` and
 `sha256:9e9b7eec2fb394a30f80c1126cc81e116bb8ac762ad1c81cbf1829bea532860c` respectively.
 These are retained rollback inputs, not evidence of a completed rollback rehearsal.
+The evidence commit triggered generic-api-key on the non-secret API rollback image tag.
+Reproduced with redacted local full-history scanning; a file-and-exact-match exception
+was added rather than disabling the scanner. Updated CI must pass before merge.
 
 PR #46 candidate `91a80ae`: applicable CI checks PASS, including server, Web, deployment,
 contracts, secret scan and aggregate gates. [Checks run](https://github.com/vlingo-ai/mural/actions/runs/36220826549).
