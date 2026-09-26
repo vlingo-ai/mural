@@ -29,7 +29,18 @@ validation environment, not Phase 5.5C product release infrastructure.
 No deployment has occurred merely because this bundle exists or `docker compose config` passes.
 Mark a gate complete only after recording its evidence in `verification/phase-5-5b/`.
 
-## GPT-6 Luna hosted-helper upgrade candidate (not deployed)
+## GPT-6 Luna hosted-helper upgrade (deployed; non-billable checks complete)
+
+On 2026-09-26 API revision `7979f865250a0bb95edf846e80eb77f114ae56c4` and the four
+Gateway route changes were deployed. Container health/image/routes and public health/pricing
+checks passed, as did a local DB connection check and bounded startup error-marker scan;
+this does not establish real provider access or quality. See
+[deployment evidence](../../verification/2026-09-26-gpt6-luna-upgrade.md) for outstanding checks.
+The active API/Gateway directory is `/home/vlingo-admin/releases/mural-gpt6-luna-7979f86/deploy/phase-5-5b`.
+API uses `.env` + `compose.yaml` + `luna-images.yaml`; Gateway uses `gateway.env` +
+`gateway-compose.yaml` + `luna-images.yaml`. Always specify the matching files and target
+only the intended service with `--no-deps --no-build`; copied env files alone retain old values.
+Edge remains in the B4 directory; Worker/replay and database are unchanged.
 
 Upgrade only hosted Responses helpers; GPT-Live-1, Worker, native BYOK, public entitlements and
 historical ledger snapshots stay unchanged. The four Gateway settings `OPENAI_MODEL_TRANSLATION_FAST`,
@@ -49,8 +60,8 @@ access or quality; actual provider calls need separate bounded authorization.
 API and Edge revision `8fdfa620e299f2852fc248210e28b4847052b12f` were deployed in that order.
 Public checks, revision/restart verification and authenticated unknown-request lookup smoke passed.
 Owner isolation and closed-request lookup are covered by isolated tests, not this staging smoke.
-The active API/Edge directory is `/home/vlingo-admin/releases/mural-b4-8fdfa62/deploy/phase-5-5b`.
-Future Compose mutations for these components must include both `-f compose.yaml -f b4-images.yaml`
+At B4 sign-off, the API/Edge directory was `/home/vlingo-admin/releases/mural-b4-8fdfa62/deploy/phase-5-5b`.
+Edge remains there; API has since moved to the Luna directory above. Mutations for the retained B4 components must include both `-f compose.yaml -f b4-images.yaml`
 with this directory's explicit project directory and `.env`: the copied private environment still contains
 the prior API image. Do not run a full-stack `up` from an older release directory.
 Worker/replay, Gateway and database were not replaced in this deployment. Previous images and private
