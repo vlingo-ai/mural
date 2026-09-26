@@ -105,3 +105,28 @@ Preserve unresolved holds; do not rewrite old versions to make requests pass. Ba
 API image and Gateway configuration. Real quality/provider calls require separately bounded approval.
 Model migrations must inspect SQL reservation constraints, provider identity, pricing metadata,
 cash settlement and budget thresholds together; changing the model string alone is insufficient.
+
+## Separately authorized single provider smoke
+
+After deployment documentation PR #47 merged as `6587c2a`, the user authorized at most one
+English text request, no search, no voice/LiveKit, no retries, with USD 0.01 budget.
+Operator executed the test through the running Gateway's `mural.translation.fast` route;
+fixed synthetic input, low reasoning, maximum 256 output tokens, tools empty, store false.
+A root-only one-shot marker `/root/luna-smoke-20260926-once` prevents rerunning the command.
+HTTP client retries were disabled and timeout was 65 seconds; timeout alone would not prove
+provider cancellation or zero billing. No user conversation or credentials were displayed.
+
+Observed: HTTP 200, completed, elapsed 2.62 seconds, provider OpenAI / `gpt-6-luna`,
+expected synthetic reply exact-match true. Input 13, cached input 0, cache write 0,
+output 7, reasoning output 0, total 20 tokens, web search calls 0.
+At the verified standard input/output rates, estimated provider cost is
+`13 * 100 + 7 * 500 = 4800 nanoUSD = USD 0.0000048`, below the authorized ceiling.
+This is usage-based arithmetic, not a provider invoice or dashboard reconciliation.
+
+Result: single-route provider access and bounded response smoke PASS. The call bypassed
+Mural user reservations/ledger; it does not validate user settlement, other three routes,
+full helper UX or broad linguistic quality. No voice test was performed. Authorization is
+consumed; do not retry or run further paid tests without new authorization.
+Reusable finding: separately record smoke path and accounting scope, and use a persistent
+one-shot guard for a one-request authorization; a successful direct Gateway call is not an API
+end-to-end acceptance. No production code or deployment change was needed for this test.

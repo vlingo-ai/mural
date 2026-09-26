@@ -100,7 +100,7 @@ execution 固定 provider/model/channel/region/currency 和费率版本；不能
 | 3 | 扩展基础与 Phase 5.5C 受控内测（分组 C） | 完成相应加固及内测准入条件后推进，先面向已验收 Web |
 | 4 | Phase 6 iOS，之后 Android（分组 D） | 自有 App 身份、统一协议及平台迁移与真机验收；不以当前 Web 通过替代 |
 
-当前 B1 已按下述范围完成，下一轮开发从 **B2 → B3** 继续，再推进 B4–B7；不为此另造 Phase 编号。
+截至 2026-09-26，B1–B4 已按各自记录的范围签结，B4 后 GPT-6 Luna 独立升级已部署并完成一次授权的单路 smoke。下一轮从 **B5 → B6 → B7** 继续；不为此另造 Phase 编号，不扩大既有验收范围。
 
 2026-09-25 CI 范围决定：Phase 5.5（含 B1–B7 加固及 5.5C）聚焦 Web，
 Phase 6 聚焦 iOS，之后再启用 Android 构建及设备检查。
@@ -150,7 +150,7 @@ Gate 7 收尾可以独立签结，不要求先完成 B1–B7；反过来，开�
   - 第二轮本地候选：signal-only 不固定 5 秒重建 Room；Stop/新会话后的迟到媒体授权停轨且不覆盖新流。Web 52/52、mock E2E 2/2、类型/构建 PASS。共享模型尚未接入，状态查询/close 确认及发布待办；未部署。
   - 2026-09-26 已启动：规范同级工作树 `mural-b4-recovery-protocol`；新增[恢复参考协议](../shared/contracts/live-recovery-protocol.md)、共享轨迹与隔离 Web reducer。尚未接入 LiveConnection，未改变线上 UI；Web 适配、集成测试和发布验收待办，不勾完成。
 - [ ] B5：真实本地 LiveKit、真实 SDK、合成音频/假 Agent 的非计费集成；mocked Room 和旧 WebRTC Playwright 不能替代。
-- [ ] B4 后独立小迭代：hosted helper 升级 GPT-6 Luna。2026-09-26 本地候选完成模型/费率版本/元数据及 Gateway 身份校验；API 428 PASS/1 SKIP，类型/构建 PASS。PR/CI、API 与四条 Gateway 路由联合部署待办；不改 GPT-Live-1、原生 BYOK 或历史账目，未付费调用。[证据](../verification/2026-09-26-gpt6-luna-upgrade.md)。
+- [x] B4 后独立小迭代：hosted helper 升级 GPT-6 Luna。PR #46 已合并并部署 API 与四条 Gateway 路由；API 本地 428 PASS/1 SKIP、适用 CI 和非计费上线检查通过。另经授权执行一次 translation 路由真实 smoke，通过实际模型/usage/固定回复核对；不代表其他路由、全面质量或 Mural 用户结算端到端验收。不改 GPT-Live-1、原生 BYOK 或历史账目，不自动追加付费测试。[证据](../verification/2026-09-26-gpt6-luna-upgrade.md)。
 - [ ] B6：Worker→API 最终历史可靠交付和 cursor 补取，覆盖浏览器掉线/刷新；原生迁移保留本地历史。
 - [ ] B7：无正文事件/耗时指标；验证脚本对不健康/Worker 未注册失败退出；发布 manifest、digest 与恢复演练。发布工程子项与验证方案 A2 联动：把 API 纳入与 Worker 一致的受控 CI 构建、测试、私有镜像发布及 digest 固定流程，VPS 改为只拉取经验证的候选镜像；设计专用最小权限的私有镜像只读拉取身份，不把个人 Mac 凭据当作长期部署依赖。
 
