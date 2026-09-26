@@ -191,3 +191,10 @@ Assertions require uplink receiver silence, fresh downlink transitions during lo
 and resumed uplink energy after removing the rule. This short fault does not claim
 long-outage detection, ICE replacement, or physical Wi-Fi acceptance.
 TypeScript/diff checks PASS; new Linux case pending CI and not run on macOS.
+
+Run 36225838179 (`53a9d37`): six existing media cases PASS; UDP candidate FAIL
+before rule insertion because the runner user could not read `/proc/1/ns/net`
+(`EACCES`). No packet-loss assertion was reached. Fix elevates only the read-only
+`readlink /proc/1/ns/net` subprocess with noninteractive sudo and a five-second timeout.
+Both namespace identifiers must match the expected format and differ; errors still
+block rule insertion. Browser/test processes remain unprivileged. Linux rerun pending.

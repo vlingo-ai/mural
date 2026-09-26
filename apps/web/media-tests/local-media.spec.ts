@@ -97,7 +97,14 @@ for (const scenario of scenarios) test(`Mural LiveConnection real audio: ${scena
     if (scenario === 'udp-uplink-loss') {
       // Refuse mutation outside the dedicated Linux test namespace.
       expect(process.platform).toBe('linux');
-      expect(readlinkSync('/proc/self/ns/net')).not.toBe(readlinkSync('/proc/1/ns/net'));
+      // PID 1's namespace link is protected from the ordinary CI runner user.
+      // Elevate only this read, never the browser/test process; fail closed on errors.
+      const hostNamespace = execFileSync('sudo', ['-n', 'readlink', '/proc/1/ns/net'],
+        { encoding: 'utf8', timeout: 5000 }).trim();
+      const testNamespace = readlinkSync('/proc/self/ns/net');
+      expect(hostNamespace).toMatch(/^net:\[\d+\]$/);
+      expect(testNamespace).toMatch(/^net:\[\d+\]$/);
+      expect(testNamespace).not.toBe(hostNamespace);
       const route = await learner.evaluate(() => (window as any).rtcSenderRoute());
       expect(route?.protocol).toBe('udp');
       expect(route?.remoteAddress).toBe('127.0.0.1');
