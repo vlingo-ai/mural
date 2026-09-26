@@ -214,3 +214,12 @@ postgres-20260926T090347Z.sql.gz.age copied offsite to Mac: SHA256 matches,
 age decrypt + gzip integrity PASS. This is not a restore drill. Actual component
 release wrappers/images were inspected; existing GPT-6 settings remain untouched.
 Idle checks must be refreshed before rollout. No B6 merge/deployment/activation.
+
+Fix candidate ab02af8: [Checks run 36232128871](https://github.com/vlingo-ai/mural/actions/runs/36232128871)
+completed SUCCESS. Linux real media **24/24 PASS**, three repeats, zero retries;
+Web **91/91**, mock browser E2E **3/3**, build/types, server, deployment image builds
+and checks-gate PASS. Contracts and secret scan also PASS. Native heavy checks are
+out of phase, not claimed tested. Local build and E2E 3/3 passed too. Existing
+bundle-size warning retained. This resolves the observed route-redaction regression,
+not an unlimited stability guarantee. No assertion relaxation or provider calls.
+This subsequent evidence-only commit has its own CI; no merge or deployment yet.
