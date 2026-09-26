@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readlinkSync } from 'node:fs';
+import { isIP } from 'node:net';
 import { expect, test } from '@playwright/test';
 
 // LiveKit --dev credentials only. Never load staging .env or provider keys.
@@ -38,6 +39,10 @@ test('real SDK transports synthetic audio both ways and releases tracks on Stop'
     await a.evaluate(t => (window as any).mediaFixture.connect(t), token('learner', room));
     await b.evaluate(t => (window as any).mediaFixture.connect(t), token('synthetic-agent', room));
     for (const page of [a, b]) {
+      const candidates = await page.evaluate(() => (window as any).rtcDiagnostics()
+        .flatMap((peer: any) => peer.candidates));
+      expect(candidates.length).toBeGreaterThan(0);
+      for (const candidate of candidates) expect(isIP(candidate.address)).toBeGreaterThan(0);
       await expect.poll(() => page.evaluate(() => (window as any).mediaFixture.rms()), { timeout: 15_000 }).toBeGreaterThan(0.01);
       const diagnostics = await page.evaluate(() => (window as any).mediaFixture.diagnostics());
       // Decoded energy is asserted through Web Audio above; muted playback can

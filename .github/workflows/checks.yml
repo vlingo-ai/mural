@@ -73,7 +73,7 @@ jobs:
             ip route add default dev media0
             ip -brief address
             ip route
-            exec runuser -u "$1" -- env CI=true MEDIA_NETWORK_FAULTS=1 PATH="$2" npm run test:media
+            exec runuser -u "$1" -- env CI=true MEDIA_NETWORK_FAULTS=1 PATH="$2" npm run test:media -- --repeat-each=3
           ' -- "$(id -un)" "$PATH"
 
   swift-core:

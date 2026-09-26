@@ -353,6 +353,9 @@ Connecting→Active、恢复后新下行音频及持续上行能量、重复 Sto
 候选收集 complete，数组输出被折叠，已改 JSON 诊断。先前 8/8 仅为历史单轮通过，不能签稳定验收。
 范围澄清：可靠最终历史/cursor 属 B6，不追加为 B5 新门槛；当前阻断是媒体工具可靠性与最终门禁。
 证据提交不应中断未结束的服务端 CI；本轮无合并/部署/付费。
+稳定化候选：专用浏览器使用显式 IP ICE 候选以移除隔离环境 mDNS 依赖，并新增 IP 断言；
+本地三轮 18/18 PASS（52 秒）、类型 PASS。Linux 提升至三轮 24 项零重试，待实跑；
+历史失败尚无唯一根因证据，不把候选假设写成已证实原因。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，

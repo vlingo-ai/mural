@@ -255,3 +255,17 @@ peer integration. Reliable final-history delivery/cursor work belongs to B6; ful
 Worker/API/history integration is a documented boundary, not a newly added B5 gate.
 Current B5 blocker is media harness reliability and final review/green gate.
 Future evidence commits should not cancel an unfinished server check.
+
+## Explicit-IP candidate and repeated validation
+
+Diagnostic-only run 36227540094 passed Web again, demonstrating intermittency.
+The failed run did not retain expanded candidate details, so a unique root cause
+is NOT established. An isolated dummy NIC cannot provide an ordinary LAN mDNS path;
+remove that test dependency with Chromium's test-process-only
+`--disable-features=WebRtcHideLocalIpsWithMdns`, and assert gathered candidates have
+IP addresses rather than names. Chromium documents local-IP masking in its
+[policy source](https://chromium.googlesource.com/chromium/src/+/376fc41e87a058f7a7b300b0ec3a4982b4ec0960/components/policy/resources/templates/policy_definitions/Miscellaneous/WebRtcLocalIpsAllowedUrls.yaml).
+No user browser settings or deployed behavior change; egress isolation remains.
+Local three-repeat suite **18/18 PASS**, 52.0 seconds, TypeScript PASS. Linux CI now
+requires three repeats (24 cases, zero retries); result pending. This is a candidate
+stabilization with a falsifiable IP assertion, not proof of the sole historical cause.
