@@ -269,3 +269,20 @@ No user browser settings or deployed behavior change; egress isolation remains.
 Local three-repeat suite **18/18 PASS**, 52.0 seconds, TypeScript PASS. Linux CI now
 requires three repeats (24 cases, zero retries); result pending. This is a candidate
 stabilization with a falsifiable IP assertion, not proof of the sole historical cause.
+
+Run 36227774454 (`573c830`): all 24 cases established connections; 15 PASS, 9 FAIL
+on selected remote address checks (empty stats address) across three repeats.
+No candidate-IP assertion or initial connection timed out. The synthetic fixture
+does not request a physical microphone, so test browser contexts previously lacked
+microphone permission. Next candidate grants that permission only to these ephemeral
+contexts, still using synthetic streams, to test Chromium stats redaction independently.
+Address/kernel checks remain intact. TypeScript PASS; Linux validation pending.
+
+The permission-only experiment failed locally (6/6 initial connect timeouts) and
+was withdrawn, not shipped as a fix. Candidate address collection now uses the
+native selected ICE transport pair when stats redact addresses, requiring matching
+local/remote ports and protocol. No hardcoded fallback or relaxed loopback assertion.
+Targeted local baseline passed 1/1; subsequent repeat run failed two initial connects,
+was interrupted in the third case, and left 15 not run. Diagnostics showed only a
+10.10.10.6 host candidate. Local network-dependent instability remains unresolved;
+the isolated Linux result must be evaluated separately. TypeScript PASS.

@@ -356,6 +356,12 @@ Connecting→Active、恢复后新下行音频及持续上行能量、重复 Sto
 稳定化候选：专用浏览器使用显式 IP ICE 候选以移除隔离环境 mDNS 依赖，并新增 IP 断言；
 本地三轮 18/18 PASS（52 秒）、类型 PASS。Linux 提升至三轮 24 项零重试，待实跑；
 历史失败尚无唯一根因证据，不把候选假设写成已证实原因。
+三轮运行 `36227774454`：24 项均已建连，15 PASS、9 FAIL 于空远端地址统计；未发生建连超时。
+下一候选仅给合成音频测试上下文授予麦克风权限，验证统计隐藏问题，仍不采集物理麦克风；
+保留地址/内核断言，类型 PASS，Linux 重跑待确认。
+权限实验本地 6/6 建连失败，已撤回；改以原生 selected ICE transport 与 RTP stats 的端口/协议交叉核验地址。
+定向基线 1/1 PASS，但后续本地重复运行 2 FAIL/1 中断/15 未执行，仅收集到非回环 host 候选；
+本机网络相关不稳定尚未解决，不能替代隔离 Linux 结果。类型 PASS；保留失败及限制，不签结 B5。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，

@@ -32,10 +32,17 @@ window.rtcMediaRoute = async (direction) => {
       const pair = stats.get(transport?.selectedCandidatePairId);
       const local = stats.get(pair?.localCandidateId);
       const remote = stats.get(pair?.remoteCandidateId);
+      // getStats may redact candidate addresses. Read the selected native ICE
+      // transport pair, and require its ports/protocol to match the RTP stats.
+      const transports = [...peer.getSenders(), ...peer.getReceivers()]
+        .map(endpoint => endpoint.transport?.iceTransport);
+      const nativePair = transports.map(transport => transport?.getSelectedCandidatePair())
+        .find(candidate => candidate?.local.port === local?.port &&
+          candidate?.remote.port === remote?.port && candidate?.local.protocol === local?.protocol);
       if (local && remote) return { protocol: local.protocol,
         localPort: local.port, remotePort: remote.port,
-        localAddress: local.address ?? local.ip,
-        remoteAddress: remote.address ?? remote.ip };
+        localAddress: local.address || local.ip || nativePair?.local.address,
+        remoteAddress: remote.address || remote.ip || nativePair?.remote.address };
     }
   }
   return null;

@@ -32,13 +32,9 @@ window.mediaFixture = {
   setTone(enabled) { gain.gain.value = enabled ? 0.1 : 0; },
   async diagnostics() {
     const stats = remoteTrack ? await remoteTrack.getRTCStatsReport() : undefined;
-    const selected = stats ? [...stats.values()].filter(s => s.type === 'transport' && s.selectedCandidatePairId)
-      .map(s => stats.get(s.selectedCandidatePairId)) : [];
+    const route = await window.rtcMediaRoute('receive');
     return { state: room.state, audio: audio.state, subscribed: !!remoteTrack,
-      selectedRemoteLoopback: selected.map(pair => {
-        const candidate = stats.get(pair.remoteCandidateId);
-        return candidate?.address === '127.0.0.1' || candidate?.ip === '127.0.0.1';
-      }),
+      selectedRemoteLoopback: route ? [route.remoteAddress === '127.0.0.1'] : [],
       inbound: stats ? [...stats.values()].filter(s => s.type === 'inbound-rtp').map(s => ({
         packets: s.packetsReceived, bytes: s.bytesReceived, energy: s.totalAudioEnergy,
       })) : [] };
