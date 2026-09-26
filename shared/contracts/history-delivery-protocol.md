@@ -26,8 +26,13 @@ Synthetic cross-language vector: `worker.execution.item`, `user`, `Synthetic é 
 Queue rows are individually encrypted, immutable and never usage-coalesced. Reinserted
 rows get a new local generation; stale ACKs cannot delete them. Batch traversal advances
 even on failures and wraps, avoiding permanent head-of-line starvation.
+Traversal uses a persistent increasing queue sequence, not random receipt versions.
+Fair retries can still deliver later items before earlier failed ones; API cursor is
+commit order, not source conversation order. Source ordering must be resolved before
+final integration acceptance.
 
 Not yet activated: mapping actual SDK final items/revisions to stable execution/item IDs,
-Worker callback/shutdown/replay wiring, browser-authoritative-writer transition, pending
-history operational counts, retention/deletion policy and end-to-end HTTP tests. These
+Worker callback/shutdown wiring, browser-authoritative-writer transition,
+retention/deletion policy and end-to-end HTTP tests. History replay service and combined
+pending counts are locally implemented/tested, not deployed. These remaining items
 must be completed before rollout; a queue primitive test is not delivery acceptance.

@@ -119,3 +119,23 @@ Remaining: SDK identity/revision mapping, durable callback/shutdown integration,
 history replay startup/status/retention, deletion and secret-rotation handling,
 cross-process/cross-repo failure tests, Web cursor consumer and controlled rollout.
 No new waivers. B6 remains incomplete and local-only.
+
+## Third iteration: replay service and release backlog
+
+Worker replay main now initializes the history-capable encrypted store and runs
+history and usage loops independently under TaskGroup supervision. A synthetic hung
+history loop cannot block usage; a storage failure cancels the sibling. The existing
+release backlog command counts both pending tables, accepts old usage-only volumes,
+and does not suppress SQL errors as a zero count.
+
+Review found random UUID ordering in the history batch primitive. Replaced it with
+persistent AUTOINCREMENT traversal; reopen/order and delete-all/reinsert cursor
+tests PASS. Receipt generations remain random and continue protecting stale ACKs.
+This does not establish source conversation ordering when an earlier delivery fails
+and fair replay permits a later item through; that integration requirement is open.
+
+Worker complete suite **46/46 PASS**, Ruff lint/format PASS. An intermediate test
+edit misplaced assertions and failed lint; corrected before the final suite. API
+runtime unchanged and not rerun this iteration. No provider calls or deployment.
+Live callback, authoritative-writer rollout, Web cursor consumer, source ordering
+and cross-repository HTTP failure tests remain incomplete. B6 is not signed off.
