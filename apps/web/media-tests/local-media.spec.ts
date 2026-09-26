@@ -54,7 +54,9 @@ test('real SDK transports synthetic audio both ways and releases tracks on Stop'
     }
     expect(external).toEqual([]);
   } catch (error) {
-    for (const page of [a, b]) console.log(await page.evaluate(() => (window as any).mediaFixture.diagnostics()));
+    for (const page of [a, b]) console.log(await page.evaluate(() => ({
+      rtc: (window as any).rtcDiagnostics?.(),
+    })));
     throw error;
   } finally { await context.close(); }
 });

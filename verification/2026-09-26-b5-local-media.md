@@ -151,3 +151,10 @@ explicit `--repo vlingo-ai/mural` successfully targeted the user's fork. No upst
 PR was created. Future repository mutations must specify the intended fork explicitly.
 Next: capture sanitized ICE gathering/candidate/pair diagnostics inside the namespace,
 then validate a safe isolated topology before claiming B5 CI acceptance.
+
+## Eighth iteration: Linux ICE diagnostics candidate
+
+Added failure-only native peer state, candidate address/type/protocol and ICE error
+code diagnostics. No SDP, token or ICE credentials are logged. TypeScript and diff
+checks PASS. The failing isolated topology is unchanged so the next Linux run can
+distinguish candidate gathering failure from media playback failure. Execution pending.
