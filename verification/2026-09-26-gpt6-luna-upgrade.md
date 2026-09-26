@@ -1,4 +1,4 @@
-# GPT-6 Luna hosted helper upgrade — local candidate
+# GPT-6 Luna hosted helper upgrade — deployment and non-billable verification
 
 Date: 2026-09-26. Base: `c956a05` (B4 documentation sign-off).
 Scope: hosted Responses helpers and account model tasks, not GPT-Live-1, Worker,
@@ -67,8 +67,36 @@ contracts, secret scan and aggregate gates. [Checks run](https://github.com/vlin
 Android/emulator and Swift core were scope-skipped, not validated by this run.
 No new reusable rule was needed after CI review; existing model-migration rules remain applicable.
 
-Not merged or deployed; review, coordinated API/Gateway configuration deployment and
-non-billable staging checks remain required. See the candidate section in
+Final candidate `6f599e0` passed all applicable CI, including server and aggregate gates
+([run](https://github.com/vlingo-ai/mural/actions/runs/36221634604)); exact tag exception passed
+both local full-history scanning and CI. PR #46 was squash-merged on 2026-09-26 as
+`7979f865250a0bb95edf846e80eb77f114ae56c4`. Four live Gateway routes were independently
+observed still pointing to `gpt-5.6-luna` before deployment.
+
+The subsequent operator-supervised deployment used a new release directory
+`/home/vlingo-admin/releases/mural-gpt6-luna-7979f86/deploy/phase-5-5b`.
+API image ID is `sha256:cd6aa0748444a09cb71dd40f731009226fd9aab428ae87f692b02a6ba527869e`,
+revision `7979f865250a0bb95edf846e80eb77f114ae56c4`, platform linux/amd64.
+Both candidate Compose parses passed; a private in-memory comparison confirmed live baseline
+environment/image matches and only permitted target service changes (API image, four Gateway routes).
+A fresh DB blocker count was zero before stopping API, updating Gateway, then replacing API.
+Both Compose health waits passed. Operator terminal confirmed both running/healthy, restarts 0,
+expected image IDs, and all four Gateway routes set to `gpt-6-luna`.
+Independent public GET health and pricing succeeded; text model/rates match the candidate,
+voice remains `gpt-live-1`. No migration or Worker/Edge/database restart was requested.
+No real provider calls were made; provider access/quality remain NOT_RUN. Post-deployment
+database-container `psql SELECT 1` returned 1; this proves that local DB connection, not an
+end-to-end authenticated API database operation. A sanitized scan since each container's
+StartedAt read API 26 lines and Gateway 28 lines, with zero selected error-marker lines each.
+The scanner covered JSON error/fatal levels and common ERROR/FATAL/traceback markers;
+it is a point-in-time heuristic, not proof of no errors or real model readiness.
+Deployment and the performed non-billable checks are complete; real provider acceptance,
+restore/rollback rehearsal and sustained observation are not claimed.
+
+API commands must use `.env`, `compose.yaml`, and `luna-images.yaml`; Gateway commands must
+use `gateway.env`, `gateway-compose.yaml`, and `luna-images.yaml` in the new directory.
+The copied environments still contain older model/image values: never omit the override,
+never run full-stack up from either component's configuration. See the release section in
 [runbook](../deploy/phase-5-5b/README.md) and
 [release verification plan](../docs/operations/release-verification-plan.md).
 
