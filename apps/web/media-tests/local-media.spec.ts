@@ -113,14 +113,28 @@ for (const scenario of scenarios) test(`Mural LiveConnection real audio: ${scena
       const route = await learner.evaluate(direction => (window as any).rtcMediaRoute(direction), uplink ? 'send' : 'receive');
       expect(route?.protocol).toBe('udp');
       expect(route?.remoteAddress).toBe('127.0.0.1');
-      expect(['127.0.0.1', '192.0.2.1']).toContain(route?.localAddress);
       for (const port of [route.localPort, route.remotePort]) {
         expect(Number.isInteger(port) && port > 0 && port <= 65535).toBe(true);
       }
+      // Chromium may redact the local address. Verify the socket and kernel route,
+      // not a guessed fallback address; all commands run in the guarded namespace.
+      const sockets = execFileSync('ss', ['-H', '-4', '-u', '-a', '-n',
+        `sport = :${route.localPort}`], { encoding: 'utf8', timeout: 5000 }).trim();
+      expect(sockets.length).toBeGreaterThan(0);
+      const bindings = sockets.split('\n').map(line => line.trim().split(/\s+/)[3]);
+      const kernelRoutes = JSON.parse(execFileSync('ip', ['-j', 'route', 'get', route.remoteAddress],
+        { encoding: 'utf8', timeout: 5000 }));
+      expect(kernelRoutes).toHaveLength(1);
+      expect(kernelRoutes[0].dev).toBe('lo');
+      const localAddress = kernelRoutes[0].prefsrc;
+      expect(localAddress).toBe('127.0.0.1');
+      expect(bindings.some(binding => binding === `${localAddress}:${route.localPort}` ||
+        binding === `0.0.0.0:${route.localPort}`)).toBe(true);
+      if (route.localAddress) expect(route.localAddress).toBe(localAddress);
       const rule = ['OUTPUT', '-p', 'udp', '--sport', String(uplink ? route.localPort : route.remotePort),
         '--dport', String(uplink ? route.remotePort : route.localPort),
-        '-s', uplink ? route.localAddress : route.remoteAddress,
-        '-d', uplink ? route.remoteAddress : route.localAddress, '-j', 'DROP'];
+        '-s', uplink ? localAddress : route.remoteAddress,
+        '-d', uplink ? route.remoteAddress : localAddress, '-j', 'DROP'];
       execFileSync('sudo', ['-n', 'iptables', '-I', ...rule]);
       try {
         await expect.poll(() => receiver.evaluate(f => (window as any)[f].rms(), receiverFixture)).toBeLessThan(0.001);

@@ -343,6 +343,9 @@ Connecting→Active、恢复后新下行音频及持续上行能量、重复 Sto
 运行 `36226557936`：原六项 PASS，两个 UDP 用例实际选中 TCP，在注入前 FAIL。
 专项测试服务关闭 TCP 候选以固定协议；本地六项 PASS（18 秒）、类型 PASS，Linux 重跑待验证。
 复用规则：协议专项故障必须固定并断言所选传输，TCP fallback 另测，不靠重跑选中 UDP。
+运行 `36226795778`：六项 PASS，UDP 两项因浏览器本地地址为空在注入前 FAIL。
+修复候选通过 ss 核实 UDP socket 与 ip JSON 路由核实回环源地址，非空浏览器地址还须一致；
+不猜测空值。类型/diff PASS，Linux 重跑待验证。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，

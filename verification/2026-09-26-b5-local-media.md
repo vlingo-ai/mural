@@ -223,3 +223,11 @@ selection was nondeterministic. Set test server `rtc.tcp_port: 0` so this UDP-sp
 suite cannot silently choose TCP. Local six-case regression PASS (18.0 seconds),
 TypeScript PASS. Linux network cases pending rerun; TCP fallback needs a separate
 future matrix and is not covered by this UDP-only fixture.
+
+Run 36226795778 (`61afa9d`): six cases PASS, both UDP cases FAIL before injection
+because local candidate address was empty. UDP protocol selection now passed.
+Candidate fix verifies an actual IPv4 UDP socket at the reported local port with
+`ss`, then queries kernel route JSON to the verified loopback server. Requires one
+route on `lo`, source 127.0.0.1 and matching loopback/wildcard socket binding; any
+nonempty browser address must agree. No guessed empty-address fallback is used.
+TypeScript/diff PASS; actual Linux validation pending. No staging changes.
