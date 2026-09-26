@@ -224,6 +224,14 @@
                     },
                     "duplicate": {
                       "type": "boolean"
+                    },
+                    "ignored": {
+                      "const": true,
+                      "description": "Worker owns final history for this session; legacy browser write was not persisted."
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
                     }
                   }
                 }

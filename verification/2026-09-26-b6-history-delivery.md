@@ -139,3 +139,36 @@ edit misplaced assertions and failed lint; corrected before the final suite. API
 runtime unchanged and not rerun this iteration. No provider calls or deployment.
 Live callback, authoritative-writer rollout, Web cursor consumer, source ordering
 and cross-repository HTTP failure tests remain incomplete. B6 is not signed off.
+
+## Fourth iteration: callback, authority and browser catch-up
+
+Local candidate wires SDK conversation_item_added finals into synchronous encrypted
+capture, with stable job/item/chunk identity and Unicode byte-bounded chunks. Actual
+Worker entrypoint tests cover interrupted ChatMessage output, old/new metadata and
+denied lease. Replay now permits only the earliest pending item per session: failure
+blocks later items in that session, not other sessions. Success resumes immediately.
+
+Migration 031 snapshots authority in the admission transaction. Default is client;
+the opt-in API flag dispatches metadata 1.1 to the compatible Worker. Old browser
+live/typed writes for worker-owned sessions are ignored without insertion; Worker
+writes to client-owned sessions fail. Full detail/preview use cursor ordering.
+
+Web detail catches up in bounded cursor passes, retains the last good cursor on
+failure, deduplicates IDs, disposes stale readers and starts at zero after reload.
+Sign-out clears private UI before network completion. Visible changes: automatic
+history catch-up and a history-only pending-sync message.
+
+Results: API **433/433 PASS, zero skips**, types PASS, including B2/B6 cross-repository
+tests. Actual Python processes + authenticated Mural HTTP + isolated PostgreSQL test
+pre-commit failure, committed ACK deliberately not consumed, API/controller restart,
+exact replay, ordering and unchanged minute balance. Worker **49/49 PASS**, Ruff
+lint/format PASS. Web **78/78**, type/build PASS; Chrome E2E **3/3 PASS** tests 503
+recovery, duplicate content and sign-out. This is fake-API browser evidence, not Cloud
+media. Initial missing Web dependencies and parser/import lint failures were fixed;
+locked offline installation used. Existing SDK bundle-size warning is informational.
+
+CI, Linux container history-volume check, full local LiveKit media regression,
+review/images and staging remain pending. No paid calls. SDK finals never emitted
+or lost before capture cannot be recovered; conflicting final revisions fail rather
+than overwrite. Failed rows remain encrypted for operator handling. Default flag is
+off; B6 is not signed off.

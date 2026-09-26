@@ -294,6 +294,13 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 
 ### 迭代归集表
 
+2026-09-26 B6 第四轮（[证据](../../verification/2026-09-26-b6-history-delivery.md#fourth-iteration-callback-authority-and-browser-catch-up)）：
+Worker 最终回调、逐会话写入方、Web cursor 补取已接入本地候选；API **433/433 零跳过**（真实跨仓故障）、
+Worker **49/49**、Web **78/78**、Chrome E2E **3/3**、类型/构建/lint PASS。首次缺 Web 依赖与 lint 问题已修正。
+HISTORY-01 补充：同会话仅最早未 ACK 项可投递，其他会话公平推进；旧页面写入不得重复，
+切账户/会话忽略迟到响应，退出立即清空界面，刷新从零补取；SDK 未产出 final 不能冒充已可靠交付。
+默认开关关闭，CI/镜像/部署未完成；上线前说明自动补取与 pending 提示的 UI 变化，B6 不签结。
+
 2026-09-26 B6 第三轮（[证据](../../verification/2026-09-26-b6-history-delivery.md#third-iteration-replay-service-and-release-backlog)）：
 Worker 后台历史重放、用量独立循环、统一积压检查与持久递增队列顺序在本地实现；46/46、lint/format PASS。
 中间测试编辑导致 lint FAIL 已修正。API 本轮未改动或重跑，无部署/付费。HISTORY-01 新增复用规则：

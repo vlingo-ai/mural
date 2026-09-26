@@ -14,8 +14,9 @@ export const historyEventDigest = (event: ConversationEventInput) => createHash(
 
 /** Caller must authenticate the session-scoped Worker control token first. */
 export async function persistWorkerHistory(db: Database, sessionID: string, event: ConversationEventInput) {
-  const owner = (await db.query('SELECT account_id,provider_session_id FROM hosted_sessions WHERE id=$1', [sessionID])).rows[0];
+  const owner = (await db.query('SELECT account_id,provider_session_id,history_authority FROM hosted_sessions WHERE id=$1', [sessionID])).rows[0];
   if (!owner?.provider_session_id) throw new ServiceError('livekit_session_not_attached', 409);
+  if (owner.history_authority !== 'worker') throw new ServiceError('invalid_conversation_event', 409);
   // Closed sessions may receive delayed final history; no usage/lease is modified.
   await appendConversationEvent(db, owner.account_id as string, sessionID, event);
   return { accepted: true, committed: true, eventID: event.eventID, digest: historyEventDigest(event) };
@@ -53,6 +54,15 @@ export async function appendConversationEvent(db: Database, account: string, ses
   return { accepted: true, duplicate: true };
 }
 
+export async function appendClientConversationEvent(db: Database, account: string, sessionID: string, event: ConversationEventInput) {
+  const session = (await db.query('SELECT history_authority FROM hosted_sessions WHERE id=$1 AND account_id=$2', [sessionID, account])).rows[0];
+  if (!session) throw new ServiceError('conversation_not_found', 404);
+  // Old browser tabs still send segment/typed IDs. A successful no-op prevents
+  // retries and duplicate copies; only the authenticated Worker commits history.
+  if (session.history_authority === 'worker') return { accepted: true, duplicate: false, ignored: true };
+  return appendConversationEvent(db, account, sessionID, event);
+}
+
 export function parseHistoryPage(value: unknown, sessionID: string): { after: string; limit: number } {
   const query = value as Record<string, unknown>;
   if (!query || typeof query !== 'object' || Array.isArray(query) || Object.keys(query).some(key => !['cursor', 'limit'].includes(key)))
@@ -88,7 +98,7 @@ export async function conversationEventsPage(db: Database, account: string, sess
 
 export async function listConversations(db: Database, account: string, limit = 20) {
   const rows = (await db.query(`SELECT s.id,s.language,s.state,s.created_at,s.deadline,
-    (SELECT e.text FROM conversation_events e WHERE e.session_id=s.id ORDER BY e.created_at DESC,e.id DESC LIMIT 1) AS preview,
+    (SELECT e.text FROM conversation_events e WHERE e.session_id=s.id ORDER BY e.position DESC LIMIT 1) AS preview,
     (SELECT count(*)::int FROM conversation_events e WHERE e.session_id=s.id) AS event_count,
     (SELECT count(*)::int FROM conversation_learning_results r WHERE r.session_id=s.id) AS result_count
     FROM hosted_sessions s WHERE s.account_id=$1 ORDER BY s.created_at DESC,s.id DESC LIMIT $2`, [account, limit])).rows;
@@ -102,7 +112,7 @@ export async function conversationDetail(db: Database, account: string, sessionI
     FROM hosted_sessions WHERE id=$1 AND account_id=$2`, [sessionID, account])).rows[0];
   if (!session) throw new ServiceError('conversation_not_found', 404);
   const events = (await db.query(`SELECT provider_event_id,speaker,text,source,created_at FROM conversation_events
-    WHERE session_id=$1 ORDER BY created_at,id`, [sessionID])).rows;
+    WHERE session_id=$1 ORDER BY position`, [sessionID])).rows;
   const results = (await db.query(`SELECT kind,result,created_at FROM conversation_learning_results
     WHERE session_id=$1 ORDER BY created_at,id`, [sessionID])).rows;
   return { id: session.id as string, language: session.language as string | null, state: session.state as string,

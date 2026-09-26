@@ -25,6 +25,8 @@ test('history cursor backfills old rows and enforces restricted runtime grants',
     await sql.query(insert, ['00000000-0000-4000-8000-000000000001', session, 'first', '2026-01-01']);
     await sql.query(insert, [randomUUID(), other, 'separate', '2026-01-01']);
     await sql.query(await readFile(new URL('../migrations/030_history_cursor.sql', import.meta.url), 'utf8'));
+    await sql.query(await readFile(new URL('../migrations/031_history_authority.sql', import.meta.url), 'utf8'));
+    assert.equal((await sql.query('SELECT history_authority FROM hosted_sessions WHERE id=$1', [session])).rows[0].history_authority, 'client');
     assert.deepEqual((await sql.query('SELECT provider_event_id,position FROM conversation_events WHERE session_id=$1 ORDER BY position',
       [session])).rows, [{ provider_event_id: 'first', position: '1' }, { provider_event_id: 'second', position: '2' }]);
     assert.equal((await sql.query('SELECT history_sequence FROM hosted_sessions WHERE id=$1', [other])).rows[0].history_sequence, '1');

@@ -112,6 +112,14 @@ integration('conversation history is owner-scoped, idempotent and returned in se
     const final = { eventID: 'worker.execution.final', speaker: 'assistant' as const, text: 'Synthetic final', source: 'live' as const };
     await assert.rejects(persistWorkerHistory(db!, session, final), { code: 'livekit_session_not_attached' });
     await db!.query('UPDATE hosted_sessions SET provider_session_id=$2 WHERE id=$1', [session, 'local-fixture-room']);
+    await assert.rejects(persistWorkerHistory(db!, session, final), { code: 'invalid_conversation_event' });
+    await db!.query("UPDATE hosted_sessions SET history_authority='worker' WHERE id=$1", [session]);
+    for (const source of ['live', 'typed']) {
+      const ignored = await app.inject({ method: 'POST', url: `/v1/conversations/${session}/events`, headers,
+        payload: { ...payload, eventID: `old-browser-${source}`, source } });
+      assert.deepEqual(ignored.json(), { accepted: true, duplicate: false, ignored: true });
+    }
+    assert.equal((await db!.query("SELECT count(*) FROM conversation_events WHERE session_id=$1 AND provider_event_id LIKE 'old-browser-%'", [session])).rows[0].count, '0');
     const ack = await persistWorkerHistory(db!, session, final);
     assert.deepEqual(ack, { accepted: true, committed: true, eventID: final.eventID, digest: historyEventDigest(final) });
     assert.deepEqual(await persistWorkerHistory(db!, session, final), ack);

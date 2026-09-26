@@ -40,6 +40,7 @@ export function parseLiveContext(value: unknown): LiveContext {
   return { instructions: source.instructions as string | undefined, history: messages };
 }
 export interface LiveProvider {
+  readonly historyAuthority?: 'client' | 'worker';
   readonly clientTransport?: LiveClientTransport['type'];
   /** Trusted worker lease; omitted for providers whose sideband is directly owned by Mural. */
   readonly controlLeaseMilliseconds?: number;

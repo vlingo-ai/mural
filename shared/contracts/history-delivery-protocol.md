@@ -27,12 +27,32 @@ Queue rows are individually encrypted, immutable and never usage-coalesced. Rein
 rows get a new local generation; stale ACKs cannot delete them. Batch traversal advances
 even on failures and wraps, avoiding permanent head-of-line starvation.
 Traversal uses a persistent increasing queue sequence, not random receipt versions.
-Fair retries can still deliver later items before earlier failed ones; API cursor is
-commit order, not source conversation order. Source ordering must be resolved before
-final integration acceptance.
+Only the earliest unacknowledged item per session is eligible; a failed item blocks
+later items in that session without blocking other sessions. Successful ACK makes
+the next item eligible immediately. API cursor remains database commit order.
 
-Not yet activated: mapping actual SDK final items/revisions to stable execution/item IDs,
-Worker callback/shutdown wiring, browser-authoritative-writer transition,
-retention/deletion policy and end-to-end HTTP tests. History replay service and combined
-pending counts are locally implemented/tested, not deployed. These remaining items
-must be completed before rollout; a queue primitive test is not delivery acceptance.
+Local candidate integration (not deployed): migration 031 defaults existing sessions
+to client authority. LIVEKIT_WORKER_HISTORY_ENABLED defaults false. Enabled admission
+persists worker authority in the reservation transaction and dispatches strict metadata
+1.1/historyAuthority=worker. Worker accepts 1.0 without capture and 1.1 with capture.
+Worker writes to client-owned sessions are rejected; authenticated legacy browser
+writes to worker-owned sessions return accepted/ignored without inserting anything.
+This prevents old cached pages from double-writing. No public Live DTO change.
+
+conversation_item_added uses SDK final text (including interrupted final output),
+with a hash of job ID/item ID and a chunk index as stable event identity. Text above
+4000 UTF-8 bytes is split at code-point boundaries. Interim transcription is not
+canonical history. A conflicting final revision is rejected, never silently overwritten;
+unexpected capture/storage failure stops the session. Final text not produced by the
+SDK or not durably captured before a hard kill cannot be recovered by this protocol.
+Worker final events use source=live, including SDK user chat; typed-input provenance
+is not separately inferred by text matching.
+
+No automatic deletion of failed history: revoked credentials/deleted sessions/conflicts
+remain encrypted and count as backlog, requiring operator reconciliation. Keep the
+outbox volume/key across rollback; do not clear it to pass release checks. Automatic
+retention, deletion propagation and alert scheduling are not implemented.
+
+Web reads selected history in bounded cursor passes, retries after connectivity returns,
+deduplicates immutable IDs and drops disposed-reader responses. Reload starts at zero;
+sign-out clears visible history immediately. CI and staging verification remain pending.

@@ -39,3 +39,5 @@ export type ConversationDetail = { id: string; language: string | null; state: s
   observedMilliseconds: number; chargedMilliseconds: number | null;
   events: Array<{ eventID: string; speaker: 'user' | 'assistant'; text: string; source: 'live' | 'typed'; createdAt: string }>;
   results: Array<{ kind: string; result: unknown; createdAt: string }> };
+
+export type HistoryPage = { events: ConversationDetail['events']; nextCursor: string; hasMore: boolean };

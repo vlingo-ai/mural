@@ -6,6 +6,7 @@ import { MuralAPI, MuralAPIError } from './api/mural';
 import { LiveConnection, type LiveState } from './live/LiveConnection';
 import { AudioEnergyProbe, TimingRecorder, type TimingReport } from './live/timing-diagnostic';
 import { historyCache } from './storage/history-cache';
+import { HistoryReader } from './live/history-reader';
 
 type Caption = { id: string; speaker: 'user' | 'assistant'; text: string; source: 'live' | 'typed' };
 type TextResult = { kind: string; text: string; sources?: Array<{ title: string; url: string }> };
@@ -42,6 +43,9 @@ export default function App() {
   const [result, setResult] = useState<TextResult | Assessment>();
   const [history, setHistory] = useState<ConversationSummary[]>([]);
   const [detail, setDetail] = useState<ConversationDetail>();
+  const [selectedHistory, setSelectedHistory] = useState<string>();
+  const [historySyncFailed, setHistorySyncFailed] = useState(false);
+  const historyReader = useRef<HistoryReader | undefined>(undefined);
   const [error, setError] = useState<string>();
   const [timingReport, setTimingReport] = useState<TimingReport>();
   const audio = useRef<HTMLAudioElement>(null);
@@ -81,6 +85,46 @@ export default function App() {
 
   useEffect(() => () => { connection.disconnect(); audioProbe?.stop(); }, [connection, audioProbe]);
   useEffect(() => {
+    setDetail(undefined); setHistorySyncFailed(false);
+    if (!selectedHistory || !token.trim()) return;
+    let cancelled = false;
+    const expectedToken = token;
+    const reader = new HistoryReader(
+      cursor => api.conversationEvents(selectedHistory, cursor),
+      events => {
+        if (tokenRef.current !== expectedToken) return;
+        setDetail(current => current?.id === selectedHistory ? { ...current, events } : current);
+        setHistorySyncFailed(false);
+      },
+      () => { if (tokenRef.current === expectedToken) setHistorySyncFailed(true); },
+    );
+    historyReader.current = reader;
+    let ready = false;
+    let loading = false;
+    const sync = async () => {
+      if (cancelled || loading || tokenRef.current !== expectedToken) return;
+      if (!ready) {
+        loading = true;
+        try {
+          const metadata = await api.conversation(selectedHistory);
+          if (cancelled || tokenRef.current !== expectedToken) return;
+          setDetail({ ...metadata, events: [] }); ready = true;
+        } catch { if (!cancelled) setHistorySyncFailed(true); }
+        finally { loading = false; }
+      }
+      if (ready) await reader.poll();
+    };
+    void sync();
+    const timer = window.setInterval(() => { void sync(); }, 5_000);
+    const online = () => { void sync(); };
+    window.addEventListener('online', online);
+    return () => {
+      cancelled = true; reader.stop(); window.clearInterval(timer);
+      window.removeEventListener('online', online);
+      if (historyReader.current === reader) historyReader.current = undefined;
+    };
+  }, [api, selectedHistory, token]);
+  useEffect(() => {
     if (!outputDevice || !audio.current || !('setSinkId' in audio.current)) return;
     void (audio.current as HTMLAudioElement & { setSinkId(id: string): Promise<void> }).setSinkId(outputDevice);
   }, [outputDevice]);
@@ -88,8 +132,11 @@ export default function App() {
   async function refreshDevices() { setDevices(await navigator.mediaDevices.enumerateDevices()); }
   async function refreshHistory(accountID = account?.accountID) {
     if (!tokenRef.current.trim()) return;
-    try { const loaded = (await api.conversations()).conversations; setHistory(loaded); if (accountID) await historyCache.writeList(accountID, loaded); }
-    catch (cause) { setError(safeMessage(cause)); }
+    const expectedToken = tokenRef.current;
+    try { const loaded = (await api.conversations()).conversations;
+      if (tokenRef.current !== expectedToken) return;
+      setHistory(loaded); if (accountID) await historyCache.writeList(accountID, loaded); }
+    catch (cause) { if (tokenRef.current === expectedToken) setError(safeMessage(cause)); }
   }
   async function verifyDevelopmentToken() {
     setError(undefined);
@@ -108,11 +155,16 @@ export default function App() {
     } catch (cause) { setError(safeMessage(cause)); }
   }
   async function signOut() {
-    try { await api.signOut(); } catch { /* Local credential disposal still signs the browser out. */ }
-    connection.disconnect(); disableGoogleAutoSelect(); if (account) await historyCache.clear(account.accountID);
+    // Capture authorization before clearing memory, but do not keep private UI
+    // visible while the network sign-out is pending.
+    const signingOut = api.signOut().catch(() => undefined);
+    historyReader.current?.stop(); setSelectedHistory(undefined);
+    connection.disconnect(); disableGoogleAutoSelect();
     audioProbe?.stop();
     tokenRef.current = ''; setToken(''); setAccount(undefined);
     setHistory([]); setDetail(undefined); setCaptions([]); setResult(undefined);
+    if (account) await historyCache.clear(account.accountID);
+    await signingOut;
   }
   async function start() {
     setError(undefined); setCaptions([]); setResult(undefined);
@@ -149,10 +201,9 @@ export default function App() {
       language: providerLocale(language), query: topic.trim() }, crypto.randomUUID())); }
     catch (cause) { setError(safeMessage(cause)); } finally { setToolBusy(false); }
   }
-  async function openHistory(id: string) {
-    setError(undefined);
-    try { setDetail(await api.conversation(id)); }
-    catch (cause) { setError(safeMessage(cause)); }
+  function openHistory(id: string) {
+    setError(undefined); setSelectedHistory(id);
+    if (id === selectedHistory) void historyReader.current?.poll();
   }
 
   const active = state === 'active', busy = !['idle', 'failed'].includes(state), latestUser = captions.some(item => item.speaker === 'user');
@@ -166,7 +217,8 @@ export default function App() {
       <label>Language<select value={language} onChange={event => setLanguage(event.target.value as AvailableLanguage)} disabled={busy}>
         {knownLanguages.map(item => <option key={item.id} value={item.id} disabled={!item.available}>{item.name}{item.available ? '' : ' — coming later'}</option>)}</select></label>
       <label>Development access token<div className="inline-field"><input type="password" autoComplete="off" value={token}
-        onChange={event => { setToken(event.target.value); setAccount(undefined); }} placeholder="Held in memory only" disabled={busy || Boolean(account)} />
+        onChange={event => { historyReader.current?.stop(); setSelectedHistory(undefined); setDetail(undefined); setHistory([]);
+          tokenRef.current = event.target.value; setToken(event.target.value); setAccount(undefined); }} placeholder="Held in memory only" disabled={busy || Boolean(account)} />
         <button className="secondary" onClick={() => void verifyDevelopmentToken()} disabled={!token.trim() || busy || Boolean(account)}>Verify</button></div></label>
       <label>Microphone<select value={inputDevice} onChange={event => setInputDevice(event.target.value)} disabled={busy}><option value="">System default</option>
         {devices.filter(device => device.kind === 'audioinput').map(device => <option key={device.deviceId} value={device.deviceId}>{device.label || 'Microphone'}</option>)}</select></label>
@@ -198,6 +250,7 @@ export default function App() {
       <div className="panel"><div className="panel-heading"><p className="eyebrow">Server history</p><button className="secondary" onClick={() => void refreshHistory()} disabled={!token}>Refresh</button></div>
         {history.length === 0 ? <p className="muted">No synced conversations yet.</p> : <ul className="history">{history.map(item => <li key={item.id}>
           <button onClick={() => void openHistory(item.id)}><strong>{item.language === 'zh-CN' ? '普通话' : item.language === 'en' ? 'English' : item.language || 'Historical session'}</strong><span>{item.preview || item.state}</span><small>{new Date(item.createdAt).toLocaleString()}</small></button></li>)}</ul>}
+        {historySyncFailed && <p role="status">History sync is pending. It will retry automatically when connected.</p>}
         {detail && <div className="history-detail"><strong>Conversation detail</strong>{detail.events.map(event => <p key={event.eventID}><span>{event.speaker === 'user' ? 'You' : 'Mural'}</span>{event.text}</p>)}</div>}</div>
     </section>
   </main>;

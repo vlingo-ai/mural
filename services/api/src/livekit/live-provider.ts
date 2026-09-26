@@ -13,6 +13,7 @@ export interface LiveKitProviderConfig {
   apiSecret: string;
   controlSecret: string;
   agentName?: string;
+  workerHistory?: boolean;
 }
 
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -29,6 +30,7 @@ export const liveKitRoomOptions = (name: string) => ({
 });
 
 export class LiveKitLiveProvider implements LiveProvider {
+  readonly historyAuthority: 'client' | 'worker';
   readonly clientTransport = 'livekit-room' as const;
   readonly controlLeaseMilliseconds = 30_000;
   readonly #url: URL;
@@ -41,6 +43,7 @@ export class LiveKitLiveProvider implements LiveProvider {
   readonly #listeners = new Map<string, Listener>();
 
   constructor(config: LiveKitProviderConfig) {
+    this.historyAuthority = config.workerHistory ? 'worker' : 'client';
     this.#url = new URL(config.url);
     if (!['ws:', 'wss:'].includes(this.#url.protocol) || this.#url.username || this.#url.password ||
         this.#url.search || this.#url.hash || !config.apiKey || config.apiSecret.length < 6 ||
@@ -74,7 +77,8 @@ export class LiveKitLiveProvider implements LiveProvider {
       await this.#rooms.createRoom(liveKitRoomOptions(room));
       created = true;
       const metadata = JSON.stringify({
-        version: '1.0', sessionID: muralSessionID, language,
+        version: this.historyAuthority === 'worker' ? '1.1' : '1.0', sessionID: muralSessionID, language,
+        ...(this.historyAuthority === 'worker' ? { historyAuthority: 'worker' } : {}),
         controlToken: this.#controlToken(muralSessionID),
         instructions: liveInstructions(language, context),
         history: context.history.map(message => ({

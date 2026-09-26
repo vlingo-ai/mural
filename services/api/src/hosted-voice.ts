@@ -173,6 +173,8 @@ export class HostedVoice {
         await sql.query(`INSERT INTO hosted_sessions(id,account_id,idempotency_key,reservation_id,rate_version,state,deadline,funding_exposure_nano,language)
           VALUES($1,$2,$3,$4,$5,'creating',$6,$7,$8)`, [id, account, key, reservation, RATE_VERSION, deadline, HOLD.toString(),language]);
       }
+      if (this.provider.historyAuthority === 'worker')
+        await sql.query("UPDATE hosted_sessions SET history_authority='worker' WHERE id=$1", [id]);
     });
     if ((minutes || paid) && !await this.prepareMinuteProviderAttempt(id, account))
       throw new ServiceError('live_session_cancelled', 409);
