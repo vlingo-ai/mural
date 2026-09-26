@@ -332,6 +332,8 @@ Connecting→Active、恢复后新下行音频及持续上行能量、重复 Sto
 单元 74/74、E2E 2/2 通过；无外联 dummy 拓扑解决本次建连失败，媒体断言未放宽。
 复用规则：隔离 WebRTC 环境既要无外部出口，也需可枚举本地 ICE 接口。服务端当时仍运行，
 不声称全部门禁通过；真实网络故障/完整 Worker/API/历史集成仍待补齐，B5 未完成。
+同日第九轮：增加 Linux 隔离命名空间内、按实际发送端 UDP 端口元组精准丢包的上行故障候选；
+检查反方向新媒体及撤销规则后的恢复。类型/diff 检查通过，Linux 实跑待验证；不冒充长断网恢复验收。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，

@@ -179,3 +179,15 @@ Reusable rule: isolated WebRTC tests need an ICE-enumerable local interface as w
 as no external uplink. Preserve candidate/transport and real decoded audio assertions.
 B5 still lacks independent network packet faults and full Worker/API/history coverage.
 No merge, staging deployment or paid calls occurred.
+
+## Ninth iteration: isolated UDP uplink-loss candidate
+
+Added a Linux-only opt-in network fault case (`MEDIA_NETWORK_FAULTS=1` in CI).
+It checks the process network namespace differs from PID 1, discovers the actual
+publisher's selected UDP port tuple, requires loopback destination, and inserts a
+narrow OUTPUT drop rule for that tuple. The rule is removed in finally; namespace
+destruction also limits its lifetime. No host firewall or staging mutation is used.
+Assertions require uplink receiver silence, fresh downlink transitions during loss,
+and resumed uplink energy after removing the rule. This short fault does not claim
+long-outage detection, ICE replacement, or physical Wi-Fi acceptance.
+TypeScript/diff checks PASS; new Linux case pending CI and not run on macOS.

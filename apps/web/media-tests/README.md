@@ -32,6 +32,11 @@ own network is unchanged. Failure to create the namespace fails the job (no fall
 The first loopback-only Linux run failed: browser ICE candidates were empty. The dummy
 NIC topology passed all six media cases in GitHub Linux run 36225537205 (16.5 seconds).
 Independent network fault injection is pending.
+CI also enables a candidate short UDP uplink-loss case via `MEDIA_NETWORK_FAULTS=1`.
+It refuses the host network namespace, drops only the selected publisher port tuple,
+and removes the rule in finally. Do not enable this flag outside the dedicated Linux
+namespace; macOS does not run it. This candidate awaits CI verification and does not
+cover long-outage detection or physical Wi-Fi recovery.
 
 Stop-during-recovery observes five seconds after Idle for stale Active transitions;
 it is a bounded regression check, not proof against arbitrarily late events.
