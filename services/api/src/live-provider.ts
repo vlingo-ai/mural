@@ -5,6 +5,7 @@ import { ServiceError } from './errors.js';
 
 export type VoiceUsage = { type: 'session.usage.updated' | 'session.closed'; usage: { seconds: number } };
 export type LiveProviderRejection = { type: 'session.provider.rejected'; providerStatus: number; requestID?: string };
+export type LiveHistoryEvent = { type: 'session.history.final'; eventID: string; speaker: 'user' | 'assistant'; text: string };
 export type LiveDelegation = { type: 'session.delegation.created'; delegationID: string; text: string;
   context: Array<{ speaker: 'user' | 'assistant'; text: string }> };
 export type LiveClientTransport = { type: 'webrtc'; sdp: string } |
@@ -39,6 +40,7 @@ export function parseLiveContext(value: unknown): LiveContext {
   return { instructions: source.instructions as string | undefined, history: messages };
 }
 export interface LiveProvider {
+  readonly historyAuthority?: 'client' | 'worker';
   readonly clientTransport?: LiveClientTransport['type'];
   /** Trusted worker lease; omitted for providers whose sideband is directly owned by Mural. */
   readonly controlLeaseMilliseconds?: number;
@@ -47,7 +49,7 @@ export interface LiveProvider {
   attach(sessionID: string, onUsage: (event: VoiceUsage) => void, onLoss: () => void): Promise<Sideband>;
   hangup(sessionID: string): Promise<void>;
   acceptTrustedEvent?(sessionID: string, authorization: string | undefined, body: unknown):
-    LiveDelegation | LiveProviderRejection | VoiceUsage;
+    LiveDelegation | LiveProviderRejection | VoiceUsage | LiveHistoryEvent;
 }
 const languages: Record<string, string> = { 'nb-NO': 'Norwegian Bokmål with an Eastern Norwegian pronunciation',
   'es-ES': 'Spanish from Spain', 'en': 'English', 'en-US': 'English', 'fr-FR': 'French from France',

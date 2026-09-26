@@ -59,6 +59,30 @@ Rollback must restore both API and route configuration after the same drain chec
 budgets cannot be reused with old code. Non-billable health/metadata checks do not establish model
 access or quality; actual provider calls need separate bounded authorization.
 
+## B6 candidate rollout (not deployed)
+
+B6 changes visible history: selected detail catches up automatically, reports pending
+sync without failing the live call, and clears immediately on sign-out. API migration
+030 provides ordered cursors; 031 records per-session client/Worker history authority.
+Use the [B6 evidence](../../verification/2026-09-26-b6-history-delivery.md) and
+[protocol](../../shared/contracts/history-delivery-protocol.md); do not enable this candidate
+from local tests alone. Native local history is unchanged.
+
+After CI/candidate review, drain sessions, verify combined control/history backlog,
+retain images/private configuration and take/verify the existing encrypted backup.
+Apply 030/031 and reviewed runtime grants; deploy compatible API with
+`LIVEKIT_WORKER_HISTORY_ENABLED=false`, then matching Worker **and replay**, then Web.
+Only after non-billable compatibility checks enable the flag for new sessions.
+The default remains false; existing sessions keep their stored authority. A true flag
+requires Worker metadata 1.1 support. Do not enable it against an old Worker.
+
+For rollback disable new Worker-authoritative admissions first, drain calls and both
+queues, then restore compatible images. A flag change does not rewrite old sessions.
+Retain additive migrations, outbox volume and its key. Never delete pending encrypted
+history to make a zero-backlog gate pass; credential/deletion/conflict failures need
+operator reconciliation. Any real conversation acceptance needs separate bounded
+provider authorization. Health checks alone do not establish history delivery.
+
 ## B4 compatibility gate and staging deployment
 
 API and Edge revision `8fdfa620e299f2852fc248210e28b4847052b12f` were deployed in that order.

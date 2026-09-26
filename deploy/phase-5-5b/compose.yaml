@@ -115,6 +115,7 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
       LIVEKIT_CONTROL_SECRET: ${LIVEKIT_CONTROL_SECRET:?Set LIVEKIT_CONTROL_SECRET}
       LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-vlingo-speaking-live-gpt-live}
+      LIVEKIT_WORKER_HISTORY_ENABLED: ${LIVEKIT_WORKER_HISTORY_ENABLED:-false}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>{if(!r.ok)process.exit(1)})"]
       interval: 10s

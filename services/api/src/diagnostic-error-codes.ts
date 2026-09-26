@@ -1,5 +1,7 @@
 /** Known application categories only; never accept provider messages as log fields. */
 export const diagnosticErrorCodes = new Set([
+  'conversation_event_conflict',
+  'invalid_history_page',
   'not_found',
   'access_request_proxy_not_ready',
   'access_request_rate_limit',

@@ -45,6 +45,7 @@ test('development sign-in, Live captions, teaching tools and server history form
       transport: { type: 'webrtc', sdp: 'v=0\r\nbrowser-fixture-answer' }, deadline: new Date().toISOString(),
       reservedMilliseconds: 60_000, billingBasis: 'connected-conversation-time', experimental: true });
     if (url.pathname.endsWith('/events')) {
+      if (request.method() === 'GET') return json({ events: [{ eventID: 'input-1', speaker: 'user', text: 'Good morning', source: 'live', createdAt: new Date().toISOString() }], nextCursor: 'fixture-cursor', hasMore: false });
       if (body.eventID === 'input-1') await new Promise(resolve => setTimeout(resolve, 50));
       acceptedTranscriptEvents.push(body.eventID);
       return json({ accepted: true, duplicate: false });
@@ -77,4 +78,39 @@ test('development sign-in, Live captions, teaching tools and server history form
   expect(calls.some(call => call.path === `/v1/conversations/${sessionID}/events`)).toBe(true);
   expect(calls.some(call => call.path === '/v1/model-tasks' && call.body.kind === 'teachingReply')).toBe(true);
   expect(acceptedTranscriptEvents.slice(0, 2)).toEqual(['input-1', 'input-2']);
+});
+
+test('history cursor resumes after failure, deduplicates and clears on sign-out', async ({ page }) => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const cursors: Array<string | null> = [];
+  let offline = true;
+  const item = (eventID: string, text: string) => ({ eventID, text, speaker: 'user', source: 'live', createdAt: '2026-09-26T00:00:00Z' });
+  await page.route('http://127.0.0.1:8080/**', async route => {
+    const url = new URL(route.request().url());
+    const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (url.pathname === '/v1/account') return json({ accountID: '22222222-2222-4222-8222-222222222222', email: 'fixture@example.test', providers: [], createdAt: '2026-09-26T00:00:00Z' });
+    if (url.pathname === '/v1/conversations') return json({ conversations: [{ id, language: 'en', state: 'closed', createdAt: '2026-09-26T00:00:00Z', preview: 'History fixture' }] });
+    if (url.pathname === `/v1/conversations/${id}`) return json({ id, state: 'closed', events: [], results: [] });
+    if (url.pathname.endsWith('/events')) {
+      cursors.push(url.searchParams.get('cursor'));
+      if (!url.searchParams.has('cursor')) return json({ events: [item('one', 'Before interruption')], nextCursor: 'one', hasMore: true });
+      if (offline) return json({ error: { code: 'service_unavailable' } }, 503);
+      return json({ events: [item('one', 'Before interruption'), item('two', 'After recovery')], nextCursor: 'two', hasMore: false });
+    }
+    if (url.pathname === '/v1/auth/sign-out') return json({});
+    return json({}, 404);
+  });
+  await page.goto('/');
+  await page.getByLabel('Development access token').fill('synthetic-token');
+  await page.getByRole('button', { name: 'Verify' }).click();
+  await page.getByText('History fixture').click();
+  await expect(page.locator('.history-detail')).toContainText('Before interruption');
+  await expect(page.getByRole('status')).toContainText('History sync is pending');
+  offline = false;
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(page.locator('.history-detail')).toContainText('After recovery');
+  await expect(page.locator('.history-detail p')).toHaveCount(2);
+  expect(cursors.slice(0, 3)).toEqual([null, 'one', 'one']);
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page.locator('.history-detail')).toHaveCount(0);
 });

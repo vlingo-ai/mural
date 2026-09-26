@@ -7,7 +7,7 @@ import { ServiceError } from './errors.js';
 import { VoiceMeter } from './meter.js';
 import { cost, RATE_VERSION, TRIAL_MS } from './pricing.js';
 import { LiveCreateFailure, LiveCreateRejectedError, supportsLanguage, parseLiveContext, type LiveDelegation,
-  type LiveProvider, type LiveProviderRejection, type Sideband, type VoiceUsage } from './live-provider.js';
+  type LiveProvider, type LiveHistoryEvent, type LiveProviderRejection, type Sideband, type VoiceUsage } from './live-provider.js';
 import { appendMinuteEntry, lockMinuteWallet } from './minutes.js';
 import { recoverMinutePurchaseShortfalls } from './minute-purchases.js';
 import { hostedHelperExposure, type HostedHelpers } from './hosted-helpers.js';
@@ -173,6 +173,8 @@ export class HostedVoice {
         await sql.query(`INSERT INTO hosted_sessions(id,account_id,idempotency_key,reservation_id,rate_version,state,deadline,funding_exposure_nano,language)
           VALUES($1,$2,$3,$4,$5,'creating',$6,$7,$8)`, [id, account, key, reservation, RATE_VERSION, deadline, HOLD.toString(),language]);
       }
+      if (this.provider.historyAuthority === 'worker')
+        await sql.query("UPDATE hosted_sessions SET history_authority='worker' WHERE id=$1", [id]);
     });
     if ((minutes || paid) && !await this.prepareMinuteProviderAttempt(id, account))
       throw new ServiceError('live_session_cancelled', 409);
@@ -236,7 +238,7 @@ export class HostedVoice {
     }
   }
   async acceptTrustedEvent(id: string, authorization: string | undefined, body: unknown):
-    Promise<LiveDelegation | LiveProviderRejection | VoiceUsage> {
+    Promise<LiveDelegation | LiveProviderRejection | VoiceUsage | LiveHistoryEvent> {
     if (!this.provider.acceptTrustedEvent) throw new ServiceError('livekit_control_unavailable', 404);
     const event = this.provider.acceptTrustedEvent(id, authorization, body);
     if (event.type === 'session.usage.updated' || event.type === 'session.closed') {

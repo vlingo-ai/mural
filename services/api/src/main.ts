@@ -96,7 +96,8 @@ try {
       throw new Error('LiveKit configuration is incomplete.');
     const liveProvider = livekit ? new LiveKitLiveProvider({ url: livekit,
       apiKey: process.env.LIVEKIT_API_KEY!, apiSecret: process.env.LIVEKIT_API_SECRET!,
-      controlSecret: process.env.LIVEKIT_CONTROL_SECRET!, agentName: process.env.LIVEKIT_AGENT_NAME }) :
+      controlSecret: process.env.LIVEKIT_CONTROL_SECRET!, agentName: process.env.LIVEKIT_AGENT_NAME,
+      workerHistory: process.env.LIVEKIT_WORKER_HISTORY_ENABLED === 'true' }) :
         new OpenAILiveProvider(process.env.OPENAI_API_KEY ?? '', { diagnostics });
     hosted = new HostedVoice(db, liveProvider,
       { accountAllowlist: accounts, billingUnit, lifetimeFundingCapNano,publicMinuteAccess,publicPaidAccess, helpers: hostedHelpers,

@@ -1,4 +1,4 @@
-import type { AccountProfile, AuthChallenge, AuthExchange, ConversationDetail, ConversationSummary, LiveCapabilities, LiveSessionResult, ProviderLocale } from './contracts';
+import type { AccountProfile, AuthChallenge, AuthExchange, ConversationDetail, ConversationSummary, HistoryPage, LiveCapabilities, LiveSessionResult, ProviderLocale } from './contracts';
 import type { LiveSessionStatusDTO, CurrentLiveSessionDTO } from '../../../../shared/contracts/generated/live';
 
 type Fetch = typeof globalThis.fetch;
@@ -60,7 +60,15 @@ export class MuralAPI {
   account(): Promise<AccountProfile> { return this.get('/v1/account'); }
   async signOut(): Promise<void> { await this.request('/v1/auth/sign-out', {}); }
   conversations(): Promise<{ conversations: ConversationSummary[] }> { return this.get('/v1/conversations'); }
-  conversation(id: string): Promise<ConversationDetail> { return this.get(`/v1/conversations/${encodeURIComponent(id)}`); }
+  conversation(id: string): Promise<ConversationDetail> {
+    return this.sendRequest(`/v1/conversations/${encodeURIComponent(id)}`, 'GET',
+      undefined, undefined, true, AbortSignal.timeout(10_000));
+  }
+  conversationEvents(id: string, cursor?: string): Promise<HistoryPage> {
+    const query = new URLSearchParams({ limit: '100', ...(cursor ? { cursor } : {}) });
+    return this.sendRequest(`/v1/conversations/${encodeURIComponent(id)}/events?${query}`, 'GET',
+      undefined, undefined, true, AbortSignal.timeout(10_000));
+  }
   appendConversationEvent(sessionID: string, event: { eventID: string; speaker: 'user' | 'assistant'; text: string; source: 'live' | 'typed' }): Promise<{ accepted: true; duplicate: boolean }> {
     return this.request(`/v1/conversations/${encodeURIComponent(sessionID)}/events`, event);
   }

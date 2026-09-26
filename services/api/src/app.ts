@@ -25,7 +25,7 @@ import { supportsPublicLanguage } from './live-provider.js';
 import { assertWebPreflight } from './web-cors.js';
 import { modelTaskHelperInput, parseModelTask, publicModelTaskResult } from './model-tasks.js';
 import type { AccountModelTasks } from './account-model-tasks.js';
-import { appendConversationEvent, conversationDetail, listConversations, parseConversationEvent, recordLearningResult } from './conversation-history.js';
+import { appendClientConversationEvent, conversationDetail, conversationEventsPage, listConversations, parseClientConversationEvent, persistWorkerHistory, recordLearningResult } from './conversation-history.js';
 
 export interface Services { diagnostics?: Diagnostics; db: Database; auth: AuthConfig; payments?: SandboxPayments; attestor?: TrialAttestor; minuteAttestor?: MinuteAttestor; guestMinuteAttestor?: GuestMinuteAttestor; appleRevoker?: AppleRevoker; hosted?: HostedVoice; accessRequests?: AccessRequests; aiReports?: AIReports;
   onStartupDiagnostic?: (diagnostic: StartupDiagnostic) => void | Promise<void>;
@@ -412,6 +412,8 @@ export function createApp(services: Services) {
     if (!services.hosted) throw new ServiceError('livekit_control_unavailable', 404);
     const id = uuid((request.params as { id: string }).id);
     const event = await services.hosted.acceptTrustedEvent(id, request.headers.authorization, request.body);
+    if (event.type === 'session.history.final') return persistWorkerHistory(db, id,
+      { eventID: event.eventID, speaker: event.speaker, text: event.text, source: 'live' });
     if (event.type === 'session.usage.updated')
       return { ...await services.hosted.controlReceipt(id, event),
         leaseMilliseconds: await services.hosted.controlLeaseMilliseconds(id) };
@@ -495,9 +497,11 @@ export function createApp(services: Services) {
     await authenticate(db, request.headers.authorization, true)));
   app.get('/v1/conversations/:id', async request => conversationDetail(db,
     await authenticate(db, request.headers.authorization, true), uuid((request.params as { id: string }).id)));
-  app.post('/v1/conversations/:id/events', { bodyLimit: 8192 }, async request => appendConversationEvent(db,
+  app.post('/v1/conversations/:id/events', { bodyLimit: 8192 }, async request => appendClientConversationEvent(db,
     await authenticate(db, request.headers.authorization, true), uuid((request.params as { id: string }).id),
-    parseConversationEvent(request.body)));
+    parseClientConversationEvent(request.body)));
+  app.get('/v1/conversations/:id/events', async request => conversationEventsPage(db,
+    await authenticate(db, request.headers.authorization, true), uuid((request.params as { id: string }).id), request.query));
   app.post('/v1/model-tasks', { bodyLimit: HOSTED_HELPER_BODY_LIMIT }, async request => {
     const account = await authenticate(db, request.headers.authorization, true);
     const key = request.headers['idempotency-key'];

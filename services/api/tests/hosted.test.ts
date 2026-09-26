@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { chmodSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -188,6 +188,66 @@ integration('B2: a late final after lease-expiry settlement is retained without 
     await f.controller.acceptTrustedEvent(live.sessionID, undefined, { type: 'session.closed', seconds: 19 });
     assert.deepEqual(await f.minutes(), charged);
   } finally { await f.cleanup(); }
+});
+
+test('B6 cross-repository: authenticated final history survives DB failure and lost ACK across processes', {
+  skip: !databaseURL || !process.env.B2_WORKER_PYTHON || !process.env.B2_WORKER_PYTHONPATH
+    ? 'Set TEST_DATABASE_URL, B2_WORKER_PYTHON and B2_WORKER_PYTHONPATH.' : false,
+}, async () => {
+  const fake = cleanupProvider();
+  const secret = 'synthetic-history-control-secret-32-bytes';
+  const parser = new LiveKitLiveProvider({ url: 'ws://127.0.0.1:7880', apiKey: 'devkey', apiSecret: 'secret', controlSecret: secret });
+  fake.provider.acceptTrustedEvent = parser.acceptTrustedEvent.bind(parser);
+  Object.defineProperty(fake.provider, 'historyAuthority', { value: 'worker' });
+  const f = await fixture(2_000_000_000n, 90_000, undefined, false, undefined, fake.provider);
+  const directory = mkdtempSync(join(tmpdir(), 'mural-b6-cross-'));
+  chmodSync(directory, 0o700);
+  const key = randomBytes(32).toString('base64');
+  let app = createApp({ db: f.db, auth: {}, hosted: f.controller });
+  let live!: Awaited<ReturnType<typeof f.controller.create>>;
+  const script = `import asyncio,os
+from mural_livekit.history_outbox import DurableHistoryOutbox
+from mural_livekit.history_replay import replay_history_batch
+from mural_livekit.outbox_status import pending_count
+box=DurableHistoryOutbox(os.environ['B6_DIR'],os.environ['B6_KEY'])
+action=os.environ['B6_ACTION']
+if action=='enqueue':
+ for i in range(2): box.put_history(os.environ['B6_SESSION'],os.environ['B6_TOKEN'],'worker.fixture.'+str(i),'user','Synthetic final '+str(i))
+elif action=='count': print(pending_count(os.environ['B6_DIR']))
+else:
+ if action=='lose-ack': box.ack_history=lambda report: None
+ asyncio.run(replay_history_batch(box,os.environ['B6_ORIGIN'],None))`;
+  const python = async (action: string, origin = '') => (await execFileAsync(process.env.B2_WORKER_PYTHON!, ['-c', script], {
+    env: { ...process.env, PYTHONPATH: process.env.B2_WORKER_PYTHONPATH!, B6_DIR: directory, B6_KEY: key,
+      B6_ACTION: action, B6_ORIGIN: origin, B6_SESSION: live.sessionID,
+      B6_TOKEN: createHmac('sha256', secret).update('mural-livekit-control-v1\0').update(live.sessionID).digest('base64url') },
+    timeout: 15_000,
+  })).stdout.trim();
+  try {
+    live = await f.controller.create(f.account, 'b6-history-key', '', 'en');
+    assert.equal((await f.db.query('SELECT history_authority FROM hosted_sessions WHERE id=$1', [live.sessionID])).rows[0].history_authority, 'worker');
+    const balance = await f.minutes();
+    const origin = await app.listen({ host: '127.0.0.1', port: 0 });
+    await python('enqueue');
+    await f.db.query(`CREATE FUNCTION reject_b6_history() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'synthetic history commit failure'; END $$`);
+    await f.db.query('CREATE TRIGGER reject_b6_history BEFORE INSERT ON conversation_events FOR EACH ROW EXECUTE FUNCTION reject_b6_history()');
+    await python('replay', origin);
+    assert.equal(await python('count'), '2');
+    assert.equal((await f.db.query('SELECT count(*) FROM conversation_events')).rows[0].count, '0');
+    await f.db.query('DROP TRIGGER reject_b6_history ON conversation_events');
+    await python('lose-ack', origin);
+    assert.equal(await python('count'), '2');
+    assert.equal((await f.db.query('SELECT count(*) FROM conversation_events')).rows[0].count, '1');
+    await app.close(); await f.restart();
+    app = createApp({ db: f.db, auth: {}, hosted: f.controller });
+    const restarted = await app.listen({ host: '127.0.0.1', port: 0 });
+    await python('replay', restarted); await python('replay', restarted);
+    assert.equal(await python('count'), '0');
+    assert.deepEqual((await f.db.query('SELECT provider_event_id FROM conversation_events ORDER BY position')).rows.map(row => row.provider_event_id),
+      ['worker.fixture.0', 'worker.fixture.1']);
+    assert.deepEqual(await f.minutes(), balance);
+  } finally { await app.close(); await f.cleanup(); rmSync(directory, { recursive: true, force: true }); }
 });
 
 test('B2 cross-repository: real API HTTP and Worker process replay final exactly once', {
