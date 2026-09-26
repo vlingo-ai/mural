@@ -29,6 +29,21 @@ validation environment, not Phase 5.5C product release infrastructure.
 No deployment has occurred merely because this bundle exists or `docker compose config` passes.
 Mark a gate complete only after recording its evidence in `verification/phase-5-5b/`.
 
+## GPT-6 Luna hosted-helper upgrade candidate (not deployed)
+
+Upgrade only hosted Responses helpers; GPT-Live-1, Worker, native BYOK, public entitlements and
+historical ledger snapshots stay unchanged. The four Gateway settings `OPENAI_MODEL_TRANSLATION_FAST`,
+`OPENAI_MODEL_ASSESSMENT_DEFAULT`, `OPENAI_MODEL_REASONING_DEFAULT`, and `OPENAI_MODEL_SEARCH_DEFAULT`
+must all resolve to `gpt-6-luna` together with the matching API candidate. Never switch just the route:
+the old API relabels provider responses, while the new API rejects a mismatched provider/model.
+Use a supervised quiet window, encrypted backup and retained API/Gateway configuration/images.
+Drain voice sessions AND pending helper/account-model tasks; allow the existing post-session helper
+window to expire before changing either component. Keep unresolved holds for operator reconciliation,
+never clear them to pass deployment. No SQL migration or historical rate rewrite is required.
+Rollback must restore both API and route configuration after the same drain checks; new-version
+budgets cannot be reused with old code. Non-billable health/metadata checks do not establish model
+access or quality; actual provider calls need separate bounded authorization.
+
 ## B4 compatibility gate and staging deployment
 
 API and Edge revision `8fdfa620e299f2852fc248210e28b4847052b12f` were deployed in that order.

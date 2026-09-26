@@ -5,14 +5,14 @@ import { ModelGatewayClient } from '../src/model-gateway/client.js';
 import type { HostedResponsesContext, HostedResponsesRequest } from '../src/hosted-helpers.js';
 
 const key = 'synthetic-model-gateway-key-for-local-tests';
-const base: HostedResponsesRequest = { model: 'gpt-5.6-luna', store: false, background: false, stream: false,
+const base: HostedResponsesRequest = { model: 'gpt-6-luna', store: false, background: false, stream: false,
   service_tier: 'default', prompt_cache_options: { mode: 'explicit' }, instructions: 'Teach briefly.',
   input: [{ role: 'user', content: 'Hello' }], max_output_tokens: 1400, reasoning: { effort: 'low' },
   tool_choice: 'none', max_tool_calls: 1 };
 const context = (purpose: HostedResponsesContext['purpose']): HostedResponsesContext =>
   ({ requestID: '12345678-1234-4234-8234-123456789abc', purpose });
 const gatewayResult = (model: string) => ({ object: 'gateway.response', id: 'provider-private-response-id', status: 'completed', model,
-  output_text: 'Hello there.', output_json: null, provider: { name: 'fixture', model: 'fixture-model' },
+  output_text: 'Hello there.', output_json: null, provider: { name: 'openai', model: 'gpt-6-luna' },
   usage: { input_tokens: 100, cached_input_tokens: 20, cache_write_input_tokens: 30,
     output_tokens: 40, reasoning_output_tokens: 5, total_tokens: 140, web_search_calls: 1 },
   sources: [{ title: 'Example', url: 'https://example.test/source' }], finish_reason: null });
@@ -62,6 +62,8 @@ test('Gateway Responses adapter maps structured output back into the existing fu
 
 test('Gateway Responses adapter fails closed on rejection and malformed accounting without retaining bodies', async () => {
   for (const response of [new Response(`private failure ${key}`, { status: 503 }),
+    new Response(JSON.stringify({ ...gatewayResult('mural.reasoning.default'), provider: { name: 'openai', model: 'gpt-5.6-luna' } }), { status: 200 }),
+    new Response(JSON.stringify({ ...gatewayResult('mural.reasoning.default'), provider: { name: 'other', model: 'gpt-6-luna' } }), { status: 200 }),
     new Response(JSON.stringify({ ...gatewayResult('mural.reasoning.default'), usage: { input_tokens: -1 } }), { status: 200 })]) {
     const transport = new ModelGatewayResponsesTransport(new ModelGatewayClient('https://gateway.example.test', key,
       { request: (async () => response) as typeof fetch }));

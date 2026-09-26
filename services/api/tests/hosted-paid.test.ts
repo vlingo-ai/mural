@@ -136,13 +136,13 @@ integration('a small funded balance shrinks the paid duration and exposes the mi
 integration('known voice and helper usage debit their exact separate costs and release unused holds',async()=>{
   const f=await fixture();try {
     const session=await f.create(180_000);await f.emit(session,120);
-    const request=await f.helpers.request(f.account,session.sessionID,input());assert.equal(request.costNanoUSD,'65900');
+    const request=await f.helpers.request(f.account,session.sessionID,input());assert.equal(request.costNanoUSD,'28950');
     await f.invariant();await f.emit(session,125,true);await f.invariant();
     const status=await f.controller.status(f.account,session.sessionID);
-    assert.equal(status.chargedVoiceNanoUSD,'104166667');assert.equal(status.chargedHelperNanoUSD,'65900');
-    assert.equal(status.chargedNanoUSD,'104232567');
+    assert.equal(status.chargedVoiceNanoUSD,'104166667');assert.equal(status.chargedHelperNanoUSD,'28950');
+    assert.equal(status.chargedNanoUSD,'104195617');
     await f.expire(session.sessionID);await f.invariant();
-    assert.deepEqual(await f.balance(),{balanceNanoUSD:'1895767433',reservedNanoUSD:'0',availableNanoUSD:'1895767433',cashProvenanceVerified:true});
+    assert.deepEqual(await f.balance(),{balanceNanoUSD:'1895804383',reservedNanoUSD:'0',availableNanoUSD:'1895804383',cashProvenanceVerified:true});
   }finally{await f.close();}
 });
 integration('unknown helper usage keeps only its request hold after the voice and helper window end',async()=>{
@@ -224,7 +224,7 @@ integration('a refused helper answer still settles its verified provider cost ex
     f.transport.handler=async()=>response({output:[{type:'message',content:[{type:'refusal',refusal:'Unavailable.'}]}]});
     await assert.rejects(f.helpers.request(f.account,session.sessionID,request),{code:'helper_output_refused'});
     await assert.rejects(f.helpers.request(f.account,session.sessionID,request),{code:'helper_request_already_attempted'});
-    assert.equal((await f.balance()).balanceNanoUSD,'1999934100');assert.equal(f.attempts,1);await f.invariant();
+    assert.equal((await f.balance()).balanceNanoUSD,'1999971050');assert.equal(f.attempts,1);await f.invariant();
   }finally{await f.close();}
 });
 integration('the restricted runtime settles paid helpers while provenance and funding history stay protected',async()=>{

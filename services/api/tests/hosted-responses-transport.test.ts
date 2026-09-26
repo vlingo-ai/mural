@@ -33,7 +33,7 @@ test('helper transport pins the provider destination and forwards cancellation w
     assert.equal(headers.get('authorization'), `Bearer ${key}`);
     const sent = JSON.parse(init?.body as string);
     assert.equal(sent.store, false); assert.equal(sent.stream, false); assert.equal(sent.background, false);
-    assert.equal(sent.model, 'gpt-5.6-luna');
+    assert.equal(sent.model, 'gpt-6-luna');
     return Response.json({ id: 'resp_fixture', status: 'completed' });
   }) as typeof fetch);
   assert.deepEqual(await transport.send(body(), controller.signal), { id: 'resp_fixture', status: 'completed' });

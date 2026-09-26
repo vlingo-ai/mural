@@ -150,6 +150,7 @@ Gate 7 收尾可以独立签结，不要求先完成 B1–B7；反过来，开�
   - 第二轮本地候选：signal-only 不固定 5 秒重建 Room；Stop/新会话后的迟到媒体授权停轨且不覆盖新流。Web 52/52、mock E2E 2/2、类型/构建 PASS。共享模型尚未接入，状态查询/close 确认及发布待办；未部署。
   - 2026-09-26 已启动：规范同级工作树 `mural-b4-recovery-protocol`；新增[恢复参考协议](../shared/contracts/live-recovery-protocol.md)、共享轨迹与隔离 Web reducer。尚未接入 LiveConnection，未改变线上 UI；Web 适配、集成测试和发布验收待办，不勾完成。
 - [ ] B5：真实本地 LiveKit、真实 SDK、合成音频/假 Agent 的非计费集成；mocked Room 和旧 WebRTC Playwright 不能替代。
+- [ ] B4 后独立小迭代：hosted helper 升级 GPT-6 Luna。2026-09-26 本地候选完成模型/费率版本/元数据及 Gateway 身份校验；API 428 PASS/1 SKIP，类型/构建 PASS。PR/CI、API 与四条 Gateway 路由联合部署待办；不改 GPT-Live-1、原生 BYOK 或历史账目，未付费调用。[证据](../verification/2026-09-26-gpt6-luna-upgrade.md)。
 - [ ] B6：Worker→API 最终历史可靠交付和 cursor 补取，覆盖浏览器掉线/刷新；原生迁移保留本地历史。
 - [ ] B7：无正文事件/耗时指标；验证脚本对不健康/Worker 未注册失败退出；发布 manifest、digest 与恢复演练。发布工程子项与验证方案 A2 联动：把 API 纳入与 Worker 一致的受控 CI 构建、测试、私有镜像发布及 digest 固定流程，VPS 改为只拉取经验证的候选镜像；设计专用最小权限的私有镜像只读拉取身份，不把个人 Mac 凭据当作长期部署依赖。
 
