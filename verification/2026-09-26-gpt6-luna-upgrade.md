@@ -39,7 +39,32 @@ native BYOK defaults, user entitlements or historical ledger recalculation.
 
 ## Release and reusable rules
 
-Local candidate only; PR/CI, review, coordinated API/Gateway configuration deployment and
+Deployment preparation on 2026-09-26: operator-executed read-only DB query returned zero
+for unclosed voice sessions, active helper requests, active account tasks, unexpired open
+helper windows, uncertain helper requests and uncertain account tasks. This is a point-in-time
+DB observation, not a Cloud resource check or an admission lock; recheck before switching.
+Encrypted backup `postgres-20260926T053600Z.sql.gz.age` was generated from the B4 deployment.
+VPS transfer copy and operator-reported Mac copy have matching SHA-256
+`0fb677aff6de7d0e33f59658f5a2e9a84d73b5982c9a265fb2f97415c640e609`.
+Mac age decryption plus gzip integrity check PASS; database restore drill NOT_RUN.
+No deployment or provider call occurred during these checks.
+
+Operator terminal confirmed API and Gateway running with restart count 0. API uses B4's
+Compose directory plus `b4-images.yaml`; Gateway still uses the original staging directory.
+Rollback copies were retained under `/root/mural-before-gpt6-luna-gLS2Od` (0700 directory,
+0600 files): API environment, Compose and image override, plus Gateway environment and Compose.
+Local image retention tags `vlingo-api-rollback:mural-before-gpt6-luna-gLS2Od` and
+`vlingo-gateway-rollback:mural-before-gpt6-luna-gLS2Od` were created successfully for image IDs
+`sha256:dd19b57a7b46dfeac8bc050ca30810d132ff743a1c0de9cab3ae0fedecf8c175` and
+`sha256:9e9b7eec2fb394a30f80c1126cc81e116bb8ac762ad1c81cbf1829bea532860c` respectively.
+These are retained rollback inputs, not evidence of a completed rollback rehearsal.
+
+PR #46 candidate `91a80ae`: applicable CI checks PASS, including server, Web, deployment,
+contracts, secret scan and aggregate gates. [Checks run](https://github.com/vlingo-ai/mural/actions/runs/36220826549).
+Android/emulator and Swift core were scope-skipped, not validated by this run.
+No new reusable rule was needed after CI review; existing model-migration rules remain applicable.
+
+Not merged or deployed; review, coordinated API/Gateway configuration deployment and
 non-billable staging checks remain required. See the candidate section in
 [runbook](../deploy/phase-5-5b/README.md) and
 [release verification plan](../docs/operations/release-verification-plan.md).
