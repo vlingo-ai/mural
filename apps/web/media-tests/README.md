@@ -38,6 +38,9 @@ It refuses the host network namespace, drops only the selected publisher port tu
 and removes the rule in finally. Do not enable this flag outside the dedicated Linux
 namespace; macOS does not run it. Linux run 36226258315 passed all seven cases; this does not
 cover long-outage detection or physical Wi-Fi recovery.
+Run 36227091966 subsequently passed eight cases, including independent uplink and
+downlink UDP loss/restoration. Redacted local addresses are corroborated with the
+actual namespace UDP socket and kernel route; missing/mismatched evidence fails closed.
 
 Stop-during-recovery observes five seconds after Idle for stale Active transitions;
 it is a bounded regression check, not proof against arbitrarily late events.

@@ -346,6 +346,9 @@ Connecting→Active、恢复后新下行音频及持续上行能量、重复 Sto
 运行 `36226795778`：六项 PASS，UDP 两项因浏览器本地地址为空在注入前 FAIL。
 修复候选通过 ss 核实 UDP socket 与 ip JSON 路由核实回环源地址，非空浏览器地址还须一致；
 不猜测空值。类型/diff PASS，Linux 重跑待验证。
+修复 `dd1fcdf`、运行 `36227091966`：Web PASS，媒体 **8/8 PASS（20.9 秒，零重试）**，
+含上下行分别实际 UDP 丢包及恢复；单元 74/74、E2E 2/2 PASS。复用规则：缺失浏览器地址应由
+隔离内核 socket/路由佐证，不以猜测代替。长断网及完整 Worker/API/历史覆盖仍未完成。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，

@@ -231,3 +231,11 @@ Candidate fix verifies an actual IPv4 UDP socket at the reported local port with
 route on `lo`, source 127.0.0.1 and matching loopback/wildcard socket binding; any
 nonempty browser address must agree. No guessed empty-address fallback is used.
 TypeScript/diff PASS; actual Linux validation pending. No staging changes.
+
+Fix `dd1fcdf`, run 36227091966: Web PASS, **8/8 media cases PASS** (20.9 seconds,
+zero retries), unit 74/74 and E2E 2/2 PASS. Both real UDP direction-loss cases reached
+media assertions and passed restoration after rule removal. Kernel socket/route
+validation resolved the redacted-address failure without accepting an unchecked value.
+Reusable rule: browser telemetry may omit addresses; corroborate the selected port
+against isolated kernel state rather than assuming a missing field is a real address.
+This is short independent direction-loss coverage, not long network outage acceptance.
