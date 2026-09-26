@@ -326,6 +326,8 @@ Connecting→Active、恢复后新下行音频及持续上行能量、重复 Sto
 不以本地 macOS 通过代替 Linux 结果。详细失败证据已归集，无 staging 部署或付费调用。
 同日第八轮：增加失败时原生 ICE 状态/候选类型与地址/错误码诊断，不输出 SDP 或凭据；
 类型及 diff 检查通过。隔离拓扑不变，等待 Linux 运行定位，尚未声称修复。
+诊断运行 `36225322469` 再次 6/6 FAIL；首个 peer 候选列表为空，定位到候选收集阶段。
+下一候选在命名空间增加无外联 dummy 网卡供 ICE 枚举；保留出口隔离，等待 CI 验证，不宣称已修复。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，

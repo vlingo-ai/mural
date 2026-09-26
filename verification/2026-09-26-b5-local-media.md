@@ -158,3 +158,11 @@ Added failure-only native peer state, candidate address/type/protocol and ICE er
 code diagnostics. No SDP, token or ICE credentials are logged. TypeScript and diff
 checks PASS. The failing isolated topology is unchanged so the next Linux run can
 distinguish candidate gathering failure from media playback failure. Execution pending.
+
+Diagnostic run 36225322469 (`1c22d06`): 6/6 failed again. The first peer reported
+gathering state `gathering`, zero candidates and no candidate-error codes before
+SDK cleanup closed the connection. This narrows the failure to candidate gathering,
+not decoded audio. Candidate fix adds an unconnected dummy NIC with documentation
+address 192.0.2.1/24 and default route to that dummy inside the network namespace.
+There is no host veth or external uplink. The original runner network is unchanged.
+This topology change is a hypothesis pending CI, not yet a verified repair.

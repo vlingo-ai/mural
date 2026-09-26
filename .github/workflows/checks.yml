@@ -56,7 +56,7 @@ jobs:
           tar -xzf "$media_tools/livekit.tar.gz" -C "$media_tools" livekit-server
           chmod 755 "$media_tools/livekit-server"
           echo "$media_tools" >> "$GITHUB_PATH"
-      - name: Real media tests with loopback-only networking
+      - name: Real media tests with isolated local networking
         shell: bash
         run: |
           set -euo pipefail
@@ -65,6 +65,14 @@ jobs:
           sudo unshare --net -- bash -c '
             set -euo pipefail
             ip link set lo up
+            # Chromium needs an enumerable non-loopback interface for ICE.
+            # Dummy has no peer/uplink; documentation-only address stays in this namespace.
+            ip link add media0 type dummy
+            ip addr add 192.0.2.1/24 dev media0
+            ip link set media0 up
+            ip route add default dev media0
+            ip -brief address
+            ip route
             exec runuser -u "$1" -- env CI=true PATH="$2" npm run test:media
           ' -- "$(id -un)" "$PATH"
 

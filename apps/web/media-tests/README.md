@@ -25,11 +25,13 @@ The product control API is a test double: this does not verify database accounti
 Worker lifecycle, persisted history, human audibility or real Wi-Fi failure.
 HTTP/WebSocket guards and local ICE configuration are not an OS egress firewall.
 The Web CI job installs checksum-pinned LiveKit 1.13.7 after dependencies, then runs
-the suite in a Linux network namespace with loopback only. Vite, LiveKit and Chromium
+the suite in a Linux network namespace with loopback and an unconnected dummy NIC
+(`192.0.2.1/24`, default route to the dummy, no veth/uplink). Vite, LiveKit and Chromium
 share the namespace; the test processes run as the ordinary runner user. The runner's
 own network is unchanged. Failure to create the namespace fails the job (no fallback).
-This CI path is implemented but awaits a GitHub Linux run; local macOS results do not
-validate Linux provisioning or isolation. Independent network fault injection is pending.
+The first loopback-only Linux run failed: browser ICE candidates were empty. The dummy
+NIC candidate is pending Linux verification; local macOS results do not validate it.
+Independent network fault injection is pending.
 
 Stop-during-recovery observes five seconds after Idle for stale Active transitions;
 it is a bounded regression check, not proof against arbitrarily late events.
