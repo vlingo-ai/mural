@@ -1,0 +1,62 @@
+<!doctype html><html><head><title>Local synthetic media fixture</title></head><body>
+<script type="module">
+import { detachAudio } from './native-peer.js';
+import { Room, RoomEvent, LocalAudioTrack, Track } from 'livekit-client';
+const room = new Room();
+const audio = new AudioContext();
+const oscillator = audio.createOscillator();
+const gain = audio.createGain();
+const output = audio.createMediaStreamDestination();
+gain.gain.value = 0.1;
+oscillator.connect(gain).connect(output);
+oscillator.start();
+let analyser;
+let remoteSource;
+let remoteTrack;
+const silent = audio.createGain();
+silent.gain.value = 0;
+silent.connect(audio.destination);
+room.on(RoomEvent.TrackSubscribed, track => {
+  if (track.kind !== Track.Kind.Audio) return;
+  remoteTrack = track;
+  const element = track.attach();
+  element.muted = true;
+  document.body.append(element);
+  element.play().catch(() => {});
+  remoteSource = audio.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+  analyser = audio.createAnalyser();
+  remoteSource.connect(analyser).connect(silent);
+});
+window.mediaFixture = {
+  detachAudio,
+  setTone(enabled) { gain.gain.value = enabled ? 0.1 : 0; },
+  async diagnostics() {
+    const stats = remoteTrack ? await remoteTrack.getRTCStatsReport() : undefined;
+    const route = await window.rtcMediaRoute('receive');
+    return { state: room.state, audio: audio.state, subscribed: !!remoteTrack,
+      selectedRemoteLoopback: route ? [route.remoteAddress === '127.0.0.1'] : [],
+      inbound: stats ? [...stats.values()].filter(s => s.type === 'inbound-rtp').map(s => ({
+        packets: s.packetsReceived, bytes: s.bytesReceived, energy: s.totalAudioEnergy,
+      })) : [] };
+  },
+  async connect(token) {
+    await audio.resume();
+    await room.connect('ws://127.0.0.1:17880', token, { rtcConfig: { iceServers: [] } });
+    await room.localParticipant.publishTrack(new LocalAudioTrack(output.stream.getAudioTracks()[0]));
+  },
+  rms() {
+    if (!analyser) return 0;
+    const samples = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(samples);
+    return Math.sqrt(samples.reduce((sum, x) => sum + x * x, 0) / samples.length);
+  },
+  async stop() {
+    await room.disconnect();
+    remoteTrack?.detach().forEach(element => element.remove());
+    oscillator.stop();
+    output.stream.getTracks().forEach(track => track.stop());
+    await audio.close();
+    return { state: room.state, tracksEnded: output.stream.getTracks().every(t => t.readyState === 'ended') };
+  },
+};
+</script></body></html>

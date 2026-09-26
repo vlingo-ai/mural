@@ -1,0 +1,300 @@
+# B5 local media harness — first implementation, not accepted
+
+Base: `a9a74c8`. Worktree: sibling `mural-b5-local-media`, branch `codex/b5-local-media`.
+No production code, VPS deployment, Cloud room or model call was made.
+
+Implemented a separate Playwright configuration, two real livekit-client browser peers,
+synthetic Web Audio source and remote RMS assertions in both directions, followed by
+disconnect/track-ended assertions. This first fixture is a transport baseline, NOT the
+Mural LiveConnection adapter, real Worker or a completed B5 acceptance suite.
+
+Environment: local LiveKit Server 1.13.7, locked SDK 2.22.3, Chrome headless 153.
+Locked npm installation passed (119 audited packages, zero reported vulnerabilities).
+Local Vite/LiveKit ports are 15173/17880/17881/17882, no reuse of existing server.
+Synthetic dev credentials only; no production environment is loaded. HTTP/WebSocket
+requests outside loopback are aborted; this alone does not block raw WebRTC/STUN traffic.
+
+First run was intentionally interrupted after external server-reflexive ICE candidates
+revealed default STUN behavior. No claim of fully isolated network operation for that run.
+Updated fixture explicitly supplies empty ICE servers, local server STUN list and an
+explicit loopback node address, and suppresses verbose signaling logs.
+Second run: FAIL, `could not establish pc connection` at the first peer connect (15.6s).
+No remote-media or Stop assertion was reached; server startup is not media success.
+Playwright-managed local processes shut down after execution; no staging resources changed.
+
+Next: diagnose loopback ICE/Chromium routing using sanitized connection-state evidence;
+prove selected candidate endpoints are local, then add Mural LiveConnection integration,
+media/signaling fault isolation, recovery/new audio and Stop races. Browser request routing
+must not be represented as a complete OS-level egress firewall. CI integration remains planned.
+No deployment required for this test-only work; B5 remains incomplete and uncommitted.
+
+## Second iteration: real transport baseline passing
+
+Local server verbose help exposed `rtc.enable_loopback_candidate` (default false).
+Enabling it resolved peer connection establishment without opening a non-loopback listener.
+The next run reached connected/subscribed but failed remote RMS. Attaching and starting a
+muted remote audio element made the real decoded stream available to Web Audio; no sound
+is emitted to the user's speakers. Baseline then passed once.
+
+Stricter RTP/energy assertions initially failed 3/3: Chrome reported inbound totalAudioEnergy
+zero even with nonzero remote analyser RMS. Kept RTP packet/byte assertions and independent
+decoded RMS, rather than treating that browser statistic as the only media oracle.
+Added selected remote ICE candidate loopback assertion, plus a negative control: mute the
+other peer's source, require receiver RMS below 0.001, restore and require above 0.01.
+Final expanded suite: **3/3 repeated runs PASS**, zero retry, 7.6 seconds total.
+Earlier intermediate repetition 3/3 and Web TypeScript check also PASS.
+Each test checks both directions, positive RTP traffic, decoded energy, selected loopback
+remote candidates and disconnect/ended tracks. This proves synthetic transport, not human
+audibility, physical microphone behavior or the Mural product recovery implementation.
+
+Run from `apps/web`: `npm run test:media` (requires livekit-server on PATH and local Chrome;
+CI browser installation is not yet wired). No runtime source changed; no deployment needed.
+The route guard and empty ICE server configuration are not an OS-level network sandbox.
+Full Mural adapter/fault recovery integration and CI remain the next B5 tasks.
+
+## Third iteration: actual Mural adapter and signaling recovery
+
+Added `product.html`, importing the unchanged production `LiveConnection` adapter.
+The microphone is a synthetic MediaStream, the peer is a real SDK audio publisher,
+and admission/status/close/history methods are test doubles, not the API or database.
+A test-only native RTCPeerConnection subclass supplies an empty ICE server list;
+the peer connection itself remains real. No production credentials are loaded.
+
+Three cases now cover raw transport, product connection/repeated Stop, and product
+WebSocket signaling interruption. The last case observes Connecting then Active,
+checks fresh downstream silence/tone transitions and continuing upstream energy,
+and asserts one admission, one close and ended microphone tracks after repeated Stop.
+Initial run: **3/3 PASS**. Repeated suite: **9/9 PASS**, zero retries, 22.2 seconds.
+`npm run check`: PASS. No production code, deployment or paid calls were needed.
+
+Reusable rule: recovery must prove media as well as state transitions and admission/
+close counts. These counts prove adapter calls only, not server billing idempotency.
+The signaling fault is not a physical Wi-Fi outage or an independent UDP media fault.
+Human audibility, Worker/provider lifecycle, history persistence, Stop-during-recovery,
+independent uplink/downlink failure and CI network isolation remain outside this result.
+B5 remains incomplete; this is local implementation/testing, not live acceptance.
+
+## Fourth iteration: Stop at recovery entry
+
+The fixture arms repeated Stop on the next Connecting callback, using a microtask
+to avoid re-entering the state callback synchronously. A real signaling disconnect
+then triggers the production adapter's recovery path. Assertions require Idle,
+one admission/close call and ended microphone tracks, with no later Active state
+over a five-second observation window. This covers recovery-entry cancellation,
+not every possible late status response or Room-replacement race.
+
+Four scenarios repeated three times: **12/12 PASS**, zero retries, 40.0 seconds.
+Web TypeScript check: PASS. SDK logs include aborted reconnect, leave-before-connected
+and websocket establishment errors during intentional cancellation; no claim of
+zero error logs. Added a local execution README with dependencies and test boundaries.
+Reusable STOP-01 rule: retain a bounded post-Idle observation, not just an immediate
+Idle assertion; distinguish adapter close counts from real server idempotency.
+No runtime source changes, deployment or paid calls. Independent media faults and
+CI isolation remain pending; B5 is not complete.
+
+## Fifth iteration: independent sender-source loss
+
+Added shared test-only native PeerConnection instrumentation and two cases using
+`RTCRtpSender.replaceTrack(null)` on the learner or synthetic agent independently.
+Each case verifies receiver RMS falls below 0.001, the opposite direction follows
+fresh silence/tone transitions, and reattaching the original sender track restores
+RMS above 0.01. Product state remains Active while transport is healthy; admission
+and close counts remain one. This is source detachment, NOT packet-loss/ICE failure.
+
+Six scenarios repeated three times: **18/18 PASS**, zero retries, 51.2 seconds.
+Web TypeScript check: PASS. No runtime changes, deployment or paid calls.
+Reusable MEDIA-01 distinction: source loss/silence and network transport loss need
+different assertions; absence of energy must not alone trigger a failed connection.
+Execution README documents this boundary. Actual isolated network fault injection,
+Worker/control API integration and CI execution remain pending.
+Reviewed existing Checks workflow: the scoped Web job is the intended integration
+point; no workflow edits or CI executions were made in this iteration.
+
+## Sixth iteration: scoped Web CI wiring (Linux execution pending)
+
+Added media tests to the existing scoped Web job, preserving the checks-gate
+dependency and native platform scope. LiveKit Linux amd64 1.13.7 is pinned to
+SHA-256 `6634aeeb2fb1366b6723708ae4320b9d5408106a4c63457c5e845ae3979c90e2`,
+verified against the official GitHub release asset metadata. Installation precedes
+network isolation. A dedicated `unshare --net` subprocess enables only loopback,
+then runs tests as the ordinary runner user; failure to isolate fails the job.
+The parent runner network is unchanged. No secrets or provider keys are supplied.
+Web job timeout increases from 10 to 15 minutes; no native build is added.
+
+Initial full unit run: FAIL because Vitest collected the Playwright media spec;
+74 unit tests passed but one suite failed at collection. Fixed test-only discovery
+by preserving Vitest default exclusions and adding `media-tests/**`.
+Rerun: **74/74 unit tests PASS**, TypeScript PASS, production build PASS, workflow
+YAML parse PASS and diff whitespace check PASS. Build retains a >500 kB chunk warning.
+`actionlint` is not installed, so semantic actionlint validation was not performed.
+No GitHub run has occurred; macOS cannot establish Linux namespace correctness.
+
+Reusable release rule: adding a new test runner requires the existing unit/build
+checks as well as the new suite; syntax-valid CI is not executed CI. Linux workflow
+execution and network failure cases remain outstanding. No production runtime change
+or deployment is needed for test discovery/CI configuration, and no paid calls occurred.
+
+## Seventh iteration: first GitHub Linux execution failed
+
+Candidate `90188ce`, [PR #49](https://github.com/vlingo-ai/mural/pull/49),
+[Checks run](https://github.com/vlingo-ai/mural/actions/runs/36224843775).
+Web unit/build/existing E2E and checksum-pinned LiveKit installation passed.
+The namespace media step ran but **6/6 cases failed** at initial peer connection:
+`could not establish pc connection`. Media/recovery assertions were not reached.
+The local macOS 18/18 result does not establish Linux compatibility. Exact cause
+within the loopback-only Linux/browser/server combination remains undiagnosed.
+No isolation bypass, retries-to-green or merge was performed. Deployment configuration
+and Docker build checks passed; these did not deploy anything to staging.
+
+PR creation initially failed because gh's default repository resolved to upstream;
+explicit `--repo vlingo-ai/mural` successfully targeted the user's fork. No upstream
+PR was created. Future repository mutations must specify the intended fork explicitly.
+Next: capture sanitized ICE gathering/candidate/pair diagnostics inside the namespace,
+then validate a safe isolated topology before claiming B5 CI acceptance.
+
+## Eighth iteration: Linux ICE diagnostics candidate
+
+Added failure-only native peer state, candidate address/type/protocol and ICE error
+code diagnostics. No SDP, token or ICE credentials are logged. TypeScript and diff
+checks PASS. The failing isolated topology is unchanged so the next Linux run can
+distinguish candidate gathering failure from media playback failure. Execution pending.
+
+Diagnostic run 36225322469 (`1c22d06`): 6/6 failed again. The first peer reported
+gathering state `gathering`, zero candidates and no candidate-error codes before
+SDK cleanup closed the connection. This narrows the failure to candidate gathering,
+not decoded audio. Candidate fix adds an unconnected dummy NIC with documentation
+address 192.0.2.1/24 and default route to that dummy inside the network namespace.
+There is no host veth or external uplink. The original runner network is unchanged.
+This topology change is a hypothesis pending CI, not yet a verified repair.
+
+Candidate `c09407c`, [run 36225537205](https://github.com/vlingo-ai/mural/actions/runs/36225537205):
+Linux Web job **PASS**. Media **6/6 PASS**, zero retries, 16.5 seconds; unit tests
+74/74 and existing E2E 2/2 PASS. Logs show only loopback plus the dummy interface
+inside the namespace, with default route pointing to dummy; no external uplink added.
+Changing topology without weakening media assertions resolved this CI connection
+failure. This supports the candidate-gathering diagnosis, not a claim about all
+Chromium versions or every loopback environment. Deployment build checks passed;
+server job still running when this evidence was captured, so no overall green claim.
+Reusable rule: isolated WebRTC tests need an ICE-enumerable local interface as well
+as no external uplink. Preserve candidate/transport and real decoded audio assertions.
+B5 still lacks independent network packet faults and full Worker/API/history coverage.
+No merge, staging deployment or paid calls occurred.
+
+## Ninth iteration: isolated UDP uplink-loss candidate
+
+Added a Linux-only opt-in network fault case (`MEDIA_NETWORK_FAULTS=1` in CI).
+It checks the process network namespace differs from PID 1, discovers the actual
+publisher's selected UDP port tuple, requires loopback destination, and inserts a
+narrow OUTPUT drop rule for that tuple. The rule is removed in finally; namespace
+destruction also limits its lifetime. No host firewall or staging mutation is used.
+Assertions require uplink receiver silence, fresh downlink transitions during loss,
+and resumed uplink energy after removing the rule. This short fault does not claim
+long-outage detection, ICE replacement, or physical Wi-Fi acceptance.
+TypeScript/diff checks PASS; new Linux case pending CI and not run on macOS.
+
+Run 36225838179 (`53a9d37`): six existing media cases PASS; UDP candidate FAIL
+before rule insertion because the runner user could not read `/proc/1/ns/net`
+(`EACCES`). No packet-loss assertion was reached. Fix elevates only the read-only
+`readlink /proc/1/ns/net` subprocess with noninteractive sudo and a five-second timeout.
+Both namespace identifiers must match the expected format and differ; errors still
+block rule insertion. Browser/test processes remain unprivileged. Linux rerun pending.
+
+Fix `987cb1c`, run 36226258315: Web job PASS; **7/7 media cases PASS** in 19.8 seconds,
+including actual UDP uplink drop/removal and media recovery. Unit 74/74 and E2E 2/2
+PASS; local type/unit/diff checks also passed. The protected namespace-read failure
+is resolved without removing safety checks or running the browser as root.
+Reusable rule: namespace guards must account for procfs permission restrictions;
+privilege only the required operation, validate its output, and fail closed.
+This establishes the short uplink fault case, not long outages or downlink packet loss.
+
+## Tenth iteration: symmetric UDP downlink loss candidate
+
+Generalized selected-route inspection to inbound/outbound RTP. Downlink injection
+reverses the learner subscriber's selected tuple to drop server-to-learner traffic;
+both directions now specify source and destination addresses and ports. Addresses
+must be the isolated loopback/dummy topology, and the namespace guard remains.
+Each case requires affected receiver silence, unaffected direction's fresh tone
+transitions, then media restoration after rule removal. TypeScript/diff PASS;
+Linux eight-case suite pending. No runtime/UI changes or deployment required.
+
+Run 36226557936 (`4736a9d`): six existing cases PASS, both UDP cases FAIL before
+injection because ICE selected TCP. Prior UDP success remains valid but transport
+selection was nondeterministic. Set test server `rtc.tcp_port: 0` so this UDP-specific
+suite cannot silently choose TCP. Local six-case regression PASS (18.0 seconds),
+TypeScript PASS. Linux network cases pending rerun; TCP fallback needs a separate
+future matrix and is not covered by this UDP-only fixture.
+
+Run 36226795778 (`61afa9d`): six cases PASS, both UDP cases FAIL before injection
+because local candidate address was empty. UDP protocol selection now passed.
+Candidate fix verifies an actual IPv4 UDP socket at the reported local port with
+`ss`, then queries kernel route JSON to the verified loopback server. Requires one
+route on `lo`, source 127.0.0.1 and matching loopback/wildcard socket binding; any
+nonempty browser address must agree. No guessed empty-address fallback is used.
+TypeScript/diff PASS; actual Linux validation pending. No staging changes.
+
+Fix `dd1fcdf`, run 36227091966: Web PASS, **8/8 media cases PASS** (20.9 seconds,
+zero retries), unit 74/74 and E2E 2/2 PASS. Both real UDP direction-loss cases reached
+media assertions and passed restoration after rule removal. Kernel socket/route
+validation resolved the redacted-address failure without accepting an unchecked value.
+Reusable rule: browser telemetry may omit addresses; corroborate the selected port
+against isolated kernel state rather than assuming a missing field is a real address.
+This is short independent direction-loss coverage, not long network outage acceptance.
+
+## Stability follow-up: full run invalidates stable-pass claim
+
+Run 36227249800 (`06228b4`, documentation-only successor) was allowed to finish
+without another push cancelling it. Server and deployment checks passed, but all
+eight media cases failed at initial peer connect. First-peer ICE gathering completed
+with candidates, unlike the earlier empty-candidate failure. Console formatting hid
+candidate details as `[Array]`; switched failure output to JSON so sanitized addresses
+and types are actually available. No speculative topology fix or retry-to-green.
+Previous eight-case PASS remains historical evidence, not stable acceptance.
+
+Also corrected scope interpretation: B5's baseline is real local LiveKit/SDK/synthetic
+peer integration. Reliable final-history delivery/cursor work belongs to B6; full
+Worker/API/history integration is a documented boundary, not a newly added B5 gate.
+Current B5 blocker is media harness reliability and final review/green gate.
+Future evidence commits should not cancel an unfinished server check.
+
+## Explicit-IP candidate and repeated validation
+
+Diagnostic-only run 36227540094 passed Web again, demonstrating intermittency.
+The failed run did not retain expanded candidate details, so a unique root cause
+is NOT established. An isolated dummy NIC cannot provide an ordinary LAN mDNS path;
+remove that test dependency with Chromium's test-process-only
+`--disable-features=WebRtcHideLocalIpsWithMdns`, and assert gathered candidates have
+IP addresses rather than names. Chromium documents local-IP masking in its
+[policy source](https://chromium.googlesource.com/chromium/src/+/376fc41e87a058f7a7b300b0ec3a4982b4ec0960/components/policy/resources/templates/policy_definitions/Miscellaneous/WebRtcLocalIpsAllowedUrls.yaml).
+No user browser settings or deployed behavior change; egress isolation remains.
+Local three-repeat suite **18/18 PASS**, 52.0 seconds, TypeScript PASS. Linux CI now
+requires three repeats (24 cases, zero retries); result pending. This is a candidate
+stabilization with a falsifiable IP assertion, not proof of the sole historical cause.
+
+Run 36227774454 (`573c830`): all 24 cases established connections; 15 PASS, 9 FAIL
+on selected remote address checks (empty stats address) across three repeats.
+No candidate-IP assertion or initial connection timed out. The synthetic fixture
+does not request a physical microphone, so test browser contexts previously lacked
+microphone permission. Next candidate grants that permission only to these ephemeral
+contexts, still using synthetic streams, to test Chromium stats redaction independently.
+Address/kernel checks remain intact. TypeScript PASS; Linux validation pending.
+
+The permission-only experiment failed locally (6/6 initial connect timeouts) and
+was withdrawn, not shipped as a fix. Candidate address collection now uses the
+native selected ICE transport pair when stats redact addresses, requiring matching
+local/remote ports and protocol. No hardcoded fallback or relaxed loopback assertion.
+Targeted local baseline passed 1/1; subsequent repeat run failed two initial connects,
+was interrupted in the third case, and left 15 not run. Diagnostics showed only a
+10.10.10.6 host candidate. Local network-dependent instability remains unresolved;
+the isolated Linux result must be evaluated separately. TypeScript PASS.
+
+Linux candidate `ffbbe57`, run 36228309829: real media **24/24 PASS** across three
+repeats with zero retries (1.1 minutes); Web unit **74/74**, existing E2E **2/2**,
+build and deployment build checks PASS. Native transport correlation resolves the
+empty remote stats regression without granting microphone permission or inventing
+an address. Server/aggregate completion is recorded separately below. Mac bundled
+Chromium comparison could not launch because its executable was not installed;
+NOT_RUN, not a media result. No product runtime, provider call or staging deployment.
+
+Run 36228309829 completed SUCCESS including server and checks-gate; contracts and
+secret scan also passed. Native platform heavy jobs were scope-skipped, not tested.
+Documentation follow-up has no runtime changes and its own CI must be checked.

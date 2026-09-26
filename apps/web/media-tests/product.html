@@ -1,0 +1,65 @@
+<!doctype html><html><head><title>Local Mural adapter fixture</title></head><body>
+<script type="module">
+import { detachAudio } from './native-peer.js';
+import { LiveConnection } from '/src/live/LiveConnection.ts';
+const audio = new AudioContext();
+const tone = audio.createOscillator();
+const gain = audio.createGain();
+const microphone = audio.createMediaStreamDestination();
+gain.gain.value = 0.1;
+tone.connect(gain).connect(microphone);
+tone.start();
+Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => microphone.stream });
+let authToken;
+let analyser;
+let source;
+let remoteElement;
+let admissions = 0, closes = 0;
+const states = [];
+let stopOnRecovery = false;
+let stoppedAt = null;
+const deadline = new Date(Date.now() + 120000).toISOString();
+const sessionID = '11111111-1111-4111-8111-111111111111';
+const api = {
+  liveCapabilities: async () => ({ hostedMinutes: true, transport: 'livekit-room' }),
+  createLiveSession: async () => { admissions++; return { sessionID, deadline,
+    transport: { type: 'livekit-room', url: 'ws://127.0.0.1:17880', token: authToken } }; },
+  liveSessionStatus: async () => ({ sessionID, deadline, state: 'active' }),
+  closeLiveSession: async () => { closes++; return { sessionID, state: 'closed' }; },
+  appendConversationEvent: async () => ({ accepted: true, duplicate: false }),
+};
+const sink = audio.createGain(); sink.gain.value = 0; sink.connect(audio.destination);
+const connection = new LiveConnection(api, state => {
+  states.push(state);
+  if (stopOnRecovery && state === 'connecting') {
+    stopOnRecovery = false;
+    queueMicrotask(() => {
+      stoppedAt = states.length;
+      connection.close(); connection.close();
+    });
+  }
+}, () => {}, stream => {
+  if (!stream.getAudioTracks().length) return;
+  remoteElement?.remove();
+  remoteElement = document.createElement('audio'); remoteElement.muted = true;
+  remoteElement.srcObject = stream; document.body.append(remoteElement);
+  remoteElement.play().catch(() => {});
+  source?.disconnect(); source = audio.createMediaStreamSource(stream);
+  analyser = audio.createAnalyser(); source.connect(analyser).connect(sink);
+});
+window.productFixture = {
+  detachAudio,
+  setTone(enabled) { gain.gain.value = enabled ? 0.1 : 0; },
+  async connect(token) { authToken = token; await audio.resume(); await connection.connect('en'); },
+  state: () => states.at(-1),
+  armStopOnRecovery() { stopOnRecovery = true; },
+  snapshot: () => ({ states: [...states], admissions, closes, stoppedAt,
+    tracksEnded: microphone.stream.getTracks().every(t => t.readyState === 'ended') }),
+  rms() {
+    if (!analyser) return 0;
+    const samples = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(samples);
+    return Math.sqrt(samples.reduce((sum, x) => sum + x*x, 0) / samples.length);
+  },
+  stop() { connection.close(); },
+};
+</script></body></html>

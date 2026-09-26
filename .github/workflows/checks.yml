@@ -27,7 +27,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.web == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/web
@@ -44,6 +44,37 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - name: Install pinned local LiveKit server
+        shell: bash
+        run: |
+          set -euo pipefail
+          media_tools=$(mktemp -d)
+          curl --fail --location --retry 3 \
+            https://github.com/livekit/livekit/releases/download/v1.13.7/livekit_1.13.7_linux_amd64.tar.gz \
+            --output "$media_tools/livekit.tar.gz"
+          echo "6634aeeb2fb1366b6723708ae4320b9d5408106a4c63457c5e845ae3979c90e2  $media_tools/livekit.tar.gz" | sha256sum --check --strict
+          tar -xzf "$media_tools/livekit.tar.gz" -C "$media_tools" livekit-server
+          chmod 755 "$media_tools/livekit-server"
+          echo "$media_tools" >> "$GITHUB_PATH"
+      - name: Real media tests with isolated local networking
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Isolate only this subprocess tree; do not modify the runner's network.
+          # Install dependencies first. Vite, LiveKit and Chromium share this namespace.
+          sudo unshare --net -- bash -c '
+            set -euo pipefail
+            ip link set lo up
+            # Chromium needs an enumerable non-loopback interface for ICE.
+            # Dummy has no peer/uplink; documentation-only address stays in this namespace.
+            ip link add media0 type dummy
+            ip addr add 192.0.2.1/24 dev media0
+            ip link set media0 up
+            ip route add default dev media0
+            ip -brief address
+            ip route
+            exec runuser -u "$1" -- env CI=true MEDIA_NETWORK_FAULTS=1 PATH="$2" npm run test:media -- --repeat-each=3
+          ' -- "$(id -un)" "$PATH"
 
   swift-core:
     needs: scope

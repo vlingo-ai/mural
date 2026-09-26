@@ -1,0 +1,64 @@
+// Test-only instrumentation; all media and connections still use native WebRTC.
+const NativePeer = window.RTCPeerConnection;
+const peers = new Set();
+const detached = new Map();
+const diagnostics = new Map();
+window.RTCPeerConnection = class extends NativePeer {
+  constructor(config, ...args) {
+    super({ ...config, iceServers: [] }, ...args);
+    peers.add(this);
+    const record = { candidates: [], errors: [] };
+    diagnostics.set(this, record);
+    this.addEventListener('icecandidate', ({ candidate }) => {
+      if (candidate) record.candidates.push({ type: candidate.type,
+        protocol: candidate.protocol, address: candidate.address });
+    });
+    this.addEventListener('icecandidateerror', event => record.errors.push(event.errorCode));
+  }
+};
+// Never dump SDP, tokens, room metadata or ICE credentials.
+window.rtcDiagnostics = () => [...diagnostics].map(([peer, record]) => ({
+  connection: peer.connectionState, ice: peer.iceConnectionState,
+  gathering: peer.iceGatheringState, ...record,
+}));
+window.rtcMediaRoute = async (direction) => {
+  for (const peer of peers) {
+    const stats = await peer.getStats();
+    for (const report of stats.values()) {
+      const sending = direction === 'send';
+      if (report.type !== (sending ? 'outbound-rtp' : 'inbound-rtp') ||
+          !((sending ? report.bytesSent : report.bytesReceived) > 0)) continue;
+      const transport = stats.get(report.transportId);
+      const pair = stats.get(transport?.selectedCandidatePairId);
+      const local = stats.get(pair?.localCandidateId);
+      const remote = stats.get(pair?.remoteCandidateId);
+      // getStats may redact candidate addresses. Read the selected native ICE
+      // transport pair, and require its ports/protocol to match the RTP stats.
+      const transports = [...peer.getSenders(), ...peer.getReceivers()]
+        .map(endpoint => endpoint.transport?.iceTransport);
+      const nativePair = transports.map(transport => transport?.getSelectedCandidatePair())
+        .find(candidate => candidate?.local.port === local?.port &&
+          candidate?.remote.port === remote?.port && candidate?.local.protocol === local?.protocol);
+      if (local && remote) return { protocol: local.protocol,
+        localPort: local.port, remotePort: remote.port,
+        localAddress: local.address || local.ip || nativePair?.local.address,
+        remoteAddress: remote.address || remote.ip || nativePair?.remote.address };
+    }
+  }
+  return null;
+};
+
+export async function detachAudio(detach) {
+  if (detach) {
+    for (const peer of peers) for (const sender of peer.getSenders()) {
+      if (sender.track?.kind !== 'audio') continue;
+      detached.set(sender, sender.track);
+      await sender.replaceTrack(null);
+    }
+    if (!detached.size) throw new Error('No native audio sender to detach');
+  } else {
+    for (const [sender, track] of detached) await sender.replaceTrack(track);
+    detached.clear();
+  }
+  return detached.size;
+}
