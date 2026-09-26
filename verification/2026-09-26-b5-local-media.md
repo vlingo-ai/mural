@@ -216,3 +216,10 @@ must be the isolated loopback/dummy topology, and the namespace guard remains.
 Each case requires affected receiver silence, unaffected direction's fresh tone
 transitions, then media restoration after rule removal. TypeScript/diff PASS;
 Linux eight-case suite pending. No runtime/UI changes or deployment required.
+
+Run 36226557936 (`4736a9d`): six existing cases PASS, both UDP cases FAIL before
+injection because ICE selected TCP. Prior UDP success remains valid but transport
+selection was nondeterministic. Set test server `rtc.tcp_port: 0` so this UDP-specific
+suite cannot silently choose TCP. Local six-case regression PASS (18.0 seconds),
+TypeScript PASS. Linux network cases pending rerun; TCP fallback needs a separate
+future matrix and is not covered by this UDP-only fixture.

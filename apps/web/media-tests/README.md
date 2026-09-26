@@ -10,7 +10,8 @@ npm run test:media -- --repeat-each=3
 ```
 
 Playwright starts and stops its own Vite and LiveKit processes. Ports 15173,
-17880, 17881 and 17882 must be free; existing servers are not reused.
+17880 and 17882 must be free; existing servers are not reused. Media TCP is disabled
+to make UDP fault tests deterministic; this suite does not establish TCP fallback coverage.
 Only synthetic dev credentials/audio are used. Do not supply staging environments
 or provider keys. No physical microphone or audible speaker output is required.
 

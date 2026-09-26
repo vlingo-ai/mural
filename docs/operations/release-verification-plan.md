@@ -340,6 +340,9 @@ Connecting→Active、恢复后新下行音频及持续上行能量、重复 Sto
 单元 74/74、E2E 2/2 通过。仅提权必要读取，保留隔离检查；尚不覆盖下行丢包或长断网，B5 仍未完成。
 同日第十轮：补充实际订阅连接的下行 UDP 丢包候选，上下行规则均限定源/目标地址与端口，
 校验受影响方向中断、反向新媒体与规则撤销后的恢复；类型/diff PASS，Linux 八项实跑待确认。
+运行 `36226557936`：原六项 PASS，两个 UDP 用例实际选中 TCP，在注入前 FAIL。
+专项测试服务关闭 TCP 候选以固定协议；本地六项 PASS（18 秒）、类型 PASS，Linux 重跑待验证。
+复用规则：协议专项故障必须固定并断言所选传输，TCP fallback 另测，不靠重跑选中 UDP。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，
