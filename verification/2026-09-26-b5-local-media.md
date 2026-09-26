@@ -198,3 +198,11 @@ before rule insertion because the runner user could not read `/proc/1/ns/net`
 `readlink /proc/1/ns/net` subprocess with noninteractive sudo and a five-second timeout.
 Both namespace identifiers must match the expected format and differ; errors still
 block rule insertion. Browser/test processes remain unprivileged. Linux rerun pending.
+
+Fix `987cb1c`, run 36226258315: Web job PASS; **7/7 media cases PASS** in 19.8 seconds,
+including actual UDP uplink drop/removal and media recovery. Unit 74/74 and E2E 2/2
+PASS; local type/unit/diff checks also passed. The protected namespace-read failure
+is resolved without removing safety checks or running the browser as root.
+Reusable rule: namespace guards must account for procfs permission restrictions;
+privilege only the required operation, validate its output, and fail closed.
+This establishes the short uplink fault case, not long outages or downlink packet loss.

@@ -35,7 +35,7 @@ Independent network fault injection is pending.
 CI also enables a candidate short UDP uplink-loss case via `MEDIA_NETWORK_FAULTS=1`.
 It refuses the host network namespace, drops only the selected publisher port tuple,
 and removes the rule in finally. Do not enable this flag outside the dedicated Linux
-namespace; macOS does not run it. This candidate awaits CI verification and does not
+namespace; macOS does not run it. Linux run 36226258315 passed all seven cases; this does not
 cover long-outage detection or physical Wi-Fi recovery.
 
 Stop-during-recovery observes five seconds after Idle for stale Active transitions;
