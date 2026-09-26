@@ -304,6 +304,11 @@ cursor 测试须覆盖并发提交乱序，不能把序列分配顺序当作提�
 API **429 PASS/1 SKIP/0 FAIL**、历史定向 3/3、Python 72/72、类型/构建/DTO 漂移及 diff PASS。
 首轮类型检查 FAIL 已修正并保留；跨仓可选项未执行。复用规则：旧写入路径也须受 cursor 顺序约束；
 空页保留 cursor，重复 ID 不得掩盖不同内容。存量迁移/受限角色测试、Worker/Web 接入、CI 与部署未完成，B6 不签结。
+同日第二轮：存量迁移与真实受限角色测试 PASS；API trusted history ACK 及保留身份前缀实现于本地。
+API **431 PASS/1 SKIP/0 FAIL**、定向 13/13、类型/构建 PASS；Worker 加密历史队列/精确回执/公平批次原语 **43/43 PASS**，lint/format PASS（首次两项 lint FAIL 已修正）。
+共享 Unicode/换行摘要向量在两端复验通过。复用规则：历史 ACK 同时绑定事件 ID 与内容，删除绑定本地队列代次；
+权限测试须证明授权前拒绝、授权后成功且不能改无关会话状态。历史队列不同于可合并 usage 队列；
+尚未接实际 SDK 回调/重放服务/Web，不能宣称端到端持久交付。细节及限制见同一 B6 记录。
 
 2026-09-26 B5 首轮本地真实媒体基线（[证据](../../verification/2026-09-26-b5-local-media.md)）：
 已新增独立 Playwright/真实 SDK/本地 LiveKit/双向合成音频候选。首次发现默认外部 STUN 后主动中止；

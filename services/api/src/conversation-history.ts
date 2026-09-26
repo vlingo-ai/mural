@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Database } from './db.js';
 import { ServiceError } from './errors.js';
 
@@ -7,6 +7,19 @@ const validText = (value: unknown) => typeof value === 'string' && Boolean(value
   Buffer.byteLength(value) <= 4_000 && !/[\uD800-\uDFFF]/u.test(value) && !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value);
 
 export type ConversationEventInput = { eventID: string; speaker: 'user' | 'assistant'; text: string; source: 'live' | 'typed' };
+
+// Protocol tuple is shared with Worker ACK verification; never log text or digest.
+export const historyEventDigest = (event: ConversationEventInput) => createHash('sha256')
+  .update(JSON.stringify([event.eventID, event.speaker, event.text, event.source])).digest('hex');
+
+/** Caller must authenticate the session-scoped Worker control token first. */
+export async function persistWorkerHistory(db: Database, sessionID: string, event: ConversationEventInput) {
+  const owner = (await db.query('SELECT account_id,provider_session_id FROM hosted_sessions WHERE id=$1', [sessionID])).rows[0];
+  if (!owner?.provider_session_id) throw new ServiceError('livekit_session_not_attached', 409);
+  // Closed sessions may receive delayed final history; no usage/lease is modified.
+  await appendConversationEvent(db, owner.account_id as string, sessionID, event);
+  return { accepted: true, committed: true, eventID: event.eventID, digest: historyEventDigest(event) };
+}
 
 export function parseConversationEvent(value: unknown): ConversationEventInput {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ServiceError('invalid_conversation_event');
@@ -17,6 +30,12 @@ export function parseConversationEvent(value: unknown): ConversationEventInput {
       !['live','typed'].includes(String(body.source))) throw new ServiceError('invalid_conversation_event');
   return { eventID: body.eventID, speaker: body.speaker as ConversationEventInput['speaker'],
     text: body.text as string, source: body.source as ConversationEventInput['source'] };
+}
+
+export function parseClientConversationEvent(value: unknown): ConversationEventInput {
+  const event = parseConversationEvent(value);
+  if (event.eventID.startsWith('worker.')) throw new ServiceError('invalid_conversation_event');
+  return event;
 }
 
 export async function appendConversationEvent(db: Database, account: string, sessionID: string, event: ConversationEventInput) {

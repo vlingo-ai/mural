@@ -1,8 +1,9 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { AccessToken, AgentDispatchClient, RoomServiceClient, ServerError } from 'livekit-server-sdk';
 import { ServiceError } from '../errors.js';
+import { parseConversationEvent } from '../conversation-history.js';
 import { LiveCreateFailure, LiveCreateRejectedError, liveInstructions, parseLiveContext, type LiveContext, type LiveCreateResult,
-  type LiveDelegation, type LiveProvider, type LiveProviderRejection, type Sideband, type VoiceUsage } from '../live-provider.js';
+  type LiveDelegation, type LiveHistoryEvent, type LiveProvider, type LiveProviderRejection, type Sideband, type VoiceUsage } from '../live-provider.js';
 
 type Listener = { onUsage: (event: VoiceUsage) => void; onLoss: () => void };
 
@@ -125,12 +126,19 @@ export class LiveKitLiveProvider implements LiveProvider {
   }
 
   acceptTrustedEvent(sessionID: string, authorization: string | undefined, body: unknown):
-    LiveDelegation | LiveProviderRejection | VoiceUsage {
+    LiveDelegation | LiveProviderRejection | VoiceUsage | LiveHistoryEvent {
     const expected = `Bearer ${this.#controlToken(sessionID)}`;
     if (typeof authorization !== 'string' || authorization.length !== expected.length ||
         !timingSafeEqual(Buffer.from(authorization), Buffer.from(expected)))
       throw new ServiceError('invalid_livekit_control_token', 401);
     if (!object(body) || typeof body.type !== 'string') throw new ServiceError('invalid_livekit_control_event');
+    if (body.type === 'session.history.final') {
+      if (!exactKeys(body, ['type', 'eventID', 'speaker', 'text']) ||
+          typeof body.eventID !== 'string' || !body.eventID.startsWith('worker.'))
+        throw new ServiceError('invalid_livekit_control_event');
+      const event = parseConversationEvent({ eventID: body.eventID, speaker: body.speaker, text: body.text, source: 'live' });
+      return { type: 'session.history.final', eventID: event.eventID, speaker: event.speaker, text: event.text };
+    }
     if (body.type === 'session.usage.updated' || body.type === 'session.closed' || body.type === 'session.heartbeat') {
       if (!exactKeys(body, ['type', 'seconds']) || typeof body.seconds !== 'number' ||
           !Number.isFinite(body.seconds) || body.seconds < 0 || body.seconds > Number.MAX_SAFE_INTEGER / 1000)

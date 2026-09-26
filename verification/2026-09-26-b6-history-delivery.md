@@ -87,3 +87,35 @@ deployment or paid call. Migration of populated historical data and restricted-r
 trigger execution still need dedicated tests before release. Final history item
 identity/revision semantics and browser/Worker overlap remain next design work.
 This first candidate does not prove durable end-to-end delivery or B6 completion.
+
+## Second iteration: migration, trusted receipt and queue primitives
+
+Real migrations 025→030 with populated synthetic rows PASS: same-timestamp rows
+retain ID tie-break ordering, sessions have independent counters, next insertion
+continues at the correct position. Restricted NOLOGIN role fails without counter
+permission; the actual grant script enables insertion but not session-state UPDATE.
+
+API now parses authenticated session.history.final control events and returns an
+event/content-bound durable ACK. Unattached sessions fail; closed attached sessions
+can receive delayed history without changing billing. Browser writes cannot use
+the reserved worker. prefix. Exact replay/conflict and DB row-count tests PASS.
+Control-token cross-session/invalid-token/body bounds parser checks PASS; full real
+Worker→HTTP API/DB composition remains pending (not replaced by separate tests).
+
+Worker candidate adds encrypted immutable history rows, exact ACK validation,
+generation-safe deletion and bounded fair batch replay. The first 100 failed rows
+do not starve the 101st; traversal wraps. Row capacity is 10,000; payload bounds are
+validated. This is a library primitive, not yet wired into AgentSession callbacks
+or the running replay service. Usage replay behavior is unchanged.
+
+Results: API **431 PASS / 1 SKIP / 0 FAIL**; history/migration/provider targeted
+**13/13 PASS**; type/build PASS. Worker suite **43/43 PASS**, Ruff lint/format PASS.
+Two initial lint failures (import ordering and sorted-vs-max) were corrected before
+final validation. Shared Unicode/newline digest vector then passed both API history
+3/3 and Worker history 3/3 targeted tests. No real data, provider or deployment used.
+
+Protocol and activation limitations: [history delivery candidate](../shared/contracts/history-delivery-protocol.md).
+Remaining: SDK identity/revision mapping, durable callback/shutdown integration,
+history replay startup/status/retention, deletion and secret-rotation handling,
+cross-process/cross-repo failure tests, Web cursor consumer and controlled rollout.
+No new waivers. B6 remains incomplete and local-only.

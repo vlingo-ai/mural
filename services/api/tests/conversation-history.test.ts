@@ -5,9 +5,11 @@ import { createApp } from '../src/app.js';
 import { digest } from '../src/auth.js';
 import { connectDatabase } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
-import { parseConversationEvent, parseHistoryPage, conversationEventsPage } from '../src/conversation-history.js';
+import { parseConversationEvent, parseHistoryPage, conversationEventsPage, persistWorkerHistory, historyEventDigest } from '../src/conversation-history.js';
 
 test('history cursor is bounded and session scoped', () => {
+  assert.equal(historyEventDigest({ eventID: 'worker.execution.item', speaker: 'user', text: 'Synthetic é 🐈\n', source: 'live' }),
+    'b369e64f7954cc2a5304ab19c16b1f50c6fe9cf03bef5050b73c737ef01df41e');
   const id = randomUUID();
   assert.deepEqual(parseHistoryPage({}, id), { after: '0', limit: 50 });
   const cursor = Buffer.from(`1:${id}:9007199254740993`).toString('base64url');
@@ -68,6 +70,8 @@ integration('conversation history is owner-scoped, idempotent and returned in se
     const conflict = await app.inject({ method: 'POST', url: `/v1/conversations/${session}/events`, headers,
       payload: { ...payload, text: 'Conflicting synthetic text' } });
     assert.equal(conflict.statusCode, 409);
+    assert.equal((await app.inject({ method: 'POST', url: `/v1/conversations/${session}/events`, headers,
+      payload: { ...payload, eventID: 'worker.forged' } })).statusCode, 400);
     const detail = await app.inject({ method: 'GET', url: `/v1/conversations/${session}`, headers });
     assert.equal(detail.statusCode, 200); assert.equal(detail.json().events.length, 1);
     assert.equal(detail.json().events[0].text, 'Hello'); assert.equal(detail.json().language, 'en');
@@ -105,5 +109,14 @@ integration('conversation history is owner-scoped, idempotent and returned in se
       const recovered = await conversationEventsPage(db!, account, session, { cursor: empty.nextCursor });
       assert.deepEqual(recovered.events.map(e => e.eventID), ['concurrent-a', 'concurrent-b']);
     } finally { await a.query('ROLLBACK'); await b.query('ROLLBACK'); a.release(); b.release(); }
+    const final = { eventID: 'worker.execution.final', speaker: 'assistant' as const, text: 'Synthetic final', source: 'live' as const };
+    await assert.rejects(persistWorkerHistory(db!, session, final), { code: 'livekit_session_not_attached' });
+    await db!.query('UPDATE hosted_sessions SET provider_session_id=$2 WHERE id=$1', [session, 'local-fixture-room']);
+    const ack = await persistWorkerHistory(db!, session, final);
+    assert.deepEqual(ack, { accepted: true, committed: true, eventID: final.eventID, digest: historyEventDigest(final) });
+    assert.deepEqual(await persistWorkerHistory(db!, session, final), ack);
+    await assert.rejects(persistWorkerHistory(db!, session, { ...final, text: 'Conflicting final' }), { code: 'conversation_event_conflict' });
+    assert.equal((await db!.query('SELECT count(*) FROM conversation_events WHERE session_id=$1 AND provider_event_id=$2',
+      [session, final.eventID])).rows[0].count, '1');
   } finally { await app.close(); }
 });

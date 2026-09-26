@@ -7,7 +7,7 @@ import { ServiceError } from './errors.js';
 import { VoiceMeter } from './meter.js';
 import { cost, RATE_VERSION, TRIAL_MS } from './pricing.js';
 import { LiveCreateFailure, LiveCreateRejectedError, supportsLanguage, parseLiveContext, type LiveDelegation,
-  type LiveProvider, type LiveProviderRejection, type Sideband, type VoiceUsage } from './live-provider.js';
+  type LiveProvider, type LiveHistoryEvent, type LiveProviderRejection, type Sideband, type VoiceUsage } from './live-provider.js';
 import { appendMinuteEntry, lockMinuteWallet } from './minutes.js';
 import { recoverMinutePurchaseShortfalls } from './minute-purchases.js';
 import { hostedHelperExposure, type HostedHelpers } from './hosted-helpers.js';
@@ -236,7 +236,7 @@ export class HostedVoice {
     }
   }
   async acceptTrustedEvent(id: string, authorization: string | undefined, body: unknown):
-    Promise<LiveDelegation | LiveProviderRejection | VoiceUsage> {
+    Promise<LiveDelegation | LiveProviderRejection | VoiceUsage | LiveHistoryEvent> {
     if (!this.provider.acceptTrustedEvent) throw new ServiceError('livekit_control_unavailable', 404);
     const event = this.provider.acceptTrustedEvent(id, authorization, body);
     if (event.type === 'session.usage.updated' || event.type === 'session.closed') {

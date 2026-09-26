@@ -12,6 +12,17 @@ const provider = () => new LiveKitLiveProvider({
 const authorization = () => `Bearer ${createHmac('sha256', secret)
   .update('mural-livekit-control-v1\0').update(sessionID).digest('base64url')}`;
 
+test('Worker final history is authenticated, bounded and session scoped', () => {
+  const livekit = provider();
+  const event = { type: 'session.history.final', eventID: 'worker.execution.item', speaker: 'user', text: 'Synthetic final' };
+  assert.deepEqual(livekit.acceptTrustedEvent(sessionID, authorization(), event), event);
+  assert.throws(() => livekit.acceptTrustedEvent(sessionID, 'Bearer wrong', event), /invalid_livekit_control_token/);
+  assert.throws(() => livekit.acceptTrustedEvent('another-session', authorization(), event), /invalid_livekit_control_token/);
+  for (const bad of [{ ...event, eventID: 'client.item' }, { ...event, extra: true },
+    { ...event, speaker: 'system' }, { ...event, text: 'x'.repeat(4001) }])
+    assert.throws(() => livekit.acceptTrustedEvent(sessionID, authorization(), bad));
+});
+
 test('LiveKit trusted control parses usage without acknowledging it before persistence', async () => {
   const livekit = provider();
   const usage: unknown[] = [];
