@@ -21,17 +21,20 @@ window.rtcDiagnostics = () => [...diagnostics].map(([peer, record]) => ({
   connection: peer.connectionState, ice: peer.iceConnectionState,
   gathering: peer.iceGatheringState, ...record,
 }));
-window.rtcSenderRoute = async () => {
+window.rtcMediaRoute = async (direction) => {
   for (const peer of peers) {
     const stats = await peer.getStats();
     for (const report of stats.values()) {
-      if (report.type !== 'outbound-rtp' || !(report.bytesSent > 0)) continue;
+      const sending = direction === 'send';
+      if (report.type !== (sending ? 'outbound-rtp' : 'inbound-rtp') ||
+          !((sending ? report.bytesSent : report.bytesReceived) > 0)) continue;
       const transport = stats.get(report.transportId);
       const pair = stats.get(transport?.selectedCandidatePairId);
       const local = stats.get(pair?.localCandidateId);
       const remote = stats.get(pair?.remoteCandidateId);
       if (local && remote) return { protocol: local.protocol,
         localPort: local.port, remotePort: remote.port,
+        localAddress: local.address ?? local.ip,
         remoteAddress: remote.address ?? remote.ip };
     }
   }

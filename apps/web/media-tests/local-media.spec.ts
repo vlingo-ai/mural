@@ -64,7 +64,7 @@ test('real SDK transports synthetic audio both ways and releases tracks on Stop'
 });
 
 const scenarios = ['baseline', 'recover-signal', 'stop-during-recovery', 'detach-uplink', 'detach-downlink'];
-if (process.env.MEDIA_NETWORK_FAULTS === '1') scenarios.push('udp-uplink-loss');
+if (process.env.MEDIA_NETWORK_FAULTS === '1') scenarios.push('udp-uplink-loss', 'udp-downlink-loss');
 for (const scenario of scenarios) test(`Mural LiveConnection real audio: ${scenario}`, async ({ browser }) => {
   const context = await browser.newContext();
   const external: string[] = [];
@@ -94,7 +94,12 @@ for (const scenario of scenarios) test(`Mural LiveConnection real audio: ${scena
     await expect.poll(() => learner.evaluate(() => (window as any).productFixture.state())).toBe('active');
     await expect.poll(() => learner.evaluate(() => (window as any).productFixture.rms())).toBeGreaterThan(0.01);
     await expect.poll(() => agent.evaluate(() => (window as any).mediaFixture.rms())).toBeGreaterThan(0.01);
-    if (scenario === 'udp-uplink-loss') {
+    if (scenario.startsWith('udp-')) {
+      const uplink = scenario === 'udp-uplink-loss';
+      const receiver = uplink ? agent : learner;
+      const other = uplink ? learner : agent;
+      const receiverFixture = uplink ? 'mediaFixture' : 'productFixture';
+      const otherFixture = uplink ? 'productFixture' : 'mediaFixture';
       // Refuse mutation outside the dedicated Linux test namespace.
       expect(process.platform).toBe('linux');
       // PID 1's namespace link is protected from the ordinary CI runner user.
@@ -105,24 +110,27 @@ for (const scenario of scenarios) test(`Mural LiveConnection real audio: ${scena
       expect(hostNamespace).toMatch(/^net:\[\d+\]$/);
       expect(testNamespace).toMatch(/^net:\[\d+\]$/);
       expect(testNamespace).not.toBe(hostNamespace);
-      const route = await learner.evaluate(() => (window as any).rtcSenderRoute());
+      const route = await learner.evaluate(direction => (window as any).rtcMediaRoute(direction), uplink ? 'send' : 'receive');
       expect(route?.protocol).toBe('udp');
       expect(route?.remoteAddress).toBe('127.0.0.1');
+      expect(['127.0.0.1', '192.0.2.1']).toContain(route?.localAddress);
       for (const port of [route.localPort, route.remotePort]) {
         expect(Number.isInteger(port) && port > 0 && port <= 65535).toBe(true);
       }
-      const rule = ['OUTPUT', '-p', 'udp', '--sport', String(route.localPort),
-        '--dport', String(route.remotePort), '-d', '127.0.0.1', '-j', 'DROP'];
+      const rule = ['OUTPUT', '-p', 'udp', '--sport', String(uplink ? route.localPort : route.remotePort),
+        '--dport', String(uplink ? route.remotePort : route.localPort),
+        '-s', uplink ? route.localAddress : route.remoteAddress,
+        '-d', uplink ? route.remoteAddress : route.localAddress, '-j', 'DROP'];
       execFileSync('sudo', ['-n', 'iptables', '-I', ...rule]);
       try {
-        await expect.poll(() => agent.evaluate(() => (window as any).mediaFixture.rms())).toBeLessThan(0.001);
-        // Downlink must still carry fresh transitions while the uplink packets drop.
-        await agent.evaluate(() => (window as any).mediaFixture.setTone(false));
-        await expect.poll(() => learner.evaluate(() => (window as any).productFixture.rms())).toBeLessThan(0.001);
-        await agent.evaluate(() => (window as any).mediaFixture.setTone(true));
-        await expect.poll(() => learner.evaluate(() => (window as any).productFixture.rms())).toBeGreaterThan(0.01);
+        await expect.poll(() => receiver.evaluate(f => (window as any)[f].rms(), receiverFixture)).toBeLessThan(0.001);
+        // The unaffected direction must carry fresh media while packets drop.
+        await receiver.evaluate(f => (window as any)[f].setTone(false), receiverFixture);
+        await expect.poll(() => other.evaluate(f => (window as any)[f].rms(), otherFixture)).toBeLessThan(0.001);
+        await receiver.evaluate(f => (window as any)[f].setTone(true), receiverFixture);
+        await expect.poll(() => other.evaluate(f => (window as any)[f].rms(), otherFixture)).toBeGreaterThan(0.01);
       } finally { execFileSync('sudo', ['-n', 'iptables', '-D', ...rule]); }
-      await expect.poll(() => agent.evaluate(() => (window as any).mediaFixture.rms())).toBeGreaterThan(0.01);
+      await expect.poll(() => receiver.evaluate(f => (window as any)[f].rms(), receiverFixture)).toBeGreaterThan(0.01);
     }
     if (scenario.startsWith('detach-')) {
       const uplink = scenario === 'detach-uplink';

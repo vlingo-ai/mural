@@ -206,3 +206,13 @@ is resolved without removing safety checks or running the browser as root.
 Reusable rule: namespace guards must account for procfs permission restrictions;
 privilege only the required operation, validate its output, and fail closed.
 This establishes the short uplink fault case, not long outages or downlink packet loss.
+
+## Tenth iteration: symmetric UDP downlink loss candidate
+
+Generalized selected-route inspection to inbound/outbound RTP. Downlink injection
+reverses the learner subscriber's selected tuple to drop server-to-learner traffic;
+both directions now specify source and destination addresses and ports. Addresses
+must be the isolated loopback/dummy topology, and the namespace guard remains.
+Each case requires affected receiver silence, unaffected direction's fresh tone
+transitions, then media restoration after rule removal. TypeScript/diff PASS;
+Linux eight-case suite pending. No runtime/UI changes or deployment required.
