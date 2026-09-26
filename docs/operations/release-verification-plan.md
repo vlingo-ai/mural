@@ -125,7 +125,7 @@ PR、候选发布、上线后是三种运行模式；完整故障矩阵在隔离
 | ADMIT-01 | 本地准入不足、模拟 CreateRoom/CreateDispatch 429/503 | 用户安全错误、释放预留、已创建资源有清理结果；不混同真实 Cloud 拒绝 |
 | MEDIA-01 | 信令断媒体通、媒体上/下行分别断 | 状态不盲目 Active；沉默/静音不误判失败；独立可观测超时 |
 | RECONNECT-01 | SDK 重连、Room 重建、麦克风需重发、迟到事件 | 同产品 session、无重复付费执行、generation 隔离、恢复后双向媒体实际可用 |
-| STOP-01 | 连点 Stop、Stop 与恢复竞态、关闭请求丢失 | 本地媒体及时停、服务端幂等关闭、旧事件不能重新 Active |
+| STOP-01 | 连点 Stop、Stop 与恢复竞态、关闭请求丢失 | 本地媒体及时停、服务端幂等关闭、Idle 后有界观察窗内旧事件不能重新 Active；记录观察时长和注入位置，替身 close 计数不等于真实服务端幂等 |
 | LEASE-01 | Worker 硬停、Worker↔API 断、API 重启 | 到期行为与已批准期限一致，最后可信用量结算，未知 final 单独标记 |
 | CLEAN-01 | closed 后 DeleteRoom 503/超时/精确 not_found | 持久重试与截止/告警；结算一次；成功/not_found 才确认对应资源清理 |
 | USAGE-01 | final 提交前崩溃、提交后回包前崩溃、重复/乱序 cumulative、错误回执或密钥、前批永久失败造成分页饥饿 | 只在 DB 提交且回执精确匹配本次用量后清队列；跨进程重放不双扣；第 101 条可越过前 100 条失败记录，游标回绕重试旧记录；迟到证据进运营对账，待投递队列不冒充零 |
@@ -293,6 +293,33 @@ CI 配置检查不等于这些工作包已完成。实施时每个包分别测�
 未来可在 A1 增加文档/证据完整性检查，但自动检查不能代替证据真实性评审。
 
 ### 迭代归集表
+
+2026-09-26 B5 首轮本地真实媒体基线（[证据](../../verification/2026-09-26-b5-local-media.md)）：
+已新增独立 Playwright/真实 SDK/本地 LiveKit/双向合成音频候选。首次发现默认外部 STUN 后主动中止；
+显式空 ICE servers 后第二轮因首个 peer connection 建立失败，媒体与 Stop 断言未执行。
+B5 未完成，未部署、未调用 Cloud/模型；后续先诊断本地 ICE，再接入产品恢复链路。
+复用规则：HTTP/WebSocket 拦截不覆盖原生 WebRTC/STUN；网络隔离与选中候选地址须独立验证，服务启动不等于媒体通过。
+同日第二轮：开启服务端回环候选解决 ICE 失败；远端音轨附加静音播放元素后 RMS 可测。
+最终双向 RMS、RTP 包/字节、选中远端回环候选、发送端静音/恢复反向控制及 Stop 释放连续 3/3 PASS。
+Chrome 静音播放的 totalAudioEnergy 为 0 曾导致 3/3 FAIL，改以独立 RMS 与 RTP 联合判断并保留失败记录。
+类型检查 PASS；只是 SDK 传输基线，不是 Mural 恢复验收，B5 仍未完成，无部署或付费。
+同日第三轮：接入真实 Mural `LiveConnection`，控制 API 使用测试替身；新增信令 WebSocket 中断、
+Connecting→Active、恢复后新下行音频及持续上行能量、重复 Stop 和单次 admission/close 断言。
+三类用例连续重复 **9/9 PASS**（零重试，22.2 秒），类型检查 PASS，详见上述证据第三轮。
+复用规则：恢复不能只断言 Active，必须联合媒体与会话操作次数；替身计数不能证明真实账本幂等。
+此轮不覆盖真实 Wi-Fi/独立媒体故障、恢复中 Stop、Worker/历史持久化或 CI 隔离；B5 仍未完成。
+同日第四轮：新增恢复入口 Connecting 后立即重复 Stop，Idle 后观察 5 秒未重新 Active，
+并验证麦克风结束及单次 admission/close。四类用例重复 **12/12 PASS**（零重试，40.0 秒），
+类型检查 PASS；SDK 注入故障取消日志保留，不宣称零错误。执行 README 与上述证据已更新。
+覆盖范围仅扩展至恢复入口取消，独立媒体故障、其他迟到响应竞态与 CI 隔离仍待完成；无部署或付费。
+同日第五轮：新增上下行分别移除原生发送音轨并恢复，检查受影响方向停止/恢复收音，
+反方向仍传输新音频，且健康传输期间不因无声误报断网。六类用例重复 **18/18 PASS**
+（零重试，51.2 秒），类型检查 PASS。复用规则：发送源中断不等于网络丢包/ICE 故障，
+必须分别记录，不能据此关闭 MEDIA-01 网络故障门槛。证据及执行说明已同步；CI 仅检查接入位置，尚未接入。
+同日第六轮：媒体测试已接入现有 Web job，固定 LiveKit 版本/摘要，配置 Linux 仅回环网络命名空间；
+保持 checks-gate 与平台范围策略，GitHub 实跑尚未验证。首次单元回归因 Vitest 误收集 Playwright 用例失败，
+修正收集范围后 **74/74 PASS**，类型/构建/YAML 解析/diff 检查通过；actionlint 未安装，未作该项验证。
+复用规则：新增测试框架必须回归原有测试与构建；工作流语法通过不等于 CI 执行通过。B5 仍未完成，无部署或付费。
 
 2026-09-26 Luna 单次真实验证（[证据](../../verification/2026-09-26-gpt6-luna-upgrade.md#separately-authorized-single-provider-smoke)）：
 用户单独授权一次、USD 0.01 上限；Gateway translation 路由 HTTP 200/completed，2.62 秒，实际模型 gpt-6-luna，
