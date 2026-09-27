@@ -26,6 +26,10 @@
 缺字段和未知字段；新增5项，脚本全套85/85 PASS。格式通过不代表镜像存在、CI成功或运行版本一致。
 源码核查发现 SDK 根健康端点及 /worker 信息不足以证明实时注册，不将其冒充新鲜注册门禁；
 manifest 尚未接入总验证，Worker就绪适配/CI发布/恢复演练仍待实施。无部署或付费测试。
+第三轮：manifest 已接入候选 verify.sh；只读 Docker 采集核对 project/service、唯一容器、
+健康与实际 image ID/platform/RepoDigest。失败或采集未知返回非零，输出固定原因和单调耗时，
+不输出原始 inspect/环境。新增8项，脚本全套93/93 PASS；尚未 CI/VPS 验证。
+源码和 CI 标识仅格式校验，不声称供应链证明；实时注册、统一发布与恢复演练仍待办。
 
 2026-09-27 B6 部署续办（[证据](../../verification/2026-09-26-b6-history-delivery.md#staged-rollout-observed-september-26-continuation-september-27)）：
 030/031 迁移、API→Worker/replay→Edge 切换已确认；API healthy、启动注册、队列0、

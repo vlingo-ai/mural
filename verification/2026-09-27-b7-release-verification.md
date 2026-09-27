@@ -36,3 +36,16 @@ current connection registration. Neither is sufficient as a fresh-registration g
 No readiness shortcut added. Need pinned-SDK adapter with reconnect/disconnect tests
 or independently verified control-plane evidence. This remains an implementation gap.
 No changes deployed; no real sessions. B7 remains incomplete.
+
+## Third iteration: runtime identity collection
+
+verify.sh now requires an explicit manifest before probes. New read-only Docker
+collector requires exactly one container for each project/service, evaluates strict
+container health, resolves the expected image without pulling, checks actual image
+ID/platform and registry RepoDigests (or exact local image ID). Bounded subprocesses
+capture raw Docker output in memory; report contains only fixed reason/status fields
+and monotonic elapsed milliseconds. Command/JSON failures produce UNKNOWN and exit
+nonzero, never raw stderr. Eight added identity fixtures pass; scripts full suite
+**93/93 PASS**, shell syntax and diff whitespace PASS. Not yet tested against VPS
+or CI. Manifest source/CI references remain operator-reviewed metadata, not verified
+attestations. SDK readiness adapter remains pending; no production mutation.

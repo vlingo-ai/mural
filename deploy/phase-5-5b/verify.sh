@@ -3,11 +3,18 @@ set -eu
 
 cd "$(dirname "$0")"
 env_file=${1:-.env}
+manifest_file=${2:-}
+[ -n "$manifest_file" ] && [ -f "$manifest_file" ] || {
+  printf 'verify: explicit release manifest required as second argument\n' >&2
+  exit 1
+}
 [ -f "$env_file" ] || { printf 'verify: missing %s\n' "$env_file" >&2; exit 1; }
 set -a
 # shellcheck disable=SC1090
 . "$env_file"
 set +a
+
+python3 ./check-release.py "$manifest_file" "${COMPOSE_PROJECT_NAME:-vlingo-speaking-live-staging}"
 
 compose() { docker compose --env-file "$env_file" "$@"; }
 compose ps --status running
