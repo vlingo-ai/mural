@@ -9,6 +9,17 @@ from scripts.ci_scope import select
 
 
 class CIScopeTests(unittest.TestCase):
+    def test_b7_publishing_changes_only_select_active_client(self):
+        paths = ['.github/workflows/publish-api.yml', 'deploy/phase-5-5b/verify.sh',
+                 'scripts/check_publish_ci.py', 'docs/operations/release-verification-plan.md']
+        for stage, client in [('web', 'web'), ('ios', 'swift'), ('android', 'android')]:
+            result = select(stage, paths)
+            for platform in ('web', 'swift', 'android'):
+                self.assertEqual(result[platform], platform == client)
+            self.assertTrue(result['server'])
+            self.assertTrue(result['deployment'])
+            self.assertEqual(result['android_release'], stage == 'android')
+
     def test_docs_do_not_start_builds(self):
         for stage in ("web", "ios", "android"):
             result = select(stage, ["apps/android/README.md", "apps/web/README.md", "docs/plan.md"])

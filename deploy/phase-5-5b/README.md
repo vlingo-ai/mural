@@ -61,6 +61,21 @@ access or quality; actual provider calls need separate bounded authorization.
 
 ## B6 staged deployment (enabled; live test skipped)
 
+B7 local candidate changes the verification invocation to
+`sudo ./verify.sh ./api.env /absolute/path/to/release-manifest.json`.
+The second argument is mandatory and is checked before network probes. Manifest v1
+requires `schema_version: 1`, a lowercase `release_id`, and all six `services`:
+api, edge, agent-worker, agent-worker-replay, model-gateway, database. Each contains
+`source_commit` (full SHA), `ci_run` (positive integer), `platform` (linux/amd64),
+`image_kind` (registry_digest or local_image_id), and `image` (immutable full reference).
+Database source_commit/ci_run are null. No secrets or extra fields are allowed.
+Runtime verification resolves the expected local image, checks running image identity,
+platform, registry RepoDigest when applicable, project/service labels and health.
+It never pulls missing images. This does not authenticate source provenance or CI
+success; those still need release review. This tooling is not yet deployed, and
+Worker current-registration verification remains incomplete; do not treat its PASS
+as complete B7 acceptance. Existing VPS B6 verification commands remain unchanged.
+
 September 27 status: Mural PR #50 merged as `814d198`, Worker PR #19 as `422a481`;
 migrations 030/031 and API→Worker/replay→Edge rollout completed. Release directory:
 `/home/vlingo-admin/releases/mural-b6-814d198/deploy/phase-5-5b`.

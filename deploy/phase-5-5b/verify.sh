@@ -3,11 +3,18 @@ set -eu
 
 cd "$(dirname "$0")"
 env_file=${1:-.env}
+manifest_file=${2:-}
+[ -n "$manifest_file" ] && [ -f "$manifest_file" ] || {
+  printf 'verify: explicit release manifest required as second argument\n' >&2
+  exit 1
+}
 [ -f "$env_file" ] || { printf 'verify: missing %s\n' "$env_file" >&2; exit 1; }
 set -a
 # shellcheck disable=SC1090
 . "$env_file"
 set +a
+
+python3 ./check-release.py "$manifest_file" "${COMPOSE_PROJECT_NAME:-vlingo-speaking-live-staging}"
 
 compose() { docker compose --env-file "$env_file" "$@"; }
 compose ps --status running
@@ -31,17 +38,30 @@ assert all(body["operations"][name]["reason"] == "backend_disabled" for name in 
 for service_name in database model-gateway api agent-worker agent-worker-replay edge; do
   container_id=$(compose ps -q "$service_name")
   [ -n "$container_id" ] || { printf 'verify: %s container is absent\n' "$service_name" >&2; exit 1; }
-  docker inspect --format '{{.Name}} {{.Config.Image}} {{.State.Status}} {{.State.Health.Status}}' "$container_id" 2>/dev/null || \
-    docker inspect --format '{{.Name}} {{.Config.Image}} {{.State.Status}}' "$container_id"
+  docker inspect "$container_id" 2>/dev/null | python3 ./check-container.py "$service_name" || {
+    printf 'verify: container state gate failed\n' >&2
+    exit 1
+  }
 done
+
+python3 - "$env_file" <<'PY'
+import subprocess, sys
+try:
+    result = subprocess.run(
+        ['docker', 'compose', '--env-file', sys.argv[1], 'exec', '-T',
+         'agent-worker', 'python', '-m', 'mural_livekit.readiness_check'],
+        capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL)
+    passed = result.returncode == 0 and result.stdout.strip() == 'worker_registration: PASS'
+except Exception:
+    passed = False
+print('verify: worker registration ' + ('PASS' if passed else 'FAIL'))
+sys.exit(0 if passed else 1)
+PY
 
 compose exec -T agent-worker-replay python -m mural_livekit.outbox_status --require-empty || {
   printf 'verify: durable control outbox is not empty or cannot be inspected\n' >&2
   exit 1
 }
 
-if compose logs --since 15m api model-gateway agent-worker agent-worker-replay 2>&1 | grep -E 'OPENAI_API_KEY=|LIVEKIT_API_SECRET=|MURAL_CONTROL_OUTBOX_KEY=|Authorization: Bearer |DATABASE_URL=' >/dev/null; then
-  printf 'verify: possible secret-bearing log line detected\n' >&2
-  exit 1
-fi
-printf 'verify: PASS (public TLS, health, disabled audio capability, containers, sanitized logs)\n'
+python3 ./check-logs.py "$env_file"
+printf 'verify: PASS (public TLS, health, disabled audio capability, containers, registered transport, log pattern scan)\n'
