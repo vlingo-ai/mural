@@ -1,5 +1,28 @@
 # Phase 5.5B Cloud Build staging runbook
 
+September 27 B7 operational checkpoint: see the [six-service release manifest](../../verification/b7-release-manifest.json)
+and [deployment/restore/rollback evidence](../../verification/2026-09-27-b7-release-verification.md).
+Current B7 directory is `/home/vlingo-admin/releases/mural-b7-7483041/deploy/phase-5-5b`;
+run `sudo sh ./verify.sh ./api.env ./b7-release-manifest.json` from that directory.
+Use separate api.env / worker.env and the recorded per-service Compose overrides;
+never perform an unqualified full-stack up. API/Worker are CI-published private
+digests; Edge is retained local-image provenance. B7 restore/rollback checks are
+non-billable, not live-media acceptance. B7 API-first rehearsal was scoped to
+verified unchanged API source/migrations between B6 and B7; do not generalize
+that ordering to releases with API/Worker contract changes.
+The VPS-only read:packages PAT expires December 26, 2026; the user owns rotation.
+Replace and verify private digest access before expiry (recommended by December
+19), then revoke the old token. Preserve existing credentials on probe failure;
+never work around authentication denial by making packages public.
+
+Candidate pre-deployment access gate: `python3 ./check-private-registry.py ./b7-release-manifest.json`.
+It reads remote manifests only; run it with the dedicated Docker credentials and
+require exit zero before pull/switch. Authentication/network errors must stop
+the procedure, including when an old image is cached. Never use `;` or `|| true`
+to bypass this gate. This is not a full deployment wrapper, image pull/identity
+validation, or a replacement for idle/backup checks. Local fault-injection tests
+exist; see B7 evidence for actual CI and VPS installation status.
+
 Scope updated 2026-09-24: follow the [accepted development baseline](../../docs/web-ios-model-gateway-plan.md).
 Staging is deployed; real Cloud quota rejection is waived for this English staging gate only,
 not actually tested. The final Gate 7 report/signoff remains pending. The numbered steps below are a reusable procedure,

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "release_id": "b7-7483041-d4f4514",
+  "services": {
+    "api": {
+      "source_commit": "748304194eb642b8a2ed79f28e196afc91b55be8",
+      "image_kind": "registry_digest",
+      "image": "ghcr.io/vlingo-ai/mural-api@sha256:434cef288e9e7ddaa9d5406174e2bc57b5926470c4e551db14482001ff66941a",
+      "platform": "linux/amd64",
+      "ci_run": 36301391409
+    },
+    "edge": {
+      "source_commit": "814d19850e560470d6c09983c27ee0cab79b88e9",
+      "image_kind": "local_image_id",
+      "image": "sha256:6c4608a721ae1283e50c3c6e5731d3ec9b7f346543ef6a61f15b8016ab955d14",
+      "platform": "linux/amd64",
+      "ci_run": 36232574822
+    },
+    "agent-worker": {
+      "source_commit": "d4f4514010f2af50c96cfe40cb0e70f68b99be92",
+      "image_kind": "registry_digest",
+      "image": "ghcr.io/vlingo-ai/livekit-gpt-live-worker@sha256:819685390c2cb72a2f546ced8e8165043c110625c96d479e6e17c30a61d86e1e",
+      "platform": "linux/amd64",
+      "ci_run": 36300943142
+    },
+    "agent-worker-replay": {
+      "source_commit": "d4f4514010f2af50c96cfe40cb0e70f68b99be92",
+      "image_kind": "registry_digest",
+      "image": "ghcr.io/vlingo-ai/livekit-gpt-live-worker@sha256:819685390c2cb72a2f546ced8e8165043c110625c96d479e6e17c30a61d86e1e",
+      "platform": "linux/amd64",
+      "ci_run": 36300943142
+    },
+    "model-gateway": {
+      "source_commit": "5dd848f7af25b72c0ac535e30bae952acbd1f491",
+      "image_kind": "registry_digest",
+      "image": "ghcr.io/vlingo-ai/model-gateway@sha256:9e9b7eec2fb394a30f80c1126cc81e116bb8ac762ad1c81cbf1829bea532860c",
+      "platform": "linux/amd64",
+      "ci_run": 35505161429
+    },
+    "database": {
+      "source_commit": null,
+      "image_kind": "registry_digest",
+      "image": "postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+      "platform": "linux/amd64",
+      "ci_run": null
+    }
+  }
+}
