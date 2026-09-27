@@ -15,6 +15,14 @@ Replace and verify private digest access before expiry (recommended by December
 19), then revoke the old token. Preserve existing credentials on probe failure;
 never work around authentication denial by making packages public.
 
+Candidate pre-deployment access gate: `python3 ./check-private-registry.py ./b7-release-manifest.json`.
+It reads remote manifests only; run it with the dedicated Docker credentials and
+require exit zero before pull/switch. Authentication/network errors must stop
+the procedure, including when an old image is cached. Never use `;` or `|| true`
+to bypass this gate. This is not a full deployment wrapper, image pull/identity
+validation, or a replacement for idle/backup checks. Local fault-injection tests
+exist; see B7 evidence for actual CI and VPS installation status.
+
 Scope updated 2026-09-24: follow the [accepted development baseline](../../docs/web-ios-model-gateway-plan.md).
 Staging is deployed; real Cloud quota rejection is waived for this English staging gate only,
 not actually tested. The final Gate 7 report/signoff remains pending. The numbered steps below are a reusable procedure,

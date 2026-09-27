@@ -2,6 +2,15 @@
 
 ## Current summary (supersedes earlier pending checkpoint wording)
 
+Follow-up implementation: existing deployment is operator-composed, not a unified
+automatic wrapper. Added candidate check-private-registry.py remote-access gate
+for immutable API/Worker references, no raw responses, bounded timeout and
+fail-closed errors. Six local tests PASS including real CLI with fake denied
+Docker and shell && marker proving the subsequent simulated action is not run.
+This is local fault injection, not a real deployment failure or expired PAT test.
+Candidate is not yet CI-tested, installed on VPS or incorporated in an automated
+deployment wrapper; do not retroactively claim the prior rollout used it.
+
 B7 API/Worker are deployed again after the successful B7→B6→B7 non-billable
 rehearsal; final total verification PASS. Backup restore and all 58 table row
 counts against the encrypted dump PASS. Existing staging superuser access risk
