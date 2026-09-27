@@ -17,6 +17,21 @@
 
 ## 1. 复盘：把一次性经验转为发布规则
 
+2026-09-27 B7 凭据决定：用户批准 HKPATA 共享账号＋VPS 专用 PAT classic，
+仅 read:packages、有限有效期，不复用 Mac gh token，不新增 repo/write/delete 权限。
+下文“专用身份”本轮采用专用凭据，不声称账号级/单包隔离；其他该账号可读私有包仍可能可读。
+长期生产复审独立账号。创建、受控保存、拉取及失效门禁均待验证；只记录名称/权限/到期日，
+禁止 token 正文进入聊天、Git、日志或报告。本轮仅文档决定，无运行时验证或部署。
+后续 VPS 操作核对：登录成功，Docker 凭据目录700/文件600且root所有；现有 B6 Worker
+固定 digest 拉取成功（up to date），无容器替换。凭据为Docker默认未加密保存；权限限制
+不等于加密。拉取成功仅证明目标包读取能力，不能证明 token 无写权限或有效期；这些及
+新 API/B7 镜像访问仍待核验。此轮证据已归集，未部署，未调用模型。
+用户随后确认 scope 为 read:packages、有效期90天；记录为操作员确认，不冒称独立权限审计。
+确切到期日未采集，部署交接须保留到期前轮换责任；不采用此前建议的30天。
+最新 Mural `670fa45` 的 CI 36299732086（Web/server/deployment/gate）、Contracts、
+Secret scan及轻量Android gate均 PASS；原生重型任务 SKIPPED。Worker `1364c51` 全绿。
+文档归档后仍须核对最新提交；源码CI成功不等于手动发布工作流已执行或已部署。
+
 2026-09-27 B7 第一轮（[证据](../../verification/2026-09-27-b7-release-verification.md)）：
 容器检查由打印状态改为严格退出门禁，验证服务身份、running、异常状态、重启数和必需 health。
 本地8/8故障/CLI用例、shell语法与差异检查通过；已有 Contracts 测试发现纳入新增用例。

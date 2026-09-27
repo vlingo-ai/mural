@@ -1,5 +1,31 @@
 # B7 release verification — September 27
 
+## Deployment credential decision — user approved
+
+Operator confirmed read:packages scope and 90-day validity (not independently
+audited; exact expiry date not collected). Do not retain the earlier suggested
+30-day period. Latest Mural code `670fa45`: Checks run 36299732086 all selected
+jobs PASS; Contracts/Secret scan/Android summary PASS, native heavy jobs skipped.
+Worker `1364c51` all applicable CI PASS. No UI changes. Publication/deployment
+remain separate gates; documentation-head and main-push CI require fresh checks.
+
+Operator follow-up observed in VPS terminal: Docker login succeeded; credential
+directory root:root 700 and config file root:root 600. Pull of existing B6 Worker
+`ghcr.io/vlingo-ai/livekit-gpt-live-worker@sha256:bffc3e15ea347b70ac526ff7f0e0b36631693227513093784e2fdeaefca6d3ec`
+succeeded with matching digest / Image is up to date. No container was replaced.
+This proves access to that private image only, not read-only scope or expiry;
+token scope/expiry, new API package access and B7 image pulls remain unverified.
+Docker reports unencrypted config storage; restricted file permissions do not
+provide encryption. No credential contents were inspected or recorded.
+
+User accepted HKPATA shared account with a separate VPS-only PAT classic,
+read:packages only, finite expiry and independent revocation/rotation. Do not
+reuse the Mac gh credential. This is credential isolation, NOT account-level or
+single-package isolation; other packages readable by this account may be exposed.
+Independent account remains a production review item. Token creation, VPS
+configuration, pull and invalid credential checks NOT_RUN. Documentation-only
+update; no credential collected/stored, deployment or paid call. B7.4 stays open.
+
 ## Ninth iteration: CI evidence and fail-closed log collection
 
 [Worker CI 36299585325](https://github.com/vlingo-ai/model-gateway/actions/runs/36299585325)
