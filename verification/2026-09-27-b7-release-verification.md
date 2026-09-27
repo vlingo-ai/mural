@@ -1,5 +1,20 @@
 # B7 release verification — September 27
 
+## Signoff decision (effective only after final PR53 CI and merge)
+
+User requested signoff on September 27. B7 engineering scope is complete with
+documented non-billable evidence: local104 tests, scoped CI, deployed API/Worker
+digests and six-service verify, installed authentication gate, isolated restore
+and 58-table count parity, actual B7→B6→B7 rehearsal, and private-data cleanup.
+No UI/UX change. Existing runtime images need no rebuild for final host-script
+and documentation changes; the host script is installed (operator PASS).
+No claim of real-media acceptance, actual token expiry/revocation testing,
+least-privilege DB, fully automatic deployment, zero downtime or production
+readiness. These limits do not waive later release gates; C2/C5 remain open.
+All older pending wording below is historical checkpoint evidence, not current
+status. Final-head CI and merge must be verified externally before reporting
+the signoff effective; no auto-merge or bypass is implied.
+
 ## Final host-side installation checkpoint
 
 Operator confirms installed release-directory check-private-registry.py returns
