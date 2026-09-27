@@ -33,6 +33,28 @@ manifest 尚未接入总验证，Worker就绪适配/CI发布/恢复演练仍待�
 同日范围复核：已确认 A2 的 API/Worker CI 统一发布、专用只读拉取身份和 VPS 按 digest
 部署均属于本次 B7；总计划拆分 B7.1–B7.6，禁止以 manifest 校验完成替代整条发布链路完成。
 仅文档澄清，差异检查通过，无新增运行时验证或线上改动。
+第四轮：Worker 候选新增容器内回环 `/ready`，观察已注册 websocket 的当前生命周期，
+旧注册 ID 不作证据；连接关闭、重连、draining、异常和取消均撤销就绪。
+新增10项及 Worker 全套59项本地 PASS，lint PASS；复用已有锁定依赖环境，非全新安装。
+私有 SDK hook 仅允许已审查的 Agents 1.8.2，升级须复审；该状态不证明媒体/模型可用，
+网络故障发现仍受 SDK 心跳时限影响。HTTP 生命周期集成、部署门禁接入及 CI/部署待办。
+第五轮：实际本地 HTTP 503→200→503、正常/异常/取消后的监听清理通过；
+容器内无代理探针严格校验响应并限时，verify 已接入10秒外层超时和固定输出门禁。
+Worker 69/69、lint、Mural 脚本93/93、shell语法 PASS；首次 lint 的宽泛异常捕获已修复。
+复用规则：探针读取失败/超时/畸形数据必须失败，禁止打印响应正文；本地 HTTP 不冒充
+Docker/VPS 集成。容器执行、CI、部署仍 NOT_RUN，统一发布和恢复演练继续待办。
+第六轮：新增 API 手动 main 发布候选，要求同 SHA 的 main push Checks/Contracts/Secret scan
+最新运行成功才构建/推送；生成不可变 digest 的组件记录并上传 artifact。
+本地脚本94/94 PASS；工作流尚未在 GitHub 执行，包私有可见性与只读拉取仍须独立核验。
+Worker 同等门禁/组件记录、容器就绪集成、完整 manifest 组装和部署均待办，不签结统一发布。
+第七轮：Worker 发布候选补同 SHA main Checks 成功门禁、amd64/revision 和组件 artifact；
+CI 增加 network=none、只读、非 root 容器运行就绪探针。脚本以合成 SDK 生命周期驱动真实
+回环 HTTP/子进程探针，本地 PASS，lint/28文件格式 PASS；本机无 Docker，容器执行仍 NOT_RUN。
+复用规则：网络隔离测试证明探针接线，不证明真实 Cloud 注册；必须分别保存 CI 容器结果。
+第八轮：用户重申按 Web/iOS/Android 阶段分开执行。确认当前 phase=5.5/platform=web；
+B7 发布文件改动选择 Web、server、deployment，Swift/Android/Android release 均不选择。
+新增三阶段回归，脚本95/95 PASS。Gateway/Worker 仓仅运行其服务端与镜像测试，无原生客户端任务。
+保留轻量 scope/汇总必需检查；NOT_APPLICABLE 不记为原生测试通过，不使用 all 手动覆盖。
 
 2026-09-27 B6 部署续办（[证据](../../verification/2026-09-26-b6-history-delivery.md#staged-rollout-observed-september-26-continuation-september-27)）：
 030/031 迁移、API→Worker/replay→Edge 切换已确认；API healthy、启动注册、队列0、

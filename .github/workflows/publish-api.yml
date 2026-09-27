@@ -1,0 +1,57 @@
+name: Publish API
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  packages: write
+
+concurrency:
+  group: publish-api
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Require exact source CI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/check_publish_ci.py checks.yml contracts.yml secrets.yml
+      - name: Build and publish immutable API candidate
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$(mktemp -d)"
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -f "$DOCKER_CONFIG/config.json"; rmdir "$DOCKER_CONFIG" || true' EXIT
+          image="ghcr.io/vlingo-ai/mural-api:git-${GITHUB_SHA}"
+          docker build --platform linux/amd64 --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label org.opencontainers.image.source=https://github.com/vlingo-ai/mural \
+            --file services/api/Dockerfile --tag "$image" services/api
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$image"
+          export RELEASE_IMAGE="$(docker image inspect "$image" --format '{{index .RepoDigests 0}}')"
+          python3 - <<'PY'
+          import json, os, re
+          image = os.environ['RELEASE_IMAGE']
+          assert re.fullmatch(r'ghcr.io/vlingo-ai/mural-api@sha256:[0-9a-f]{64}', image)
+          record = dict(source_commit=os.environ['GITHUB_SHA'], image_kind='registry_digest',
+                        image=image, platform='linux/amd64', ci_run=int(os.environ['GITHUB_RUN_ID']))
+          with open('api-release.json', 'w') as output:
+              json.dump(record, output, indent=2)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
+              output.write(f"API candidate: `{image}`\n\nNot deployed.\n")
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: api-release-${{ github.sha }}
+          path: api-release.json
+          if-no-files-found: error

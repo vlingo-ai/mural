@@ -44,6 +44,20 @@ for service_name in database model-gateway api agent-worker agent-worker-replay 
   }
 done
 
+python3 - "$env_file" <<'PY'
+import subprocess, sys
+try:
+    result = subprocess.run(
+        ['docker', 'compose', '--env-file', sys.argv[1], 'exec', '-T',
+         'agent-worker', 'python', '-m', 'mural_livekit.readiness_check'],
+        capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL)
+    passed = result.returncode == 0 and result.stdout.strip() == 'worker_registration: PASS'
+except Exception:
+    passed = False
+print('verify: worker registration ' + ('PASS' if passed else 'FAIL'))
+sys.exit(0 if passed else 1)
+PY
+
 compose exec -T agent-worker-replay python -m mural_livekit.outbox_status --require-empty || {
   printf 'verify: durable control outbox is not empty or cannot be inspected\n' >&2
   exit 1
@@ -53,4 +67,4 @@ if compose logs --since 15m api model-gateway agent-worker agent-worker-replay 2
   printf 'verify: possible secret-bearing log line detected\n' >&2
   exit 1
 fi
-printf 'verify: PASS (public TLS, health, disabled audio capability, containers, sanitized logs)\n'
+printf 'verify: PASS (public TLS, health, disabled audio capability, containers, registered transport, log pattern scan)\n'
