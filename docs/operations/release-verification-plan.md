@@ -30,6 +30,9 @@ manifest 尚未接入总验证，Worker就绪适配/CI发布/恢复演练仍待�
 健康与实际 image ID/platform/RepoDigest。失败或采集未知返回非零，输出固定原因和单调耗时，
 不输出原始 inspect/环境。新增8项，脚本全套93/93 PASS；尚未 CI/VPS 验证。
 源码和 CI 标识仅格式校验，不声称供应链证明；实时注册、统一发布与恢复演练仍待办。
+同日范围复核：已确认 A2 的 API/Worker CI 统一发布、专用只读拉取身份和 VPS 按 digest
+部署均属于本次 B7；总计划拆分 B7.1–B7.6，禁止以 manifest 校验完成替代整条发布链路完成。
+仅文档澄清，差异检查通过，无新增运行时验证或线上改动。
 
 2026-09-27 B6 部署续办（[证据](../../verification/2026-09-26-b6-history-delivery.md#staged-rollout-observed-september-26-continuation-september-27)）：
 030/031 迁移、API→Worker/replay→Edge 切换已确认；API healthy、启动注册、队列0、

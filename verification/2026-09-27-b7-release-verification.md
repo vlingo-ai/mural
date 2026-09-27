@@ -49,3 +49,13 @@ nonzero, never raw stderr. Eight added identity fixtures pass; scripts full suit
 **93/93 PASS**, shell syntax and diff whitespace PASS. Not yet tested against VPS
 or CI. Manifest source/CI references remain operator-reviewed metadata, not verified
 attestations. SDK readiness adapter remains pending; no production mutation.
+
+## Scope reconfirmation
+
+User asked whether the accepted B7/A2 unified-build decision is part of this B7.
+Confirmed existing baseline explicitly includes it. Added B7.1–B7.6 checklist to
+separate local gates, current Worker readiness, CI publishing, dedicated read-only
+pull identity, actual rollout and isolated recovery. No scope deferral: manifest
+validation does not complete unified publishing. Dedicated credentials may require
+operator/admin provisioning, not broader personal-token access. Documentation-only
+clarification; diff whitespace PASS, no runtime tests added this step.
