@@ -223,3 +223,79 @@ out of phase, not claimed tested. Local build and E2E 3/3 passed too. Existing
 bundle-size warning retained. This resolves the observed route-redaction regression,
 not an unlimited stability guarantee. No assertion relaxation or provider calls.
 This subsequent evidence-only commit has its own CI; no merge or deployment yet.
+
+## Authorized deployment preparation
+
+User explicitly requested continued deployment. Worker PR #19 merged as
+422a4812c6a5b015e91bb2ea62ac012bb89a5ba8 after successful candidate checks.
+Existing main-only publisher [run 36232474309](https://github.com/vlingo-ai/model-gateway/actions/runs/36232474309)
+started for that exact revision; digest/publication remains pending at this checkpoint.
+Mural evidence head e00d584 CI run 36232369281 is still running; no Mural merge yet.
+Read-only VPS stat confirmed the three existing API/Worker/Edge env files remain
+root-owned mode 0600; contents were not displayed. VPS runtime is unchanged.
+
+Follow-up: Mural evidence-head Checks run 36232369281 completed SUCCESS and PR #50
+merged as 814d19850e560470d6c09983c27ee0cab79b88e9. Worker publisher completed SUCCESS:
+`ghcr.io/vlingo-ai/livekit-gpt-live-worker@sha256:bffc3e15ea347b70ac526ff7f0e0b36631693227513093784e2fdeaefca6d3ec`.
+Operator retained old local images as vlingo-b6-rollback:api-20260926,
+vlingo-b6-rollback:edge-20260926 and vlingo-b6-rollback:worker-20260926; terminal
+success confirmed. These are image retention, not a completed rollback drill.
+Registry publication/source merge still do not establish B6 running on VPS.
+
+## Staged rollout observed (September 26; continuation September 27)
+
+All four components now use the B6 release directory mural-b6-814d198. API local
+image ID is sha256:0da1081fb93c305cf8d450a751d852a3d1209757150e00f8c7c4dff0d1132d4f;
+Edge local image ID is sha256:6c4608a721ae1283e50c3c6e5731d3ec9b7f346543ef6a61f15b8016ab955d14.
+Worker and replay use the published registry digest above. All platforms verified
+linux/amd64. Separate root-owned 0600 api.env/worker.env/edge.env copies preserve
+the previous wrappers; b6-images.yaml pins images and explicitly keeps history off.
+Environment/project/network/persistent mounts/effective command compatibility PASS.
+Initial checker incorrectly compared Compose null CMD to the running image default;
+fixed to compare effective image CMD and ENTRYPOINT, then all four passed.
+
+Migration 030/031 committed and both rows independently confirmed. Compose run
+consumed the enclosing heredoc stdin so the first trailing SQL check did not run;
+subsequent batch invocations redirect noninteractive commands from /dev/null.
+API deployed healthy/restarts 0, then Worker/replay running/restarts 0. Worker
+startup registration marker 1; both logs selected error markers 0; combined outbox
+pending 0. Edge switched with correct image/running/restarts 0. This is bounded
+observation, not proof of zero possible errors or sustained registration.
+
+External no-proxy checks: Web HTTPS 200, API health 200/ok, TLS verification 0;
+unauthenticated cursor GET returned 401/sign_in_required. No real provider calls.
+Private GHCR initially rejected pull; separately authorized temporary Mac credential
+via SSH/FIFO succeeded, exact digest matched; memory auth directory removal verified.
+No permanent Docker auth configuration changed. Runtime DB permissions, authenticated
+cursor/UI smoke, history activation and final acceptance remain pending. B6 is
+deployed with history-authority flag off, not signed off.
+
+September 27 continuation: API-container pg connection and SELECT/INSERT history,
+UPDATE history_sequence/history_authority privilege checks PASS. User confirmed
+authenticated existing-history display and refresh normal (manual observation, not
+captured HTTP pagination evidence). Separately layered b6-history-enabled.yaml now
+sets history flag true; operator command rechecked no active sessions/empty outbox,
+recreated API only, waited healthy, and printed flag ON. Preserve this third Compose
+file on later API recreation; b6-images.yaml alone intentionally disables new
+Worker-authoritative admissions. Existing session authority is not rewritten.
+No real model session was started by this rollout. New-session Worker final delivery
+and post-stop reconciliation still need bounded separately authorized acceptance.
+
+## User-scoped closure decision (September 27)
+
+User explicitly requested skipping this release's real conversation test and
+continuing B6 closure. Record real provider/new-session history delivery and its
+post-stop reconciliation NOT_RUN, not PASS. This is release-specific and does not
+establish live history durability or authorize future paid tests. Existing local
+cross-process fault evidence remains valid but is not live acceptance.
+Final external recheck after activation: Web 200, API health 200/ok, TLS verification
+0, unauthenticated cursor 401/sign_in_required. Final operator runtime snapshot and
+documentation commit/review remain pending at this checkpoint.
+
+Final operator snapshot confirmed all four exact candidate image IDs, running,
+restarts 0, Worker history flag ON and durable_control_pending=0. Together with
+the previous explicit API health/DB privilege, registration and manual history checks,
+B6 closes within the user's approved scope. Real conversation acceptance remains
+NOT_RUN. No new reusable rule beyond the effective-CMD/stdin/credential-cleanup
+findings above; next planned iteration is B7. Documentation-only closure needs no
+additional server deployment; merged code/runtime revisions are unchanged.

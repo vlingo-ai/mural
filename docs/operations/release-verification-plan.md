@@ -17,6 +17,20 @@
 
 ## 1. 复盘：把一次性经验转为发布规则
 
+2026-09-27 B6 部署续办（[证据](../../verification/2026-09-26-b6-history-delivery.md#staged-rollout-observed-september-26-continuation-september-27)）：
+030/031 迁移、API→Worker/replay→Edge 切换已确认；API healthy、启动注册、队列0、
+公网 TLS/健康与未登录 cursor 401 通过。历史写入开关仍关闭，登录态补取、运行时 DB 权限和签结待办。
+复用规则：Compose null 命令按镜像默认值解析后比较；heredoc 批处理内不需交互的命令须隔离 stdin，
+防止吞掉后续验证。临时 GHCR 内存凭据须独立核验清理结果。无付费调用，不将部署等同验收。
+后续：API 容器数据库连接/历史所需权限 PASS，用户确认旧历史加载及刷新正常；
+独立开关覆盖文件启用后 API healthy、flag ON 已核对。新会话 Worker 最终历史交付及停止后核对
+仍待单独授权的有界真实测试；保留部署、启用与验收三个状态的区别。
+2026-09-27 用户随后明确跳过本次真实会话测试并要求 B6 收尾：该项记 NOT_RUN，
+仅限本轮，不把本地故障测试或旧历史正常显示写成新会话线上交付通过。
+启用后公网 Web/health 200、TLS 验证0、未登录 cursor 401 再验通过；最终运行快照及文档签结待办。
+最终快照已核对：四组件镜像一致/running/重启0、flag ON、队列0。按本轮用户批准范围签结 B6，
+真实会话仍 NOT_RUN，下一步 B7；已复查，无上述规则之外的新规则。文档归档无需再次部署服务。
+
 2026-09-26 B6 媒体门禁修复（[记录](../../verification/2026-09-26-b6-history-delivery.md#media-redaction-regression-and-preflight)）：
 最新候选 Linux 媒体 15 PASS/9 FAIL，非空脱敏地址错误阻止原生 ICE 证据回退。
 测试工具改为验证地址格式、双向端口/协议及证据一致性，不猜测回环地址；新增 13 项回归，

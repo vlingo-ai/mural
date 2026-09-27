@@ -59,7 +59,23 @@ Rollback must restore both API and route configuration after the same drain chec
 budgets cannot be reused with old code. Non-billable health/metadata checks do not establish model
 access or quality; actual provider calls need separate bounded authorization.
 
-## B6 candidate rollout (not deployed)
+## B6 staged deployment (enabled; live test skipped)
+
+September 27 status: Mural PR #50 merged as `814d198`, Worker PR #19 as `422a481`;
+migrations 030/031 and API→Worker/replay→Edge rollout completed. Release directory:
+`/home/vlingo-admin/releases/mural-b6-814d198/deploy/phase-5-5b`.
+Use separate `api.env`, `worker.env`, `edge.env` (root 0600), never interchange them.
+All commands require `compose.yaml` plus `b6-images.yaml`; API additionally requires
+`b6-history-enabled.yaml` to retain the enabled history flag. Omitting that third
+file intentionally turns new-session Worker authority off. Gateway was not changed.
+Old component release directories/configuration, rollback image tags and encrypted
+backup are retained; see the evidence for exact IDs. Do not restore an entire old
+stack: rollback only affected services after draining sessions and both queues.
+The user explicitly skipped this release's real conversation test. Record NOT_RUN,
+not PASS; do not inherit this decision for future releases. Final non-billable
+runtime snapshot passed: all four expected images running, restarts 0, flag ON,
+combined outbox pending 0. B6 closes within this user-approved non-billable scope;
+real new-session history delivery is NOT_RUN, not live-accepted.
 
 B6 changes visible history: selected detail catches up automatically, reports pending
 sync without failing the live call, and clears immediately on sign-out. API migration
