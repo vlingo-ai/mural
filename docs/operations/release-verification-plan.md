@@ -17,6 +17,16 @@
 
 ## 1. 复盘：把一次性经验转为发布规则
 
+2026-09-27 B7 第一轮（[证据](../../verification/2026-09-27-b7-release-verification.md)）：
+容器检查由打印状态改为严格退出门禁，验证服务身份、running、异常状态、重启数和必需 health。
+本地8/8故障/CLI用例、shell语法与差异检查通过；已有 Contracts 测试发现纳入新增用例。
+复用规则：检查命令成功不等于目标健康；无 health 的 Worker running 不可替代实时注册证明。
+仅本地候选，未 CI/部署；注册新鲜度、manifest、统一发布和恢复演练仍待办，不签结 B7。
+第二轮：新增 manifest 格式门禁，区分 registry digest 与本地 image ID，拒绝浮动标签、
+缺字段和未知字段；新增5项，脚本全套85/85 PASS。格式通过不代表镜像存在、CI成功或运行版本一致。
+源码核查发现 SDK 根健康端点及 /worker 信息不足以证明实时注册，不将其冒充新鲜注册门禁；
+manifest 尚未接入总验证，Worker就绪适配/CI发布/恢复演练仍待实施。无部署或付费测试。
+
 2026-09-27 B6 部署续办（[证据](../../verification/2026-09-26-b6-history-delivery.md#staged-rollout-observed-september-26-continuation-september-27)）：
 030/031 迁移、API→Worker/replay→Edge 切换已确认；API healthy、启动注册、队列0、
 公网 TLS/健康与未登录 cursor 401 通过。历史写入开关仍关闭，登录态补取、运行时 DB 权限和签结待办。

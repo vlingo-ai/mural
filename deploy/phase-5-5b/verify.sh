@@ -31,8 +31,10 @@ assert all(body["operations"][name]["reason"] == "backend_disabled" for name in 
 for service_name in database model-gateway api agent-worker agent-worker-replay edge; do
   container_id=$(compose ps -q "$service_name")
   [ -n "$container_id" ] || { printf 'verify: %s container is absent\n' "$service_name" >&2; exit 1; }
-  docker inspect --format '{{.Name}} {{.Config.Image}} {{.State.Status}} {{.State.Health.Status}}' "$container_id" 2>/dev/null || \
-    docker inspect --format '{{.Name}} {{.Config.Image}} {{.State.Status}}' "$container_id"
+  docker inspect "$container_id" 2>/dev/null | python3 ./check-container.py "$service_name" || {
+    printf 'verify: container state gate failed\n' >&2
+    exit 1
+  }
 done
 
 compose exec -T agent-worker-replay python -m mural_livekit.outbox_status --require-empty || {
