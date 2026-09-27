@@ -2,6 +2,20 @@
 
 ## Current summary (supersedes earlier pending checkpoint wording)
 
+Latest gate validation: operator confirms authenticated candidate gate PASS.
+VPS terminal confirms same CLI under empty Docker config fails and shell &&
+does not execute the simulated deployment marker: PASS; temporary directory
+removed. Real service switch was not attempted. Exact expired-token test remains
+NOT_RUN. Candidate 5c9ebcc PR53 CI: Checks36305592786, Contracts36305592608,
+Secrets36305592599 and lightweight Android gate all PASS. Web/deployment ran;
+server/Swift/Android/emulator scope-skipped. Host-side gate still staged rather
+than installed in release directory; final evidence commit needs its own CI.
+
+Registry-gate follow-up full local Python suite: 104/104 PASS, diff check PASS.
+Candidate 5c9ebcc pushed for PR #53; CI pending, gate staged on VPS for read-only
+validation, not yet part of a completed deployed gate acceptance. No UI change,
+runtime image rebuild or new provider call required for this host-side script.
+
 Follow-up implementation: existing deployment is operator-composed, not a unified
 automatic wrapper. Added candidate check-private-registry.py remote-access gate
 for immutable API/Worker references, no raw responses, bounded timeout and
