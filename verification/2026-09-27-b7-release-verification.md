@@ -1,5 +1,18 @@
 # B7 release verification — September 27
 
+## Final host-side installation checkpoint
+
+Operator confirms installed release-directory check-private-registry.py returns
+PASS using the dedicated credential. Positive result is operator-attested;
+negative same-CLI test and shell failure propagation were terminal-observed.
+This closes the bounded credential gate implementation/installation evidence:
+credential creation/permissions, successful private digest reads, no-credential
+denial, fail-closed CLI chaining, expiry and rotation owner all recorded.
+Actual token expiry/revocation is NOT_RUN; no generic automatic deployment
+wrapper or automatic admission lock is claimed. No new media test performed.
+Latest evidence head 6117bb8 has deployment/contracts/secrets gates PASS while
+Web CI was still pending at this checkpoint; do not inherit prior-head CI.
+
 ## Current summary (supersedes earlier pending checkpoint wording)
 
 Latest gate validation: operator confirms authenticated candidate gate PASS.
