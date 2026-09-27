@@ -63,8 +63,5 @@ compose exec -T agent-worker-replay python -m mural_livekit.outbox_status --requ
   exit 1
 }
 
-if compose logs --since 15m api model-gateway agent-worker agent-worker-replay 2>&1 | grep -E 'OPENAI_API_KEY=|LIVEKIT_API_SECRET=|MURAL_CONTROL_OUTBOX_KEY=|Authorization: Bearer |DATABASE_URL=' >/dev/null; then
-  printf 'verify: possible secret-bearing log line detected\n' >&2
-  exit 1
-fi
+python3 ./check-logs.py "$env_file"
 printf 'verify: PASS (public TLS, health, disabled audio capability, containers, registered transport, log pattern scan)\n'

@@ -1,5 +1,19 @@
 # B7 release verification — September 27
 
+## Ninth iteration: CI evidence and fail-closed log collection
+
+[Worker CI 36299585325](https://github.com/vlingo-ai/model-gateway/actions/runs/36299585325)
+on `1364c51` passed all three jobs: Gateway 272 tests, Worker 69 tests, both image
+checks including network-none readiness harness PASS. This remains synthetic SDK,
+not actual Cloud registration. Mural #52 actually skips Swift/Android/emulator;
+Android summary passes. Initial Mural CI result does not cover the next change.
+
+Review found old shell log pipeline hid Docker log collection failures. Replaced
+with timeout/nonzero fail-closed collector, scanning both captured streams and
+printing fixed status only. Three new regression tests; local script suite 98/98,
+shell syntax and whitespace PASS. Pattern scan is not exhaustive secret audit.
+Updated candidate CI pending. No deployment, image publication or paid call.
+
 ## Eighth iteration: stage-scoped CI reconfirmation
 
 User reiterated separate Web/iOS/Android execution. Current ci-stage.json is

@@ -55,6 +55,11 @@ CI 增加 network=none、只读、非 root 容器运行就绪探针。脚本以�
 B7 发布文件改动选择 Web、server、deployment，Swift/Android/Android release 均不选择。
 新增三阶段回归，脚本95/95 PASS。Gateway/Worker 仓仅运行其服务端与镜像测试，无原生客户端任务。
 保留轻量 scope/汇总必需检查；NOT_APPLICABLE 不记为原生测试通过，不使用 all 手动覆盖。
+第九轮：Worker `1364c51` 的 CI 36299585325 全绿：Gateway272项、Worker69项及
+network-none Linux 容器就绪脚本 PASS。Mural #52 的 Android构建/模拟器、Swift确实跳过；
+轻量 Android gate通过。复查修复日志读取失败被 grep 管道掩盖的旧问题：非零/超时阻断，
+只返回固定原因、不输出原始日志；新增3项，本地98/98及shell语法 PASS，修复提交 CI 待验。
+日志模式扫描不是完整保密审计；此轮未部署、未发布镜像、未付费调用。
 
 2026-09-27 B6 部署续办（[证据](../../verification/2026-09-26-b6-history-delivery.md#staged-rollout-observed-september-26-continuation-september-27)）：
 030/031 迁移、API→Worker/replay→Edge 切换已确认；API healthy、启动注册、队列0、
