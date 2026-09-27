@@ -12,6 +12,11 @@
 [现有 runbook](../../deploy/phase-5-5b/README.md)及 AGENTS.md。
 本方案不追溯增加本轮 Gate 7 门槛，不沿用其临时豁免到下次发布，不改变语言、定价或供应商范围。
 当前英语 Web staging 是首个应用对象；iOS、Android 和新供应商逐步接入相同证据协议。
+2026-09-27优先级决定：先Web MVP功能/UI调整，再验证候选、小范围内测和客户试用上线；
+Web已实际上线开放后才启动iOS，Android更后。完整多供应商实现后置。具体执行见总计划W0–W7。
+MVP须先确认功能/交互范围；最终相关改动后验核心流程、错误/恢复/权限状态及历史/结算，
+自动化覆盖优先，真实供应商调用另行授权。内测通过不自动等于客户开放获批或生产就绪，
+W5仍须通过C2/C5及隐私/支持/预算门槛；本轮不豁免维护中断风险、不启用支付。
 总计划的 B1–B7 是 Phase 5.5B 后、5.5C 前的加固任务，可与 Gate 7 收尾并行；
 本方案的 A1–A5 则是自动化实施工作包，两者都不是新增 Phase 编号，不改变原 Gate 7 范围。
 
@@ -707,6 +712,8 @@ PR #43 未合并、未部署，证据归集提交的最新 CI 需另行核对，
 
 | 日期 / 范围 | 版本或证据 | 结果与限制 | 本方案沉淀 / 后续 |
 | --- | --- | --- | --- |
+| 2026-09-27：阶段任务交接 | [5.5B交接报告](../../verification/2026-09-27-phase-5-5b-handover.md) | B7已合并；原Gate7通过/豁免/限制汇总交总控审阅；5.5C先规划Web MVP，不等于开放内测 | 阶段交接必须带当前镜像、权限/费用边界、未决项与新优先级；不继承旧豁免或旧费用额度 |
+| 2026-09-27：Web优先计划调整 | [决定与核查](../../verification/2026-09-27-web-first-roadmap.md)；总计划W0–W7 | 文档同步；Web MVP→综合验收→内测→客户试用上线→iOS，未开发/部署/付费测试 | MVP范围先批准；最后相关变更后验候选；客户开放不自动豁免C2/C5；原生CI按阶段延后 |
 | 2026-09-27：B7部署、恢复与回滚 | [证据](../../verification/2026-09-27-b7-release-verification.md)、[manifest](../../verification/b7-release-manifest.json)；API7483041、Worker d4f4514 | 六服务总验证、隔离恢复58表行数、B7→B6→B7非计费演练PASS；registry无凭据拒绝PASS；真实媒体/过期PAT/部署拒绝注入未验 | 可选OCI标签与基础身份分离；恢复/行数/权限分别判定；临时私有数据清理完成，保留加密备份；整体B7待边界复核及文档审查 |
 | 2026-09-26：B4 staging 部署 | [第八轮](../../verification/2026-09-26-b4-recovery-protocol.md#第八轮授权合并与-staging-部署)；主线 `8fdfa62` | 最终 CI、异机备份校验、API→Edge 切换及 verify PASS，待投递 0；版本一致、重启 0；历史 GET 200，登录态新接口随机 UUID 查询 200/session=null；文档签结待办；无付费测试 | 持久锁定镜像覆盖文件；代理边界与鉴权分开验证；上线 smoke 与隔离权限/closed 测试分别记录，不相互替代 |
 | 2026-09-26：B4 草稿 PR / Edge 上下文 | [第七轮](../../verification/2026-09-26-b4-recovery-protocol.md#第七轮草稿-pr-与镜像上下文修复)、[PR #44](https://github.com/vlingo-ai/mural/pull/44) | 首轮 Edge Docker 构建 FAIL；修复 `4408893` 云端 Web、双镜像、Compose、API、契约/扫描及汇总 PASS；文档归集提交自身 CI 另验，未部署 | 客户端新增跨目录共享依赖时必须同步 Docker COPY、WORKDIR 与 dist 路径；本地构建不替代镜像验证 |

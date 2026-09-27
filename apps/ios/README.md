@@ -4,6 +4,8 @@
 [三端统一协议方案](../../docs/reviews/2026-09-23-cross-client-multi-provider-design.md)。
 
 当前代码仍为 SwiftUI、原生 WebRTC/SDP 与本地学习 archive；不是已完成 LiveKit 迁移的版本。
+2026-09-27优先级：先完成Web MVP功能/UI、验证和小范围内测，并实际上线开放客户试用，
+之后才启动Phase 6 iOS开发。此前不并行推进原生迁移或切换iOS CI阶段，保留既有兼容。
 Phase 6 使用 LiveKit Swift SDK、统一会话协调规则及 JSON fixtures；音频会话、来电、
 后台、权限和设备切换由 iOS 适配器负责。不得直接照搬 Web 的检测事件/超时。
 

@@ -2,7 +2,12 @@
 
 The current browser client follows the [accepted baseline](../../docs/web-ios-model-gateway-plan.md).
 English-only LiveKit staging is deployed but Gate 7 is not accepted. Mandarin and Cantonese remain
-coming later. Shared recovery fixtures and durable Worker history delivery are planned, not complete.
+coming later. B4–B7 delivered recovery fixtures, durable history and non-billable release
+verification within their documented limits; current real-provider acceptance is separate.
+September 27 priority: finish English Web MVP functionality and UI/UX before small-group
+testing, then launch customer trials after release gates. iOS starts only after Web is
+actually launched and open to customers. MVP scope/design must be agreed before coding;
+full multi-provider expansion remains deferred. See baseline W0–W7.
 The browser never receives
 a Model Gateway or OpenAI credential. Google Identity Services can exchange a nonce-bound ID token
 for a short-lived Mural bearer when `VITE_GOOGLE_CLIENT_ID` is configured. The local development

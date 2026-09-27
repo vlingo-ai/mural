@@ -1,6 +1,9 @@
 # Mural for Android
 
 Scope: existing upstream-compatible native implementation, not a LiveKit-migrated release.
+September 27 priority: Web MVP → validation → small-group testing → Web customer
+trial launch → iOS Phase 6 → Android. Do not start Android migration or heavy
+platform CI as part of the current Web iteration; preserve existing compatibility.
 The [accepted plan](../../docs/web-ios-model-gateway-plan.md) schedules LiveKit Android SDK and
 the shared Mural session protocol after iOS Phase 6. Eight retained language modules are not eight
 currently approved product languages. Current development/testing is English-only; Mandarin and
