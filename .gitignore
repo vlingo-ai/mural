@@ -26,6 +26,7 @@ site/.openai/hosting.json
 # Local planning and generated review artifacts are outside the public source release.
 plan/
 verification/*.json
+!verification/b7-release-manifest.json
 marketing/screenshots/*.zip
 marketing/demo/
 .swiftpm/
